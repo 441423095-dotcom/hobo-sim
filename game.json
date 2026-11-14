@@ -1,0 +1,7 @@
+{
+  "name": "流浪汉模拟器",
+  "version": "0.1.0",
+  "entry": "index.html",
+  "engine": "phaser 4.2.1",
+  "orientation": "any"
+}
