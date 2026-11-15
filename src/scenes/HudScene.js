@@ -2845,8 +2845,10 @@ export class HudScene extends Phaser.Scene {
 
       block.icon.setTint(current ? 0xbff2a8 : locked ? 0x5a554c : 0xf2ead5);
       block.label.setColor(current ? '#a8e08a' : locked ? '#6b6257' : '#f2ead5');
+      const need = DISTRICTS[id].unlockAfter;
+
       block.status
-        .setText(current ? '我在这里' : locked ? '还没解锁' : '走过去就行')
+        .setText(current ? '我在这里' : locked ? (need ? `先去${DISTRICTS[need].name}` : '还没解锁') : '走过去就行')
         .setColor(current ? '#8fd07a' : locked ? '#5a554c' : UI.creamDim);
 
       block.lock.setVisible(locked).setTint(0x8a8070);
@@ -2857,7 +2859,7 @@ export class HudScene extends Phaser.Scene {
     this.mapRing.setPosition(here.x, here.y);
     this.mapHereTag.setPosition(here.x, here.y - 40);
 
-    this.mapSub.setText('你的城市 · 顺着街道一直走');
+    this.mapSub.setText('去过一个街区，就会解开它后面的');
     this.mapHint.setText('点一个街区，看看怎么走');
   }
 
@@ -2933,7 +2935,10 @@ export class HudScene extends Phaser.Scene {
 
     if (!street.unlockedList().includes(id)) {
       haptic('refuse');
-      this.mapHint.setText(`${DISTRICTS[id].name}还锁着`);
+      const need = DISTRICTS[id].unlockAfter;
+      this.mapHint.setText(
+        need ? `${DISTRICTS[id].name}还锁着 · 先去${DISTRICTS[need].name}` : `${DISTRICTS[id].name}还锁着`
+      );
       return;
     }
 

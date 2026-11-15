@@ -1747,28 +1747,37 @@ export class StreetScene extends Phaser.Scene {
     }
 
     const strip = this.currentStrip();
-    if (strip && strip.district !== this.district) this.district = strip.district;
+    if (strip && strip.district !== this.district) {
+      this.district = strip.district;
+
+      // Walking into a district is what unlocks the ones hanging off it.
+      this.registerVisit();
+    }
 
     this.edgeHint = '';
     if (!strip) return;
 
+    const unlocked = this.unlockedList();
     const reach = 150;
     const toX = px - strip.x0;
     const toY = py - strip.y0;
 
-    if (toX < reach) {
-      const id = neighbourOf(strip.id, 'west');
-      if (id) this.edgeHint = `⬅️ 前往${DISTRICTS[id].name}`;
-    } else if (toX > STREET_WIDTH - reach) {
-      const id = neighbourOf(strip.id, 'east');
-      if (id) this.edgeHint = `➡️ 前往${DISTRICTS[id].name}`;
-    } else if (toY < reach) {
-      const id = neighbourOf(strip.id, 'north');
-      if (id) this.edgeHint = `⬆️ 前往${DISTRICTS[id].name}`;
-    } else if (toY > STREET_HEIGHT - reach) {
-      const id = neighbourOf(strip.id, 'south');
-      if (id) this.edgeHint = `⬇️ 前往${DISTRICTS[id].name}`;
-    }
+    const hintFor = (dir, arrow) => {
+      const id = neighbourOf(strip.id, dir);
+      if (!id) return '';
+
+      if (unlocked.includes(id)) return `${arrow} 前往${DISTRICTS[id].name}`;
+
+      const need = DISTRICTS[id].unlockAfter;
+      if (!need) return `🔒 ${DISTRICTS[id].name} 锁着`;
+
+      return `🔒 ${DISTRICTS[id].name} 锁着 · 先去过${DISTRICTS[need].name}`;
+    };
+
+    if (toX < reach) this.edgeHint = hintFor('west', '⬅️');
+    else if (toX > STREET_WIDTH - reach) this.edgeHint = hintFor('east', '➡️');
+    else if (toY < reach) this.edgeHint = hintFor('north', '⬆️');
+    else if (toY > STREET_HEIGHT - reach) this.edgeHint = hintFor('south', '⬇️');
   }
 
   // --------------------------------------------------------------- gameplay
