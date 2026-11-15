@@ -80,6 +80,7 @@ export function buildWorldArt(scene) {
   canvasTexture(scene, 'shack', 86, 64, drawShack);
   canvasTexture(scene, 'dumpster', 74, 54, drawDumpster);
   canvasTexture(scene, 'manhole', 36, 20, drawManhole);
+  canvasTexture(scene, 'brazier', 34, 30, drawBrazier);
   canvasTexture(scene, 'backdoor', 40, 56, drawBackdoor);
 
   // Street furniture: crossings, lights, parked cars, works and awnings.
@@ -1548,6 +1549,42 @@ function drawTent(ctx, w, h) {
   ctx.fillRect(w * 0.02, h * 0.66, 22, 4);
   ctx.fillStyle = '#4a3a26';
   ctx.fillRect(w * 0.9, h * 0.7, 18, 24);
+}
+
+function drawBrazier(ctx, w, h) {
+  // A cut-down oil drum with ash in the bottom and a rusty rim. Cold.
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(w / 2, h - 3, w / 2 - 3, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#2f3236';
+  ctx.beginPath();
+  ctx.moveTo(6, 8);
+  ctx.lineTo(w - 6, 8);
+  ctx.lineTo(w - 9, h - 4);
+  ctx.lineTo(9, h - 4);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#3e444a';
+  ctx.fillRect(8, 12, 4, h - 18);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(w - 14, 12, 4, h - 18);
+
+  // The rim, and last night's ash inside it.
+  ctx.fillStyle = '#4a5058';
+  ctx.beginPath();
+  ctx.ellipse(w / 2, 8, w / 2 - 6, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#1c1b18';
+  ctx.beginPath();
+  ctx.ellipse(w / 2, 8, w / 2 - 9, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(138,90,58,0.45)';
+  ctx.fillRect(9, h - 12, 6, 5);
+  ctx.fillRect(w - 16, 16, 5, 7);
 }
 
 function drawManhole(ctx, w, h) {

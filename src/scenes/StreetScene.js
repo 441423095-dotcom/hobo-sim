@@ -539,16 +539,29 @@ export class StreetScene extends Phaser.Scene {
     this.time.delayedCall(700, () => this.announceGoals());
   }
 
-  /// Where somebody has left a fire burning: under the bridge in the alley, in
-  /// the corners of the black street, by the tent and behind the park's trees.
-  /// Anybody can stand at one and get the shiver out of their bones.
+  /// Something edible out of a bin: a bag of snacks, half a bottle of wine.
+  eatJunk(id) {
+    const item = JUNK_ITEMS[id];
+    if (!item || !item.eat || !this.run) return false;
+    if ((this.run.items[id] || 0) <= 0) return false;
+
+    this.run.items[id] -= 1;
+    if (item.eat.hunger) this.run.hunger = Math.min(HUNGER_MAX, this.run.hunger + item.eat.hunger);
+    if (item.eat.energy) this.run.energy = Math.min(ENERGY_MAX, this.run.energy + item.eat.energy);
+
+    this.refreshBagCount();
+    this.floatText(this.player.x, this.player.y - 46, `${item.name} · ${item.use}`, '#a8d98a');
+    playSfx('eat');
+    haptic('eat');
+    return true;
+  }
+
+  /// The corners where a fire can be lit. There are only a couple of them, and
+  /// they are cold until somebody puts a flame to them.
   buildBraziers() {
     const spots = [
-      { district: 'alley', x: 140, y: 470 },
-      { district: 'alley', x: 402, y: 900 },
       { district: 'park', x: 150, y: 640 },
-      { district: 'camp', x: 486, y: 1150 },
-      { district: 'slum', x: 470, y: 300 }
+      { district: 'camp', x: 486, y: 1150 }
     ];
 
     for (const spot of spots) {
@@ -558,17 +571,60 @@ export class StreetScene extends Phaser.Scene {
       const x = strip.x0 + spot.x;
       const y = strip.y0 + spot.y;
 
-      this.add.image(x, y, 'furn-fire').setOrigin(0.5, 1).setDepth(y);
+      this.add.image(x, y, 'brazier').setOrigin(0.5, 1).setDepth(y);
+
+      const fire = this.add
+        .image(x, y - 2, 'furn-fire')
+        .setOrigin(0.5, 1)
+        .setDepth(y + 1)
+        .setVisible(false);
+
       if (this.lightSpots) this.lightSpots.push({ x, y: y - 30 });
+
+      const state = { lit: false };
 
       this.addInteractable({
         x,
         y: y - 10,
         radius: 70,
-        label: '烤火·暖和一下',
-        use: () => this.warmUp()
+        label: '火盆',
+        use: () => this.useBrazier(state, fire)
       });
     }
+  }
+
+  useBrazier(state, fire) {
+    if (state.lit) {
+      this.warmUp();
+      return;
+    }
+
+    const hasLighter = (this.run.loot.lighter || 0) > 0;
+    const fuel = ['cardboard', 'newspaper', 'stick'].find((id) => (this.run.items[id] || 0) > 0);
+
+    if (!hasLighter && !fuel) {
+      haptic('refuse');
+      this.floatText(this.player.x, this.player.y - 46, '火盆是凉的，得有打火机或纸板', UI.creamDim);
+      return;
+    }
+
+    if (!hasLighter) {
+      this.run.items[fuel] -= 1;
+      this.refreshBagCount();
+    }
+
+    state.lit = true;
+    fire.setVisible(true);
+    this.run.energy = Math.min(ENERGY_MAX, this.run.energy + 6);
+
+    this.floatText(
+      this.player.x,
+      this.player.y - 46,
+      hasLighter ? '打火机一打，火起来了' : '塞进纸板，火起来了',
+      '#f2c46a'
+    );
+    playSfx('coin');
+    haptic('buy');
   }
 
   warmUp() {

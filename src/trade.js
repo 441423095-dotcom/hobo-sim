@@ -6,21 +6,42 @@ export const JUNK_ITEMS = {
   // 市场街：菜场边上，纸箱多，瓶子多。
   cardboard: { name: '纸板', tex: 'item-card', price: 1, place: '市场街', use: '合成材料' },
   bottle: { name: '玻璃瓶', tex: 'item-bottle', price: 2, place: '市场街', use: '只能卖钱' },
-  veg: { name: '烂菜叶', tex: 'item-veg', price: 1, place: '市场街', use: '只能卖钱' },
+  veg: { name: '烂菜叶', tex: 'item-veg', price: 1, place: '市场街', use: '能吃，垫垫肚子', eat: { hunger: 5 } },
 
   // 火车站广场：传单、易拉罐、旅客吃剩的零食。
   can: { name: '易拉罐', tex: 'item-can', price: 1, place: '火车站广场', use: '合成材料' },
   flyer: { name: '传单', tex: 'item-flyer', price: 1, place: '火车站广场', use: '只能卖钱' },
-  snack: { name: '袋装零食', tex: 'item-snack', price: 3, place: '火车站广场', use: '只能卖钱' },
+  snack: {
+    name: '袋装零食',
+    tex: 'item-snack',
+    price: 3,
+    place: '火车站广场',
+    use: '能吃，撕开就嚼',
+    eat: { hunger: 8, energy: 3 }
+  },
 
   // 后巷：电线、破布、谁没喝完的酒。
   wire: { name: '铜线', tex: 'item-wire', price: 4, place: '后巷', use: '只能卖钱' },
   cloth: { name: '破布头', tex: 'item-cloth', price: 2, place: '后巷', use: '只能卖钱' },
-  wine: { name: '半瓶酒', tex: 'item-wine', price: 5, place: '后巷', use: '只能卖钱' },
+  wine: {
+    name: '半瓶酒',
+    tex: 'item-wine',
+    price: 5,
+    place: '后巷',
+    use: '能喝，暖一阵子',
+    eat: { energy: 14, hunger: 2 }
+  },
 
   // 小公园：长椅上丢的报纸和空水瓶。
   newspaper: { name: '旧报纸', tex: 'item-news', price: 1, place: '小公园', use: '合成材料' },
-  water: { name: '矿泉水瓶', tex: 'item-water', price: 2, place: '小公园', use: '只能卖钱' },
+  water: {
+    name: '矿泉水瓶',
+    tex: 'item-water',
+    price: 2,
+    place: '小公园',
+    use: '能喝，还剩半瓶',
+    eat: { hunger: 4 }
+  },
 
   // 城郊营地：荒地上的干树枝和碎砖头。
   stick: { name: '干树枝', tex: 'item-stick', price: 1, place: '城郊营地', use: '只能卖钱' },

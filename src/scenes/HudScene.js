@@ -1928,7 +1928,7 @@ export class HudScene extends Phaser.Scene {
           kind: 'junk',
           id,
           name: JUNK_ITEMS[id].name,
-          info: '废品 · 能卖钱',
+          info: JUNK_ITEMS[id].eat ? '捡来的 · 能吃，点一下' : '废品 · 能卖钱',
           icon: JUNK_ITEMS[id].tex,
           count
         });
@@ -2032,6 +2032,15 @@ export class HudScene extends Phaser.Scene {
     if (!entry || !this.street) return;
 
     const item = entry.kind === 'loot' ? LOOT_ITEMS[entry.id] : null;
+    const junk = entry.kind === 'junk' ? JUNK_ITEMS[entry.id] : null;
+
+    if (junk && junk.eat) {
+      const ok = this.street.eatJunk ? this.street.eatJunk(entry.id) : false;
+
+      haptic(ok ? 'eat' : 'refuse');
+      this.refreshBackpack();
+      return;
+    }
 
     if (item && (item.hunger || item.energy)) {
       const ok = this.street.useLoot(entry.id);
