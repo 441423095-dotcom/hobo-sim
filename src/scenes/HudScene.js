@@ -16,7 +16,7 @@ import { SHOPS, stockFor } from '../shops.js';
 import { FURNITURE, FURNITURE_RECIPES, HOME_SLOTS, furnitureById } from '../home.js';
 import { savedInfo } from '../save.js';
 import { KING, PATRONS, kingProgress, supporters } from '../king.js';
-import { SPEAKERS, shopTalk, tradeTalk } from '../dialogue.js';
+import { SPEAKERS, shopTalk, tradeTalk, zhouLore } from '../dialogue.js';
 import { COFFEE_PRICE, COFFEE_ENERGY, KICK_WANTED } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS } from '../gamble.js';
 import { RECIPES, amountOf, materialLabel } from '../craft.js';
@@ -101,6 +101,7 @@ export class HudScene extends Phaser.Scene {
     this.helpOpen = false;
     this.winOpen = false;
     this.dialogueOpen = false;
+    this.loreOpen = false;
     this.panelOpen = false;
     this.inputLockUntil = 0;
     this.uiSettleAt = 0;
@@ -152,6 +153,7 @@ export class HudScene extends Phaser.Scene {
     this.buildHelp();
     this.buildWin();
     this.buildDialogue();
+    this.buildLore();
     this.buildOverlay();
 
     // The panels start closed: a hidden container can still answer taps, so
@@ -174,6 +176,7 @@ export class HudScene extends Phaser.Scene {
     this.setLayerInput(this.helpLayer, false);
     this.setLayerInput(this.winLayer, false);
     this.setLayerInput(this.dialogueLayer, false);
+    this.setLayerInput(this.loreLayer, false);
 
     // Closing is the corner button's job now: the little crosses in the panel
     // corners are gone, so there is nothing to catch by accident.
@@ -869,7 +872,8 @@ export class HudScene extends Phaser.Scene {
       this.goalsOpen ||
       this.helpOpen ||
       this.winOpen ||
-      this.dialogueOpen
+      this.dialogueOpen ||
+      this.loreOpen
     )
       return;
 
@@ -2347,6 +2351,168 @@ export class HudScene extends Phaser.Scene {
     if (!silent && done) done();
   }
 
+  // ------------------------------------------------------------- old Zhou's lore
+
+  buildLore() {
+    this.loreLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 5).setVisible(false);
+
+    this.loreBackdrop = this.add
+      .rectangle(0, 0, 1, 1, 0x0b0906, 0.6)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.loreBackdrop.on('pointerup', () => this.closeLore());
+
+    this.loreGfx = this.add.graphics();
+
+    this.loreTitle = this.add
+      .text(0, 0, '老周讲的事', {
+        fontFamily: FONT,
+        fontSize: '19px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0, 0);
+
+    this.loreSub = this.add
+      .text(0, 0, '点一条，听他慢慢说', {
+        fontFamily: FONT,
+        fontSize: '13px',
+        color: UI.creamDim
+      })
+      .setOrigin(0, 0);
+
+    this.loreCloseBtn = this.add
+      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .setStrokeStyle(2, UI.amber, 0.8)
+      .setInteractive();
+    this.loreCloseIcon = this.add.image(0, 0, 'icon-x');
+    this.loreCloseBtn.on('pointerup', () => this.closeLore());
+
+    this.loreLayer.add([
+      this.loreBackdrop,
+      this.loreGfx,
+      this.loreTitle,
+      this.loreSub,
+      this.loreCloseBtn,
+      this.loreCloseIcon
+    ]);
+
+    this.loreRows = [];
+
+    for (let i = 0; i < 5; i++) {
+      const bg = this.add
+        .rectangle(0, 0, 1, 1, UI.panelRow, 1)
+        .setOrigin(0, 0.5)
+        .setInteractive();
+      const label = this.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: UI.cream })
+        .setOrigin(0, 0.5);
+      const state = this.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
+        .setOrigin(1, 0.5);
+
+      const row = { bg, label, state, topic: null };
+      bg.on('pointerdown', () => this.pickLore(row));
+
+      this.loreLayer.add([bg, label, state]);
+      this.loreRows.push(row);
+    }
+  }
+
+  layoutLore() {
+    const w = this.w;
+    const pw = Math.min(w - 32, 340);
+    const ph = 80 + this.loreRows.length * 46 + 20;
+    const px = (w - pw) / 2;
+    const py = Math.max(48, (this.playH - ph) / 2);
+
+    this.loreBackdrop.setScale(w, this.h).setPosition(0, 0);
+
+    const g = this.loreGfx;
+    g.clear();
+    g.fillStyle(UI.panel, 0.97);
+    g.fillRoundedRect(px, py, pw, ph, 16);
+    g.lineStyle(2, UI.amber, 0.6);
+    g.strokeRoundedRect(px, py, pw, ph, 16);
+
+    this.loreTitle.setPosition(px + 18, py + 12);
+    this.loreSub.setPosition(px + 18, py + 40);
+    this.loreCloseBtn.setPosition(px + pw - 26, py + 26);
+    this.loreCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+
+    const rowW = pw - 28;
+    const rowX = px + 14;
+
+    this.loreRows.forEach((row, i) => {
+      const ry = py + 98 + i * 46;
+
+      row.bg.setSize(rowW, 40).setScale(1, 1).setPosition(rowX, ry);
+      row.label.setPosition(rowX + 12, ry);
+      row.state.setPosition(rowX + rowW - 12, ry);
+    });
+  }
+
+  refreshLore() {
+    const run = this.street && this.street.run ? this.street.run : null;
+    const topics = zhouLore(run);
+    const seen = (run && run.lore) || {};
+
+    this.loreRows.forEach((row, i) => {
+      const topic = topics[i];
+
+      row.topic = topic || null;
+      row.bg.setVisible(!!topic);
+      row.label.setVisible(!!topic);
+      row.state.setVisible(!!topic);
+      if (row.bg.input) row.bg.input.enabled = !!topic;
+      if (!topic) return;
+
+      row.label.setText(topic.label).setColor(seen[topic.id] ? UI.creamDim : UI.cream);
+      row.state.setText(seen[topic.id] ? '听过了' : '没听过');
+      row.bg.setFillStyle(seen[topic.id] ? UI.panelRowDim : UI.panelRow, 1);
+    });
+  }
+
+  openLore() {
+    if (this.loreOpen || this.overOpen) return;
+
+    this.loreOpen = true;
+    this.showPanel(this.loreLayer);
+    this.layoutLore();
+    this.refreshLore();
+    this.uiSettleAt = this.time.now + 320;
+    haptic('ui');
+  }
+
+  closeLore() {
+    if (this.time.now < this.uiSettleAt) return;
+    if (!this.loreOpen) return;
+
+    this.loreOpen = false;
+    this.hidePanel(this.loreLayer);
+    haptic('ui');
+  }
+
+  pickLore(row) {
+    if (!row.topic || !this.street) return;
+
+    const topic = row.topic;
+    const run = this.street.run;
+
+    run.lore = run.lore || {};
+
+    const fresh = !run.lore[topic.id];
+    run.lore[topic.id] = true;
+
+    // Listening to the old man is its own small kindness.
+    if (fresh && this.street.addFavor) this.street.addFavor('zhou', 2);
+
+    this.loreOpen = false;
+    this.hidePanel(this.loreLayer);
+
+    this.showDialogue('zhou', topic.lines);
+  }
+
   // ------------------------------------------------------------ king of hobos
 
   buildWin() {
@@ -2727,6 +2893,7 @@ export class HudScene extends Phaser.Scene {
     if (this.helpOpen) this.layoutHelp();
     if (this.winOpen) this.layoutWin();
     if (this.dialogueOpen) this.layoutDialogue();
+    if (this.loreOpen) this.layoutLore();
     this.layoutOverlay();
   }
 
@@ -3098,7 +3265,8 @@ export class HudScene extends Phaser.Scene {
       this.goalsOpen ||
       this.helpOpen ||
       this.winOpen ||
-      this.dialogueOpen
+      this.dialogueOpen ||
+      this.loreOpen
     )
       return;
     // Left half: a thumb summons the movement plate. Right half: a tap does
@@ -3216,7 +3384,8 @@ export class HudScene extends Phaser.Scene {
       this.goalsOpen ||
       this.helpOpen ||
       this.winOpen ||
-      this.dialogueOpen
+      this.dialogueOpen ||
+      this.loreOpen
     )
       return;
 
@@ -5320,6 +5489,9 @@ export class HudScene extends Phaser.Scene {
     this.dialogueOpen = false;
     this.dialogueLayer.setVisible(false);
     this.setLayerInput(this.dialogueLayer, false);
+    this.loreOpen = false;
+    this.loreLayer.setVisible(false);
+    this.setLayerInput(this.loreLayer, false);
 
     for (const pair of [
       ['begOpen', this.begLayer],
@@ -5392,6 +5564,9 @@ export class HudScene extends Phaser.Scene {
     this.dialogueOpen = false;
     this.dialogueLayer.setVisible(false);
     this.setLayerInput(this.dialogueLayer, false);
+    this.loreOpen = false;
+    this.loreLayer.setVisible(false);
+    this.setLayerInput(this.loreLayer, false);
 
     this.shown.money = null;
     this.shown.bag = null;

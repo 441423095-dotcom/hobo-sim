@@ -286,6 +286,8 @@ export class StreetScene extends Phaser.Scene {
         perfume: 0,
         charm: { cigarettes: 0, ticket: 0 },
         favor: {},
+        met: {},
+        lore: {},
         king: null,
         beggingIncome: 0,
         scavengeIncome: 0,
@@ -2942,11 +2944,15 @@ export class StreetScene extends Phaser.Scene {
     const hud = this.scene.get('Hud');
     if (!hud || !hud.showDialogue) return;
 
-    hud.showDialogue('zhou', [
-      zhouGreeting(this.run),
-      this.zhouAdviceLine(),
-      `今天的事——${lines.join('；')}`
-    ]);
+    hud.showDialogue(
+      'zhou',
+      [zhouGreeting(this.run), this.zhouAdviceLine(), `今天的事——${lines.join('；')}`],
+      null,
+      [
+        { label: '聊两句', onPick: () => hud.openLore && hud.openLore() },
+        { label: '知道了' }
+      ]
+    );
   }
 
   loadHome() {

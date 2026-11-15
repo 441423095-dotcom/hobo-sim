@@ -173,3 +173,108 @@ export function zhouGreeting(run) {
 
   return byHour[seg(run)] || '来了。';
 }
+
+// What Old Zhou will talk about when there is no work to hand out. This is where
+// the city's backstory lives: the street, its rules, the people who keep it, and
+// the ones who did not last.
+
+const LORE = [
+  {
+    id: 'street',
+    label: '这条街',
+    minDay: 1,
+    lines: [
+      '这条街没有名字，地图上就写着“市场街”。',
+      '往东是火车站，往西是城郊，中间夹着后巷和小公园。',
+      '二十年前路两边都是国营厂，后来厂子散了，人也就散了。'
+    ]
+  },
+  {
+    id: 'rules',
+    label: '街上的规矩',
+    minDay: 1,
+    lines: [
+      '要饭有要饭的规矩：谁先坐下的地儿，就是谁的。',
+      '碗摆前头，别追着人跑，追一次丢一个月的脸。',
+      '也别在同一个门口待太久，店家烦了就叫城管。'
+    ]
+  },
+  {
+    id: 'zhou',
+    label: '老周以前',
+    minDay: 1,
+    favor: 10,
+    lines: [
+      '我？以前在城东修自行车，铺子叫“老周车行”。',
+      '后来路修宽了，车都换成电的，没人再来修。',
+      '老婆走得早，儿子去了南方，说好过年回来。',
+      '帐篷边上那块地是我给你留的，别嫌偏。'
+    ]
+  },
+  {
+    id: 'police',
+    label: '城管与警察',
+    minDay: 2,
+    lines: [
+      '穿蓝马甲的不是警察，是城管，管摊子、也管睡在街上的人。',
+      '警察管偷抢。城管管你碍不碍眼。',
+      '城管来了就挪，别讲理，讲理他们更来劲。'
+    ]
+  },
+  {
+    id: 'shelter',
+    label: '收容站',
+    minDay: 2,
+    lines: [
+      '城东有个收容站，冬天才开，管一顿饭一张床。',
+      '进去要登记，出来的时候身上的东西得留一半。',
+      '真冻得受不了就去，别硬扛，硬扛的人我送走过好几个。'
+    ]
+  },
+  {
+    id: 'station',
+    label: '火车站',
+    minDay: 2,
+    lines: [
+      '车站的人一波一波：早班车七点，末班车十一点。',
+      '赶上客流高峰，一个钟头能讨到平时一天的钱。',
+      '候车室不能过夜，巡夜的会拿手电照你。'
+    ]
+  },
+  {
+    id: 'slum',
+    label: '黑街',
+    minDay: 3,
+    lines: [
+      '黑街以前是屠宰场，荒了以后剩下的人自己立了规矩。',
+      '那儿东西便宜，来路也脏；钱在那边不算钱，命更不算。',
+      '戴帽子的那个是黑街上说话算数的人，别欠他的。'
+    ]
+  },
+  {
+    id: 'king',
+    label: '谁当过王',
+    minDay: 3,
+    favor: 25,
+    lines: [
+      '这条街出过一个“王”，叫老疤。',
+      '他不用讨，坐着就有人送钱来——因为他认识所有人。',
+      '后来一个冬天他没熬过去，王位就空到现在。',
+      '想坐上去，得让这条街上的人认你，不是让碗里多点钱。'
+    ]
+  }
+];
+
+/// The few things he has to tell today: unread stories first, then the rest.
+export function zhouLore(run) {
+  const seen = (run && run.lore) || {};
+  const favor = favorOf(run, 'zhou');
+  const day = (run && run.day) || 1;
+
+  const open = LORE.filter((t) => day >= (t.minDay || 1) && favor >= (t.favor || 0));
+  const unread = open.filter((t) => !seen[t.id]);
+  const heard = open.filter((t) => seen[t.id]);
+
+  return unread.concat(heard).slice(0, 5);
+}
+
