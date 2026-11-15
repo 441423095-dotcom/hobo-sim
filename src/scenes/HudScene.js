@@ -462,7 +462,7 @@ export class HudScene extends Phaser.Scene {
 
     this.storeRows = [];
 
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 10; i++) {
       const bg = this.add
         .rectangle(0, 0, ROW_WIDTH, ROW_HEIGHT, UI.panelRow, 1)
         .setOrigin(0, 0.5)
