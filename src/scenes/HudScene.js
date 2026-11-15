@@ -89,6 +89,14 @@ function foldText(value, width, fontSize) {
   return out.join('\n');
 }
 
+/// The same fold, cut to its first line, for rows that have one line of room.
+function foldLine(value, width, fontSize) {
+  const folded = foldText(value, width, fontSize);
+  if (!folded.includes('\n')) return folded;
+
+  return `${folded.split('\n')[0].slice(0, -1)}…`;
+}
+
 export class HudScene extends Phaser.Scene {
   constructor() {
     super('Hud');
@@ -2352,10 +2360,9 @@ export class HudScene extends Phaser.Scene {
         .text(0, 0, '', {
           fontFamily: FONT,
           fontSize: '14px',
-          color: UI.cream,
-          wordWrap: { width: 280 }
+          color: UI.cream
         })
-        .setOrigin(0, 0.5);
+        .setOrigin(0, 0);
 
       this.goalsLayer.add(text);
       this.goalsRows.push(text);
@@ -2364,10 +2371,21 @@ export class HudScene extends Phaser.Scene {
 
   layoutGoalsPanel() {
     const w = this.w;
+    if (!w) return;
+
+    const playH = this.playH || this.h || 640;
     const pw = Math.min(w - 32, 340);
-    const ph = 100 + this.goalsRows.length * 24 + 16;
+    const pad = 18;
+
+    const shown = this.goalsRows.filter((row) => row.visible);
+    const rowsH = shown.reduce((sum, row) => sum + (row.height || 18) + 10, 0);
+    const subH = this.goalsSub.height || 18;
+    const top = 12 + (this.goalsTitle.height || 22) + 8;
+    const rowsTop = top + subH + 14;
+    const ph = rowsTop + rowsH + pad;
+
     const px = (w - pw) / 2;
-    const py = Math.max(44, (this.playH - ph) / 2);
+    const py = Math.max(40, (playH - ph) / 2);
 
     this.goalsBackdrop.setScale(w, this.h).setPosition(0, 0);
 
@@ -2378,14 +2396,17 @@ export class HudScene extends Phaser.Scene {
     g.lineStyle(2, UI.amber, 0.6);
     g.strokeRoundedRect(px, py, pw, ph, 16);
 
-    this.goalsTitle.setPosition(px + 18, py + 12);
-    this.goalsSub.setPosition(px + 18, py + 40);
+    this.goalsTitle.setPosition(px + pad, py + 12);
+    this.goalsSub.setPosition(px + pad, py + top);
     this.goalsCloseBtn.setPosition(px + pw - 26, py + 26);
     this.goalsCloseIcon.setPosition(px + pw - 26, py + 26).setScale(22 / 96);
 
-    this.goalsRows.forEach((row, i) => {
-      row.setPosition(px + 20, py + 100 + i * 24);
-    });
+    let y = py + rowsTop;
+
+    for (const row of shown) {
+      row.setPosition(px + pad, y);
+      y += (row.height || 18) + 10;
+    }
   }
 
   refreshGoalsList() {
@@ -2393,24 +2414,58 @@ export class HudScene extends Phaser.Scene {
     const goals = run && run.goals && run.goals.day === run.day ? run.goals.list : [];
     const kp = kingProgress(run);
 
-    this.goalsSub.setText(
-      goals.length
-        ? `第 ${run.day} 天 · 办完有赏\n王座：好感 ${kp.supporters}/5（要 ${kp.needed}） · 存款 ${kp.money}/${kp.moneyGoal}`
-        : '今天没有活'
+    const story =
+      run && run.story >= 1 && run.story <= STORY_STEPS && STORY_GOALS[run.story]
+        ? run.story
+        : 0;
+
+    const w = this.w || 320;
+    const pw = Math.min(w - 32, 340);
+    const innerW = Math.max(120, pw - 36);
+
+    this.goalsTitle.setText(story ? '第一章 · 第一天' : '老周今天的事');
+
+    const sub = [];
+
+    if (story) sub.push(`眼下：${STORY_GOALS[story].label}`);
+
+    sub.push(goals.length ? `第 ${run.day} 天 · 办完当场给赏` : '今天没有活');
+    sub.push(
+      `王座：好感 ${kp.supporters}/5（要 ${kp.needed}） · 存款 ${kp.money}/${kp.moneyGoal}`
     );
 
-    this.goalsRows.forEach((row, i) => {
-      const goal = goals[i];
+    this.goalsSub.setText(sub.map((line) => foldText(line, innerW, 13)).join('\n'));
 
-      if (!goal) {
+    // One line per job, with what it pays and how far it has got. The story
+    // step, when there is one, rides on top of the list.
+    const rows = [];
+
+    if (story) {
+      rows.push({ text: `第一步 · ${STORY_GOALS[story].label}`, colour: UI.amberBright });
+    }
+
+    for (const goal of goals) {
+      const reward = goal.reward || {};
+      const pay = reward.money ? ` · 赏 ${reward.money} 元` : '';
+
+      rows.push({
+        text: `${goal.done ? '✓' : '·'} ${goal.label}  ${goal.progress}/${goal.need}${pay}`,
+        colour: goal.done ? '#8fb27a' : UI.cream
+      });
+    }
+
+    this.goalsRows.forEach((row, i) => {
+      const entry = rows[i];
+
+      if (!entry) {
         row.setVisible(false);
         return;
       }
 
       row
         .setVisible(true)
-        .setText(`${goal.done ? '✓' : '·'} ${goal.label}  ${goal.progress}/${goal.need}`)
-        .setColor(goal.done ? '#8fb27a' : UI.cream);
+        .setColor(entry.colour)
+        .setText(foldText(entry.text, innerW, 14));
     });
   }
 
@@ -2419,8 +2474,8 @@ export class HudScene extends Phaser.Scene {
 
     this.goalsOpen = true;
     this.showPanel(this.goalsLayer);
-    this.layoutGoalsPanel();
     this.refreshGoalsList();
+    this.layoutGoalsPanel();
     this.uiSettleAt = this.time.now + 320;
     haptic('ui');
   }
@@ -3347,7 +3402,10 @@ export class HudScene extends Phaser.Scene {
     if (this.testerOpen) this.layoutTester();
     if (this.begOpen) this.layoutBegChoice();
     if (this.bagOpen) this.layoutBackpack();
-    if (this.goalsOpen) this.layoutGoalsPanel();
+    if (this.goalsOpen) {
+      this.refreshGoalsList();
+      this.layoutGoalsPanel();
+    }
     if (this.helpOpen) this.layoutHelp();
     if (this.winOpen) this.layoutWin();
     if (this.dialogueOpen) this.layoutDialogue();
@@ -3438,9 +3496,11 @@ export class HudScene extends Phaser.Scene {
     this.bagBtn.setPosition(w - 104, 75);
 
     if (this.goalBtn) {
+      const card = this.goalPanel;
+
       this.goalBtn
-        .setPosition(this.goalPanel.x, this.goalPanel.y + 27)
-        .setScale(this.goalPanel.w / 236, 1)
+        .setPosition(card.x, card.y + card.h / 2)
+        .setScale(card.w / 236, Math.max(0.01, card.h / 54))
         .setVisible(this.goalRowCount > 0);
     }
 
@@ -3459,15 +3519,15 @@ export class HudScene extends Phaser.Scene {
     this.toastText.setPosition(w / 2, Math.max(playH * 0.28, below + 36));
   }
 
-  /// The goal card: one line for the job in hand, with a thin bar under it. It
-  /// stays small on purpose — it sits over the street, and the street has to
-  /// stay readable, shops and all.
+  /// The goal card: the story step on the first day, then the job in hand, with
+  /// a thin bar under them. It stays small on purpose — it sits over the street,
+  /// and the street has to stay readable, shops and all.
   layoutGoals() {
     const x = 12;
     const y = 172;
     const w = Math.min(this.w - 24, 236);
     const rows = this.goalRowCount;
-    const h = rows > 0 ? 54 : 0;
+    const h = rows > 0 ? 34 + rows * 19 + 8 : 0;
 
     this.goalPanel = { x, y, w, h };
     this.goalBottom = h > 0 ? y + h : 0;
@@ -3489,8 +3549,8 @@ export class HudScene extends Phaser.Scene {
     if (this.goalBtn) {
       this.goalBtn
         .setVisible(true)
-        .setPosition(x, y + 27)
-        .setScale(w / 236, 1);
+        .setPosition(x, y + h / 2)
+        .setScale(w / 236, h / 54);
     }
 
     g.fillStyle(0x1a1611, 0.8);
@@ -3508,7 +3568,7 @@ export class HudScene extends Phaser.Scene {
         return;
       }
 
-      row.setPosition(x + 14, y + 36);
+      row.setPosition(x + 14, y + 34 + i * 19);
     });
 
     const barW = w - 22;
@@ -3517,16 +3577,25 @@ export class HudScene extends Phaser.Scene {
     this.goalFill.setPosition(x + 11, y + h - 8);
   }
 
+  /// How wide a line on the goal card may run before it has to be cut short.
+  goalTextWidth() {
+    const w = Math.min((this.w || 300) - 24, 236);
+    return Math.max(80, w - 26);
+  }
+
   goalsSignature(run) {
-    if (run && run.story >= 1 && run.story <= STORY_STEPS) return `story#${run.story}`;
+    if (!run) return 'none#0';
 
-    if (!run || !run.goals || run.goals.day !== run.day) {
-      return `none#${run ? run.day : 0}`;
-    }
+    const story = run.story >= 1 && run.story <= STORY_STEPS ? run.story : 0;
+    const goals = run.goals && run.goals.day === run.day ? run.goals.list : [];
 
-    return `${run.day}|${run.goals.list
+    const parts = goals
       .map((goal) => `${goal.kind}${goal.progress}/${goal.need}${goal.done ? 'd' : ''}`)
-      .join(',')}`;
+      .join(',');
+
+    // The story step rides on the card too, so a change of either has to
+    // redraw it.
+    return `${run.day}|${story}|${parts}`;
   }
 
   refreshGoals() {
@@ -3535,72 +3604,69 @@ export class HudScene extends Phaser.Scene {
 
     this.shown.goals = this.goalsSignature(run);
 
-    // The first day is the story's, not Old Zhou's list.
-    const story = run ? run.story || 0 : 0;
+    const story =
+      run && run.story >= 1 && run.story <= STORY_STEPS && STORY_GOALS[run.story]
+        ? run.story
+        : 0;
 
-    if (story >= 1 && story <= STORY_STEPS) {
-      const info = STORY_GOALS[story];
+    const active = goals.find((goal) => !goal.done) || goals[goals.length - 1] || null;
 
-      this.goalRowCount = 1;
-      this.goalTitle.setText('第一天');
-      this.goalCount.setText(`${story}/${STORY_STEPS}`);
+    // The first day the story leads, but Old Zhou's jobs still count, so both
+    // ride on the card: the step on top, the job that is being counted under it.
+    const lines = [];
 
-      this.goalRows.forEach((row, i) => {
-        if (i > 0) {
-          row.setVisible(false);
-          return;
-        }
+    if (story) lines.push({ text: STORY_GOALS[story].label, colour: UI.amberBright });
 
-        row
-          .setVisible(true)
-          .setText(info ? info.label : '')
-          .setColor(UI.cream);
+    if (active) {
+      lines.push({
+        text: `${active.label}  ${active.progress}/${active.need}`,
+        colour: active.done ? '#8fb27a' : UI.cream
       });
-
-      this.layoutGoals();
-
-      const barW = this.goalBarW || 0;
-      const frac = (story - 1) / STORY_STEPS;
-
-      this.goalFill.setVisible(true).setScale(Math.max(0.02, (barW * frac) / 100), 1);
-      this.goalFill.fillColor = UI.amberBright;
-
-      if (this.w) this.layoutFloaters(this.w, this.playH);
-      return;
     }
 
-    if (!goals.length) {
-      this.goalRowCount = 0;
+    this.goalRowCount = lines.length;
+
+    if (!lines.length) {
       this.layoutGoals();
       return;
     }
 
-    const doneCount = goals.filter((goal) => goal.done).length;
-    const active = goals.find((goal) => !goal.done) || goals[goals.length - 1];
+    this.goalTitle.setText(story ? '老周 · 第一天' : `老周 · 第 ${run.day} 天`);
 
-    this.goalRowCount = 1;
-    this.goalTitle.setText(`老周 · 第 ${run.day} 天`);
-    this.goalCount.setText(`${doneCount}/${goals.length}`);
+    if (story) {
+      this.goalCount.setText(`剧情 ${story}/${STORY_STEPS}`);
+    } else {
+      const doneCount = goals.filter((goal) => goal.done).length;
+      this.goalCount.setText(`${doneCount}/${goals.length}`);
+    }
+
+    const width = this.goalTextWidth();
 
     this.goalRows.forEach((row, i) => {
-      if (i > 0) {
+      const line = lines[i];
+
+      if (!line) {
         row.setVisible(false);
         return;
       }
 
       row
         .setVisible(true)
-        .setText(`${active.label}  ${active.progress}/${active.need}`)
-        .setColor(active.done ? '#8fb27a' : UI.cream);
+        .setColor(line.colour)
+        .setText(foldLine(line.text, width, 14));
     });
 
     this.layoutGoals();
 
     const barW = this.goalBarW || 0;
-    const frac = active.done ? 1 : Math.max(0.03, active.progress / active.need);
+    const frac = active
+      ? active.done
+        ? 1
+        : Math.max(0.03, active.progress / Math.max(1, active.need))
+      : Math.max(0.03, (story - 1) / STORY_STEPS);
 
     this.goalFill.setVisible(true).setScale(Math.max(0.02, (barW * frac) / 100), 1);
-    this.goalFill.fillColor = active.done ? UI.good : UI.amberBright;
+    this.goalFill.fillColor = active && active.done ? UI.good : UI.amberBright;
 
     if (this.w) this.layoutFloaters(this.w, this.playH);
   }
@@ -6374,6 +6440,12 @@ export class HudScene extends Phaser.Scene {
     if (goalSig !== this.shown.goals) {
       this.shown.goals = goalSig;
       this.refreshGoals();
+
+      // A job finished while the list is open should tick over in place.
+      if (this.goalsOpen) {
+        this.refreshGoalsList();
+        this.layoutGoalsPanel();
+      }
     }
 
     const edge = street.getEdgeHint ? street.getEdgeHint() : '';

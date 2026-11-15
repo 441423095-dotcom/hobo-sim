@@ -3196,6 +3196,11 @@ export class StreetScene extends Phaser.Scene {
     if (roll < 0.42) {
       run.money += 2;
       run.beggingIncome += 2;
+
+      // Money off the pavement is begging income all the same, so it counts
+      // towards the day's list like a coin in the bowl does.
+      this.progressGoal('beg', 2);
+
       this.floatText(ped.sprite.x, ped.sprite.y - 44, '掉了两块钱', UI.gold);
       playSfx('coin');
       haptic('coin');
