@@ -4,8 +4,8 @@
 // of being told about it, so a restarted street needs no rewiring.
 
 import { registerIcons } from '../icons.js';
-import { haptic } from '../haptics.js';
-import { playSfx } from '../audio.js';
+import { haptic, setHapticsEnabled, hapticsEnabled } from '../feedback.js';
+import { playSfx, setAudioMuted, audioMuted } from '../audio.js';
 import { layoutFor } from '../layout.js';
 import { FOODS } from '../food.js';
 import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
@@ -93,6 +93,10 @@ export class HudScene extends Phaser.Scene {
     this.stealChoiceOpen = false;
     this.peddleOpen = false;
     this.testerOpen = false;
+    this.begOpen = false;
+    this.bagOpen = false;
+    this.goalsOpen = false;
+    this.helpOpen = false;
     this.panelOpen = false;
     this.inputLockUntil = 0;
     this.uiSettleAt = 0;
@@ -138,6 +142,10 @@ export class HudScene extends Phaser.Scene {
     this.buildStealChoice();
     this.buildPeddle();
     this.buildTester();
+    this.buildBegChoice();
+    this.buildBackpack();
+    this.buildGoals();
+    this.buildHelp();
     this.buildOverlay();
 
     // The panels start closed: a hidden container can still answer taps, so
@@ -154,6 +162,10 @@ export class HudScene extends Phaser.Scene {
     this.setLayerInput(this.stealChoiceLayer, false);
     this.setLayerInput(this.peddleLayer, false);
     this.setLayerInput(this.testerLayer, false);
+    this.setLayerInput(this.begLayer, false);
+    this.setLayerInput(this.bagLayer, false);
+    this.setLayerInput(this.goalsLayer, false);
+    this.setLayerInput(this.helpLayer, false);
 
     // Closing is the corner button's job now: the little crosses in the panel
     // corners are gone, so there is nothing to catch by accident.
@@ -192,6 +204,16 @@ export class HudScene extends Phaser.Scene {
     });
 
     this.layout(this.scale.width, this.scale.height);
+
+    // First time in the city: a card explaining the two thumbs.
+    let seen = null;
+    try {
+      seen = window.localStorage.getItem('hobosim.help.v1');
+    } catch (err) {
+      seen = null;
+    }
+
+    if (!seen) this.time.delayedCall(900, () => this.openHelp());
   }
 
   // ------------------------------------------------------------- construction
@@ -342,7 +364,7 @@ export class HudScene extends Phaser.Scene {
     this.clockText = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '16px',
+        fontSize: '15px',
         color: '#f2c46a',
         fontStyle: 'bold'
       })
@@ -360,6 +382,29 @@ export class HudScene extends Phaser.Scene {
     this.clockBtn.on('pointerdown', () => {
       this.uiSettleAt = this.time.now + 280;
       this.openTester();
+    });
+
+    // The bag chip opens the backpack; the goal card opens the whole list.
+    this.bagBtn = this.add
+      .rectangle(0, 0, 92, 34, 0x000000, 0)
+      .setOrigin(0, 0.5)
+      .setDepth(DEPTH.hud + 2)
+      .setInteractive();
+
+    this.bagBtn.on('pointerdown', () => {
+      this.uiSettleAt = this.time.now + 280;
+      this.openBackpack();
+    });
+
+    this.goalBtn = this.add
+      .rectangle(0, 0, 236, 54, 0x000000, 0)
+      .setOrigin(0, 0.5)
+      .setDepth(DEPTH.hud + 2)
+      .setInteractive();
+
+    this.goalBtn.on('pointerdown', () => {
+      this.uiSettleAt = this.time.now + 280;
+      this.openGoals();
     });
 
     this.wantedText = this.add
@@ -810,7 +855,11 @@ export class HudScene extends Phaser.Scene {
       this.qte ||
       this.stealChoiceOpen ||
       this.peddleOpen ||
-      this.testerOpen
+      this.testerOpen ||
+      this.begOpen ||
+      this.bagOpen ||
+      this.goalsOpen ||
+      this.helpOpen
     )
       return;
 
@@ -828,8 +877,7 @@ export class HudScene extends Phaser.Scene {
     }
 
     this.stealChoiceOpen = true;
-    this.stealChoiceLayer.setVisible(true);
-    this.setLayerInput(this.stealChoiceLayer, true);
+    this.showPanel(this.stealChoiceLayer);
     this.releaseStick();
     this.layoutStealChoice();
     this.refreshStealChoice();
@@ -840,8 +888,7 @@ export class HudScene extends Phaser.Scene {
     if (this.time.now < this.uiSettleAt) return;
     if (!this.stealChoiceOpen) return;
     this.stealChoiceOpen = false;
-    this.stealChoiceLayer.setVisible(false);
-    this.setLayerInput(this.stealChoiceLayer, false);
+    this.hidePanel(this.stealChoiceLayer);
     haptic('ui');
   }
 
@@ -1141,8 +1188,7 @@ export class HudScene extends Phaser.Scene {
     }
 
     this.peddleOpen = true;
-    this.peddleLayer.setVisible(true);
-    this.setLayerInput(this.peddleLayer, true);
+    this.showPanel(this.peddleLayer);
     // A thumb lifting from the row it just tapped must not close the panel
     // before the first choice can be made.
     this.uiSettleAt = this.time.now + 360;
@@ -1159,8 +1205,7 @@ export class HudScene extends Phaser.Scene {
     if (!this.peddleOpen) return;
 
     this.peddleOpen = false;
-    this.peddleLayer.setVisible(false);
-    this.setLayerInput(this.peddleLayer, false);
+    this.hidePanel(this.peddleLayer);
     haptic('ui');
   }
 
@@ -1269,7 +1314,16 @@ export class HudScene extends Phaser.Scene {
       { id: 'money', label: '加 100 元' },
       { id: 'materials', label: '废品各 +3' },
       { id: 'heal', label: '精力饱食回满' },
-      { id: 'time', label: '时间 +3 小时' }
+      { id: 'hour', label: '时间 +1 小时' },
+      { id: 'evening', label: '跳到傍晚' },
+      { id: 'tomorrow', label: '跳到明天' },
+      { id: 'teleport', label: '换个街区' },
+      { id: 'weather', label: '换天气' },
+      { id: 'event', label: '触发城市事件' },
+      { id: 'furniture', label: '家具全刷' },
+      { id: 'wanted', label: '清通缉' },
+      { id: 'sound', label: '音效：开' },
+      { id: 'haptics', label: '震动：开' }
     ];
 
     this.testerRows = actions.map((action) => {
@@ -1278,23 +1332,25 @@ export class HudScene extends Phaser.Scene {
         .setOrigin(0, 0.5)
         .setInteractive();
       const text = this.add
-        .text(0, 0, action.label, { fontFamily: FONT, fontSize: '15px', color: UI.cream })
+        .text(0, 0, action.label, { fontFamily: FONT, fontSize: '13px', color: UI.cream })
         .setOrigin(0, 0.5);
 
       bg.on('pointerdown', () => this.testerAction(action.id));
 
       this.testerLayer.add([bg, text]);
-      return { bg, text, id: action.id };
+      return { bg, text, id: action.id, label: action.label };
     });
   }
 
   layoutTester() {
     const w = this.w;
-    const rowH = 44;
-    const pw = Math.min(w - 48, 320);
-    const ph = 76 + this.testerRows.length * (rowH + 6) + 16;
+    const rowH = 40;
+    const cols = 2;
+    const rows = Math.ceil(this.testerRows.length / cols);
+    const pw = Math.min(w - 40, 350);
+    const ph = 76 + rows * (rowH + 6) + 16;
     const px = (w - pw) / 2;
-    const py = Math.max(44, (this.playH - ph) / 2);
+    const py = Math.max(40, (this.playH - ph) / 2);
 
     this.testerBackdrop.setScale(w, this.h).setPosition(0, 0);
 
@@ -1310,14 +1366,18 @@ export class HudScene extends Phaser.Scene {
     this.testerCloseBtn.setPosition(px + pw - 26, py + 26);
     this.testerCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
 
-    const rowW = pw - 32;
+    const gap = 8;
+    const cellW = (pw - 32 - gap) / 2;
     const rowX = px + 16;
 
     this.testerRows.forEach((row, i) => {
-      const ry = py + 76 + rowH / 2 + i * (rowH + 6);
+      const col = i % cols;
+      const line = Math.floor(i / cols);
+      const ry = py + 76 + rowH / 2 + line * (rowH + 6);
+      const rx = rowX + col * (cellW + gap);
 
-      row.bg.setScale(rowW, rowH).setPosition(rowX, ry);
-      row.text.setPosition(rowX + 14, ry);
+      row.bg.setScale(cellW, rowH).setPosition(rx, ry);
+      row.text.setPosition(rx + 10, ry);
     });
   }
 
@@ -1325,8 +1385,7 @@ export class HudScene extends Phaser.Scene {
     if (this.testerOpen || this.overOpen || this.qte) return;
 
     this.testerOpen = true;
-    this.testerLayer.setVisible(true);
-    this.setLayerInput(this.testerLayer, true);
+    this.showPanel(this.testerLayer);
     this.releaseStick();
     this.layoutTester();
     this.refreshTester();
@@ -1338,8 +1397,7 @@ export class HudScene extends Phaser.Scene {
     if (!this.testerOpen) return;
 
     this.testerOpen = false;
-    this.testerLayer.setVisible(false);
-    this.setLayerInput(this.testerLayer, false);
+    this.hidePanel(this.testerLayer);
     haptic('ui');
   }
 
@@ -1349,10 +1407,36 @@ export class HudScene extends Phaser.Scene {
     this.testerSub.setText(
       info ? `有存档 · 第 ${info.day} 天` : '还没有存档 · 走到帐篷睡一觉会自动存'
     );
+
+    for (const row of this.testerRows) {
+      if (row.id === 'sound') {
+        row.text.setText(`音效：${audioMuted() ? '关' : '开'}`);
+      } else if (row.id === 'haptics') {
+        row.text.setText(`震动：${hapticsEnabled() ? '开' : '关'}`);
+      }
+    }
   }
 
   testerAction(id) {
     const street = this.street;
+
+    const extra = [
+      'sound',
+      'haptics',
+      'hour',
+      'evening',
+      'tomorrow',
+      'teleport',
+      'weather',
+      'event',
+      'furniture',
+      'wanted'
+    ];
+
+    if (extra.indexOf(id) >= 0) {
+      this.testerActionMore(id);
+      return;
+    }
 
     if (id === 'save') {
       const ok = !!(street && street.saveNow && street.saveNow());
@@ -1387,6 +1471,667 @@ export class HudScene extends Phaser.Scene {
 
     if (street && street.debugGive) street.debugGive(id);
     this.refreshTester();
+  }
+
+  // --------------------------------------------------------------- tester bits
+
+  testerActionMore(id) {
+    const street = this.street;
+
+    if (id === 'sound') {
+      setAudioMuted(!audioMuted());
+      this.refreshTester();
+      return;
+    }
+
+    if (id === 'haptics') {
+      setHapticsEnabled(!hapticsEnabled());
+      this.refreshTester();
+      return;
+    }
+
+    if (id === 'hour') {
+      if (street && street.debugGive) street.debugGive('time');
+      this.refreshTester();
+      return;
+    }
+
+    if (id === 'evening') {
+      if (street && street.debugEvening) street.debugEvening();
+      this.refreshTester();
+      return;
+    }
+
+    if (id === 'tomorrow') {
+      if (street && street.debugNextDay) street.debugNextDay();
+      this.refreshTester();
+      return;
+    }
+
+    if (id === 'teleport') {
+      if (street && street.debugTeleport) street.debugTeleport();
+      return;
+    }
+
+    if (id === 'weather') {
+      if (street && street.debugCycleWeather) street.debugCycleWeather();
+      return;
+    }
+
+    if (id === 'event') {
+      if (street && street.debugTriggerEvent) street.debugTriggerEvent();
+      return;
+    }
+
+    if (id === 'furniture') {
+      if (street && street.debugFurniture) street.debugFurniture();
+      this.refreshTester();
+      return;
+    }
+
+    if (id === 'wanted') {
+      if (street && street.debugClearWanted) street.debugClearWanted();
+      this.refreshTester();
+    }
+  }
+
+  // ------------------------------------------------------------ begging style
+
+  /// How to play the beggar today: plain pleading, a song, or a fake illness.
+  buildBegChoice() {
+    this.begLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 2).setVisible(false);
+
+    this.begBackdrop = this.add
+      .rectangle(0, 0, 1, 1, 0x0b0906, 0.5)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.begBackdrop.on('pointerup', () => this.closeBegChoice());
+
+    this.begGfx = this.add.graphics();
+
+    this.begTitle = this.add
+      .text(0, 0, '怎么讨？', {
+        fontFamily: FONT,
+        fontSize: '16px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.begLayer.add([this.begBackdrop, this.begGfx, this.begTitle]);
+
+    const modes = [
+      {
+        id: 'plead',
+        name: '卖惨磕头',
+        info: '稳当、不招人，但每次给得少'
+      },
+      {
+        id: 'song',
+        name: '弹唱拉琴',
+        info: '给得多，吵，会引来警察'
+      },
+      {
+        id: 'fake',
+        name: '装睡装病',
+        info: '单价最高，可能被人数落、摸走碗里的钱'
+      }
+    ];
+
+    this.begRows = modes.map((mode) => {
+      const bg = this.add
+        .rectangle(0, 0, 1, 1, UI.panelRow, 1)
+        .setOrigin(0, 0.5)
+        .setInteractive();
+      const name = this.add
+        .text(0, 0, mode.name, {
+          fontFamily: FONT,
+          fontSize: '15px',
+          color: UI.cream,
+          fontStyle: 'bold'
+        })
+        .setOrigin(0, 0.5);
+      const info = this.add
+        .text(0, 0, mode.info, { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
+        .setOrigin(0, 0.5);
+
+      bg.on('pointerdown', () => this.pickBegStyle(mode.id));
+
+      this.begLayer.add([bg, name, info]);
+      return { bg, name, info, id: mode.id };
+    });
+  }
+
+  layoutBegChoice() {
+    const w = this.w;
+    const pw = Math.min(w - 48, 330);
+    const rowH = 56;
+    const ph = 58 + this.begRows.length * (rowH + 6) + 14;
+    const px = (w - pw) / 2;
+    const py = Math.max(64, this.playH * 0.36 - ph / 2);
+
+    this.begBackdrop.setScale(w, this.h).setPosition(0, 0);
+
+    const g = this.begGfx;
+    g.clear();
+    g.fillStyle(UI.panel, 0.97);
+    g.fillRoundedRect(px, py, pw, ph, 16);
+    g.lineStyle(2, UI.amber, 0.6);
+    g.strokeRoundedRect(px, py, pw, ph, 16);
+
+    this.begTitle.setPosition(w / 2, py + 24);
+
+    const rowW = pw - 24;
+    const rowX = px + 12;
+
+    this.begRows.forEach((row, i) => {
+      const ry = py + 58 + rowH / 2 + i * (rowH + 6);
+
+      row.bg.setScale(rowW, rowH).setPosition(rowX, ry);
+      row.name.setPosition(rowX + 12, ry - 9);
+      row.info.setPosition(rowX + 12, ry + 11);
+    });
+  }
+
+  openBegChoice() {
+    if (this.begOpen || this.overOpen || this.qte) return;
+
+    this.begOpen = true;
+    this.showPanel(this.begLayer);
+    this.releaseStick();
+    this.layoutBegChoice();
+    this.uiSettleAt = this.time.now + 360;
+    haptic('ui');
+  }
+
+  closeBegChoice() {
+    if (this.time.now < this.uiSettleAt) return;
+    if (!this.begOpen) return;
+
+    this.begOpen = false;
+    this.hidePanel(this.begLayer);
+    haptic('ui');
+  }
+
+  pickBegStyle(id) {
+    if (this.street && this.street.setBegStyle) this.street.setBegStyle(id);
+
+    this.uiSettleAt = 0;
+    this.closeBegChoice();
+  }
+
+  // ---------------------------------------------------------------- backpack
+
+  buildBackpack() {
+    this.bagLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 1).setVisible(false);
+
+    this.bagBackdrop = this.add
+      .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.bagBackdrop.on('pointerup', () => this.closeBackpack());
+
+    this.bagGfx = this.add.graphics();
+
+    this.bagTitle = this.add
+      .text(0, 0, '背包', {
+        fontFamily: FONT,
+        fontSize: '19px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0, 0);
+
+    this.bagSub = this.add
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
+      .setOrigin(0, 0);
+
+    this.bagCloseBtn = this.add
+      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .setStrokeStyle(2, UI.amber, 0.8)
+      .setInteractive();
+    this.bagCloseIcon = this.add.image(0, 0, 'icon-x');
+    this.bagCloseBtn.on('pointerup', () => this.closeBackpack());
+
+    this.bagTip = this.add
+      .text(0, 0, '点一件丢掉', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
+      .setOrigin(0.5, 0.5);
+
+    this.bagLayer.add([
+      this.bagBackdrop,
+      this.bagGfx,
+      this.bagTitle,
+      this.bagSub,
+      this.bagCloseBtn,
+      this.bagCloseIcon,
+      this.bagTip
+    ]);
+
+    this.bagRows = [];
+
+    for (let i = 0; i < 8; i++) {
+      const bg = this.add
+        .rectangle(0, 0, 1, 1, UI.panelRow, 1)
+        .setOrigin(0, 0.5)
+        .setInteractive();
+      const name = this.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: UI.cream })
+        .setOrigin(0, 0.5);
+      const info = this.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
+        .setOrigin(0, 0.5);
+      const count = this.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: UI.gold })
+        .setOrigin(1, 0.5);
+
+      const row = { bg, name, info, count, entry: null };
+      bg.on('pointerdown', () => this.dropBagRow(row));
+
+      this.bagLayer.add([bg, name, info, count]);
+      this.bagRows.push(row);
+    }
+  }
+
+  layoutBackpack() {
+    const w = this.w;
+    const rowH = 48;
+    const pw = Math.min(w - 32, 340);
+    const ph = 66 + this.bagRows.length * (rowH + 5) + 26;
+    const px = (w - pw) / 2;
+    const py = Math.max(40, (this.playH - ph) / 2);
+
+    this.bagBackdrop.setScale(w, this.h).setPosition(0, 0);
+
+    const g = this.bagGfx;
+    g.clear();
+    g.fillStyle(UI.panel, 0.97);
+    g.fillRoundedRect(px, py, pw, ph, 16);
+    g.lineStyle(2, UI.amber, 0.6);
+    g.strokeRoundedRect(px, py, pw, ph, 16);
+
+    this.bagTitle.setPosition(px + 18, py + 12);
+    this.bagSub.setPosition(px + 18, py + 38);
+    this.bagCloseBtn.setPosition(px + pw - 26, py + 26);
+    this.bagCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+    this.bagTip.setPosition(w / 2, py + ph - 14);
+
+    const rowW = pw - 24;
+    const rowX = px + 12;
+
+    this.bagRows.forEach((row, i) => {
+      const ry = py + 66 + rowH / 2 + i * (rowH + 5);
+
+      row.bg.setScale(rowW, rowH).setPosition(rowX, ry);
+      row.name.setPosition(rowX + 12, ry - 8);
+      row.info.setPosition(rowX + 12, ry + 10);
+      row.count.setPosition(rowX + rowW - 12, ry);
+    });
+  }
+
+  bagEntryList() {
+    const run = this.street && this.street.run ? this.street.run : null;
+    if (!run) return [];
+
+    const entries = [];
+
+    for (const id of JUNK_ORDER) {
+      const count = run.items[id] || 0;
+      if (count > 0) {
+        entries.push({ kind: 'junk', id, name: JUNK_ITEMS[id].name, info: '废品 · 能卖钱', count });
+      }
+    }
+
+    for (const id of LOOT_ORDER) {
+      const count = run.loot[id] || 0;
+      if (count > 0) {
+        entries.push({
+          kind: 'loot',
+          id,
+          name: LOOT_ITEMS[id].name,
+          info: `顺来的 · ${LOOT_ITEMS[id].use}`,
+          count
+        });
+      }
+    }
+
+    for (const rec of RECIPES) {
+      const count = run.goods[rec.id] || 0;
+      if (count > 0) {
+        entries.push({ kind: 'good', id: rec.id, name: rec.name, info: '自己做的 · 能卖钱', count });
+      }
+    }
+
+    return entries;
+  }
+
+  refreshBackpack() {
+    const run = this.street && this.street.run ? this.street.run : null;
+    const entries = this.bagEntryList();
+    const limit = this.street && this.street.bagLimit ? this.street.bagLimit() : 12;
+
+    this.bagSub.setText(run ? `背着 ${run.bag}/${limit} 件` : '');
+
+    this.bagRows.forEach((row, i) => {
+      const entry = entries[i];
+
+      row.entry = entry || null;
+      row.bg.setVisible(!!entry);
+      row.name.setVisible(!!entry);
+      row.info.setVisible(!!entry);
+      row.count.setVisible(!!entry);
+      if (row.bg.input) row.bg.input.enabled = !!entry;
+      if (!entry) return;
+
+      row.name.setText(entry.name);
+      row.info.setText(entry.info);
+      row.count.setText(`×${entry.count}`);
+    });
+  }
+
+  openBackpack() {
+    if (this.bagOpen || this.overOpen || this.qte) return;
+
+    this.bagOpen = true;
+    this.showPanel(this.bagLayer);
+    this.releaseStick();
+    this.layoutBackpack();
+    this.refreshBackpack();
+    this.uiSettleAt = this.time.now + 320;
+    haptic('ui');
+  }
+
+  closeBackpack() {
+    if (this.time.now < this.uiSettleAt) return;
+    if (!this.bagOpen) return;
+
+    this.bagOpen = false;
+    this.hidePanel(this.bagLayer);
+    haptic('ui');
+  }
+
+  dropBagRow(row) {
+    if (!row.entry || !this.street) return;
+
+    this.street.discardItem(row.entry.kind, row.entry.id);
+    this.refreshBackpack();
+  }
+
+  // ------------------------------------------------------------- today's jobs
+
+  buildGoals() {
+    this.goalsLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 1).setVisible(false);
+
+    this.goalsBackdrop = this.add
+      .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.goalsBackdrop.on('pointerup', () => this.closeGoals());
+
+    this.goalsGfx = this.add.graphics();
+
+    this.goalsTitle = this.add
+      .text(0, 0, "老周今天的事", {
+        fontFamily: FONT,
+        fontSize: '19px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0, 0);
+
+    this.goalsSub = this.add
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
+      .setOrigin(0, 0);
+
+    this.goalsCloseBtn = this.add
+      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .setStrokeStyle(2, UI.amber, 0.8)
+      .setInteractive();
+    this.goalsCloseIcon = this.add.image(0, 0, 'icon-x');
+    this.goalsCloseBtn.on('pointerup', () => this.closeGoals());
+
+    this.goalsLayer.add([
+      this.goalsBackdrop,
+      this.goalsGfx,
+      this.goalsTitle,
+      this.goalsSub,
+      this.goalsCloseBtn,
+      this.goalsCloseIcon
+    ]);
+
+    this.goalsRows = [];
+
+    for (let i = 0; i < 6; i++) {
+      const text = this.add
+        .text(0, 0, '', {
+          fontFamily: FONT,
+          fontSize: '14px',
+          color: UI.cream,
+          wordWrap: { width: 280 }
+        })
+        .setOrigin(0, 0.5);
+
+      this.goalsLayer.add(text);
+      this.goalsRows.push(text);
+    }
+  }
+
+  layoutGoalsPanel() {
+    const w = this.w;
+    const pw = Math.min(w - 32, 340);
+    const ph = 86 + this.goalsRows.length * 24 + 16;
+    const px = (w - pw) / 2;
+    const py = Math.max(44, (this.playH - ph) / 2);
+
+    this.goalsBackdrop.setScale(w, this.h).setPosition(0, 0);
+
+    const g = this.goalsGfx;
+    g.clear();
+    g.fillStyle(UI.panel, 0.97);
+    g.fillRoundedRect(px, py, pw, ph, 16);
+    g.lineStyle(2, UI.amber, 0.6);
+    g.strokeRoundedRect(px, py, pw, ph, 16);
+
+    this.goalsTitle.setPosition(px + 18, py + 12);
+    this.goalsSub.setPosition(px + 18, py + 40);
+    this.goalsCloseBtn.setPosition(px + pw - 26, py + 26);
+    this.goalsCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+
+    this.goalsRows.forEach((row, i) => {
+      row.setPosition(px + 20, py + 84 + i * 24);
+    });
+  }
+
+  refreshGoalsList() {
+    const run = this.street && this.street.run ? this.street.run : null;
+    const goals = run && run.goals && run.goals.day === run.day ? run.goals.list : [];
+
+    this.goalsSub.setText(
+      goals.length ? `第 ${run.day} 天 · 办完有赏` : '今天没有活'
+    );
+
+    this.goalsRows.forEach((row, i) => {
+      const goal = goals[i];
+
+      if (!goal) {
+        row.setVisible(false);
+        return;
+      }
+
+      row
+        .setVisible(true)
+        .setText(`${goal.done ? '✓' : '·'} ${goal.label}  ${goal.progress}/${goal.need}`)
+        .setColor(goal.done ? '#8fb27a' : UI.cream);
+    });
+  }
+
+  openGoals() {
+    if (this.goalsOpen || this.overOpen || this.qte) return;
+
+    this.goalsOpen = true;
+    this.showPanel(this.goalsLayer);
+    this.layoutGoalsPanel();
+    this.refreshGoalsList();
+    this.uiSettleAt = this.time.now + 320;
+    haptic('ui');
+  }
+
+  closeGoals() {
+    if (this.time.now < this.uiSettleAt) return;
+    if (!this.goalsOpen) return;
+
+    this.goalsOpen = false;
+    this.hidePanel(this.goalsLayer);
+    haptic('ui');
+  }
+
+  // ------------------------------------------------------------- first time in
+
+  buildHelp() {
+    this.helpLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 3).setVisible(false);
+
+    this.helpBackdrop = this.add
+      .rectangle(0, 0, 1, 1, 0x0b0906, 0.72)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.helpBackdrop.on('pointerup', () => this.closeHelp());
+
+    this.helpGfx = this.add.graphics();
+
+    this.helpTitle = this.add
+      .text(0, 0, '怎么在街上活着', {
+        fontFamily: FONT,
+        fontSize: '19px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.helpBody = this.add
+      .text(
+        0,
+        0,
+        [
+          '左半边按住拖：走路，拖得越轻走得越慢（潜行）。',
+          '右半边点一下：跟最近的东西打交道——翻桶、坐下乞讨、偷、兜售。',
+          '左上角时钟＝测试面板，右上角背包＝背包，目标卡＝今天的活。',
+          '天黑前回城郊帐篷，别在街上冻着。'
+        ].join('\n'),
+        {
+          fontFamily: FONT,
+          fontSize: '14px',
+          color: UI.creamDim,
+          align: 'left',
+          lineSpacing: 7,
+          wordWrap: { width: 260 }
+        }
+      )
+      .setOrigin(0, 0.5);
+
+    this.helpBtn = this.add
+      .rectangle(0, 0, 200, 42, 0x4a3a24, 1)
+      .setStrokeStyle(2, UI.amberBright, 0.9)
+      .setInteractive();
+    this.helpText = this.add
+      .text(0, 0, '开始', {
+        fontFamily: FONT,
+        fontSize: '16px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5, 0.5);
+    this.helpBtn.on('pointerdown', () => this.closeHelp());
+
+    this.helpLayer.add([
+      this.helpBackdrop,
+      this.helpGfx,
+      this.helpTitle,
+      this.helpBody,
+      this.helpBtn,
+      this.helpText
+    ]);
+  }
+
+  layoutHelp() {
+    const w = this.w;
+    const pw = Math.min(w - 48, 320);
+    const ph = 250;
+    const px = (w - pw) / 2;
+    const py = Math.max(48, (this.playH - ph) / 2);
+
+    this.helpBackdrop.setScale(w, this.h).setPosition(0, 0);
+
+    const g = this.helpGfx;
+    g.clear();
+    g.fillStyle(UI.panel, 0.97);
+    g.fillRoundedRect(px, py, pw, ph, 16);
+    g.lineStyle(2, UI.amber, 0.6);
+    g.strokeRoundedRect(px, py, pw, ph, 16);
+
+    this.helpTitle.setPosition(w / 2, py + 26);
+    this.helpBody.setPosition(px + 22, py + 112);
+    this.helpBtn.setScale((pw - 56) / 200, 1).setPosition(w / 2, py + ph - 34);
+    this.helpText.setPosition(w / 2, py + ph - 34);
+  }
+
+  openHelp() {
+    if (this.helpOpen) return;
+
+    this.helpOpen = true;
+    this.showPanel(this.helpLayer);
+    this.layoutHelp();
+    this.uiSettleAt = this.time.now + 400;
+    haptic('ui');
+  }
+
+  closeHelp() {
+    if (this.time.now < this.uiSettleAt) return;
+    if (!this.helpOpen) return;
+
+    this.helpOpen = false;
+    this.hidePanel(this.helpLayer);
+    haptic('ui');
+
+    try {
+      window.localStorage.setItem('hobosim.help.v1', '1');
+    } catch (err) {
+      // No storage: it will simply show again next time.
+    }
+  }
+
+  /// A panel coming in: a quick grow and fade, rather than a hard cut.
+  showPanel(layer) {
+    if (!layer) return;
+
+    this.tweens.killTweensOf(layer);
+    layer.setVisible(true).setAlpha(0.001).setScale(0.96);
+
+    this.tweens.add({
+      targets: layer,
+      alpha: 1,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 150,
+      ease: 'Quad.easeOut'
+    });
+
+    this.setLayerInput(layer, true);
+  }
+
+  hidePanel(layer) {
+    if (!layer) return;
+
+    this.tweens.killTweensOf(layer);
+    this.setLayerInput(layer, false);
+
+    this.tweens.add({
+      targets: layer,
+      alpha: 0,
+      scaleX: 0.97,
+      scaleY: 0.97,
+      duration: 110,
+      ease: 'Quad.easeIn',
+      onComplete: () => layer.setVisible(false)
+    });
   }
 
   startQte(zone) {
@@ -1596,6 +2341,10 @@ export class HudScene extends Phaser.Scene {
     if (this.stealChoiceOpen) this.layoutStealChoice();
     if (this.peddleOpen) this.layoutPeddle();
     if (this.testerOpen) this.layoutTester();
+    if (this.begOpen) this.layoutBegChoice();
+    if (this.bagOpen) this.layoutBackpack();
+    if (this.goalsOpen) this.layoutGoalsPanel();
+    if (this.helpOpen) this.layoutHelp();
     this.layoutOverlay();
   }
 
@@ -1674,6 +2423,14 @@ export class HudScene extends Phaser.Scene {
     this.districtText.setPosition(w / 2, 75);
     this.clockText.setPosition(24, 33);
     this.wantedText.setPosition(w - 34, 104);
+    this.bagBtn.setPosition(w - 104, 75);
+
+    if (this.goalBtn) {
+      this.goalBtn
+        .setPosition(this.goalPanel.x, this.goalPanel.y + 27)
+        .setScale(this.goalPanel.w / 236, 1)
+        .setVisible(this.goalRowCount > 0);
+    }
 
     // The list takes the space under the chips, so the hints that float in the
     // middle of the screen move below it.
@@ -1713,7 +2470,15 @@ export class HudScene extends Phaser.Scene {
       this.goalTrack.setVisible(false);
       this.goalFill.setVisible(false);
       this.goalRows.forEach((row) => row.setVisible(false));
+      if (this.goalBtn) this.goalBtn.setVisible(false);
       return;
+    }
+
+    if (this.goalBtn) {
+      this.goalBtn
+        .setVisible(true)
+        .setPosition(x, y + 27)
+        .setScale(w / 236, 1);
     }
 
     g.fillStyle(0x1a1611, 0.8);
@@ -1902,7 +2667,7 @@ export class HudScene extends Phaser.Scene {
   layoutOverlay() {
     const w = this.w;
     const pw = Math.min(w - 48, 300);
-    const ph = 264;
+    const ph = 300;
     const px = (w - pw) / 2;
     const py = Math.max(60, (this.playH - ph) / 2);
 
@@ -1945,7 +2710,11 @@ export class HudScene extends Phaser.Scene {
       this.qte ||
       this.stealChoiceOpen ||
       this.peddleOpen ||
-      this.testerOpen
+      this.testerOpen ||
+      this.begOpen ||
+      this.bagOpen ||
+      this.goalsOpen ||
+      this.helpOpen
     )
       return;
     // Left half: a thumb summons the movement plate. Right half: a tap does
@@ -2057,7 +2826,11 @@ export class HudScene extends Phaser.Scene {
       this.qte ||
       this.stealChoiceOpen ||
       this.peddleOpen ||
-      this.testerOpen
+      this.testerOpen ||
+      this.begOpen ||
+      this.bagOpen ||
+      this.goalsOpen ||
+      this.helpOpen
     )
       return;
 
@@ -2177,6 +2950,26 @@ export class HudScene extends Phaser.Scene {
       return;
     }
 
+    if (this.begOpen) {
+      this.closeBegChoice();
+      return;
+    }
+
+    if (this.bagOpen) {
+      this.closeBackpack();
+      return;
+    }
+
+    if (this.goalsOpen) {
+      this.closeGoals();
+      return;
+    }
+
+    if (this.helpOpen) {
+      this.closeHelp();
+      return;
+    }
+
     if (this.mapOpen) {
       this.closeMap();
       return;
@@ -2247,8 +3040,7 @@ export class HudScene extends Phaser.Scene {
 
     this.storeId = id;
     this.shopOpen = true;
-    this.storeLayer.setVisible(true);
-    this.setLayerInput(this.storeLayer, true);
+    this.showPanel(this.storeLayer);
     this.releaseStick();
     this.shown.storeSig = null;
     this.layoutStore();
@@ -2310,8 +3102,7 @@ export class HudScene extends Phaser.Scene {
 
     this.tradeOpen = true;
     this.tradeMode = mode === 'pawn' ? 'pawn' : 'stall';
-    this.tradeLayer.setVisible(true);
-    this.setLayerInput(this.tradeLayer, true);
+    this.showPanel(this.tradeLayer);
     this.releaseStick();
     this.shown.tradeSig = null;
     this.layoutTrade();
@@ -2323,8 +3114,7 @@ export class HudScene extends Phaser.Scene {
     if (this.time.now < this.uiSettleAt) return;
     if (!this.tradeOpen) return;
     this.tradeOpen = false;
-    this.tradeLayer.setVisible(false);
-    this.setLayerInput(this.tradeLayer, false);
+    this.hidePanel(this.tradeLayer);
     haptic('ui');
   }
 
@@ -2463,8 +3253,7 @@ export class HudScene extends Phaser.Scene {
       return;
 
     this.craftOpen = true;
-    this.craftLayer.setVisible(true);
-    this.setLayerInput(this.craftLayer, true);
+    this.showPanel(this.craftLayer);
     this.releaseStick();
     this.shown.craftSig = null;
     this.layoutCraft();
@@ -2476,8 +3265,7 @@ export class HudScene extends Phaser.Scene {
     if (this.time.now < this.uiSettleAt) return;
     if (!this.craftOpen) return;
     this.craftOpen = false;
-    this.craftLayer.setVisible(false);
-    this.setLayerInput(this.craftLayer, false);
+    this.hidePanel(this.craftLayer);
     haptic('ui');
   }
 
@@ -2757,8 +3545,7 @@ export class HudScene extends Phaser.Scene {
       return;
 
     this.homeOpen = true;
-    this.homeLayer.setVisible(true);
-    this.setLayerInput(this.homeLayer, true);
+    this.showPanel(this.homeLayer);
     this.releaseStick();
     this.shown.homeSig = null;
     this.layoutHome();
@@ -2770,8 +3557,7 @@ export class HudScene extends Phaser.Scene {
     if (this.time.now < this.uiSettleAt) return;
     if (!this.homeOpen) return;
     this.homeOpen = false;
-    this.homeLayer.setVisible(false);
-    this.setLayerInput(this.homeLayer, false);
+    this.hidePanel(this.homeLayer);
     haptic('ui');
   }
 
@@ -3188,8 +3974,7 @@ export class HudScene extends Phaser.Scene {
 
     this.vendingKey = key;
     this.vendingOpen = true;
-    this.vendingLayer.setVisible(true);
-    this.setLayerInput(this.vendingLayer, true);
+    this.showPanel(this.vendingLayer);
     this.releaseStick();
     this.layoutVending();
     this.refreshVending();
@@ -3200,8 +3985,7 @@ export class HudScene extends Phaser.Scene {
     if (this.time.now < this.uiSettleAt) return;
     if (!this.vendingOpen) return;
     this.vendingOpen = false;
-    this.vendingLayer.setVisible(false);
-    this.setLayerInput(this.vendingLayer, false);
+    this.hidePanel(this.vendingLayer);
     haptic('ui');
   }
 
@@ -3385,8 +4169,7 @@ export class HudScene extends Phaser.Scene {
       return;
 
     this.slotOpen = true;
-    this.slotLayer.setVisible(true);
-    this.setLayerInput(this.slotLayer, true);
+    this.showPanel(this.slotLayer);
     this.releaseStick();
     this.shown.slotMoney = null;
     this.layoutSlot();
@@ -3742,8 +4525,7 @@ export class HudScene extends Phaser.Scene {
       return;
 
     this.mapOpen = true;
-    this.mapLayer.setVisible(true);
-    this.setLayerInput(this.mapLayer, true);
+    this.showPanel(this.mapLayer);
     this.releaseStick();
     this.refreshMap();
     haptic('ui');
@@ -3753,8 +4535,7 @@ export class HudScene extends Phaser.Scene {
     if (this.time.now < this.uiSettleAt) return;
     if (!this.mapOpen) return;
     this.mapOpen = false;
-    this.mapLayer.setVisible(false);
-    this.setLayerInput(this.mapLayer, false);
+    this.hidePanel(this.mapLayer);
     haptic('ui');
   }
 
@@ -4078,30 +4859,36 @@ export class HudScene extends Phaser.Scene {
     this.storeLayer.setVisible(false);
     this.setLayerInput(this.storeLayer, false);
     this.tradeOpen = false;
-    this.tradeLayer.setVisible(false);
-    this.setLayerInput(this.tradeLayer, false);
+    this.hidePanel(this.tradeLayer);
     this.craftOpen = false;
-    this.craftLayer.setVisible(false);
-    this.setLayerInput(this.craftLayer, false);
+    this.hidePanel(this.craftLayer);
     this.homeOpen = false;
-    this.homeLayer.setVisible(false);
-    this.setLayerInput(this.homeLayer, false);
+    this.hidePanel(this.homeLayer);
     this.vendingOpen = false;
-    this.vendingLayer.setVisible(false);
-    this.setLayerInput(this.vendingLayer, false);
+    this.hidePanel(this.vendingLayer);
     this.slotOpen = false;
     this.slotSpin = null;
     this.slotLayer.setVisible(false);
     this.setLayerInput(this.slotLayer, false);
     this.mapOpen = false;
-    this.mapLayer.setVisible(false);
-    this.setLayerInput(this.mapLayer, false);
+    this.hidePanel(this.mapLayer);
     this.peddleOpen = false;
     this.peddleLayer.setVisible(false);
     this.setLayerInput(this.peddleLayer, false);
     this.testerOpen = false;
     this.testerLayer.setVisible(false);
     this.setLayerInput(this.testerLayer, false);
+
+    for (const pair of [
+      ['begOpen', this.begLayer],
+      ['bagOpen', this.bagLayer],
+      ['goalsOpen', this.goalsLayer]
+    ]) {
+      this[pair[0]] = false;
+      pair[1].setVisible(false);
+      this.setLayerInput(pair[1], false);
+    }
+
     this.releaseStick();
 
     const minutes = Math.floor(run.survived / 60);
@@ -4114,6 +4901,9 @@ export class HudScene extends Phaser.Scene {
         `拾荒所得  ${run.scavengeIncome} 元`,
         `偷窃所得  ${run.stolenIncome} 元`,
         `卖废品  ${run.soldIncome} 元`,
+        `合计  ${
+          run.beggingIncome + run.scavengeIncome + run.stolenIncome + run.soldIncome
+        } 元`,
         `背包物品  ${run.bag} 件`,
         `在街上撑了  ${clock}`
       ].join('\n')
@@ -4145,6 +4935,15 @@ export class HudScene extends Phaser.Scene {
     this.closeMap();
     this.closePeddle();
     this.closeTester();
+    this.begOpen = false;
+    this.begLayer.setVisible(false);
+    this.setLayerInput(this.begLayer, false);
+    this.bagOpen = false;
+    this.bagLayer.setVisible(false);
+    this.setLayerInput(this.bagLayer, false);
+    this.goalsOpen = false;
+    this.goalsLayer.setVisible(false);
+    this.setLayerInput(this.goalsLayer, false);
 
     this.shown.money = null;
     this.shown.bag = null;

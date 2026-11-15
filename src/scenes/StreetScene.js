@@ -5,8 +5,9 @@
 
 import { createGameArt } from '../art/index.js';
 import { layoutFor } from '../layout.js';
-import { haptic } from '../haptics.js';
-import { initAudio, playSfx, setDistrictMood, updateAudio } from '../audio.js';
+import { haptic } from '../feedback.js';
+import { initAudio, playSfx, setDistrictMood, updateAudio, setWeatherSound } from '../audio.js';
+import { ensureCity, cityEffects, EVENTS } from '../city.js';
 import { FOODS } from '../food.js';
 import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
 import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
@@ -290,6 +291,9 @@ export class StreetScene extends Phaser.Scene {
         survived: 0,
         over: false,
         sitting: false,
+        begStyle: 'plead',
+        bagUp: 'pouch',
+        city: null,
         goals: null
       };
     this.carriedRun = null;
@@ -357,6 +361,9 @@ export class StreetScene extends Phaser.Scene {
     this.alertExplained = false;
     this.loadHome();
     this.ensureGoals();
+    ensureCity(this.run);
+    this.cityFx = cityEffects(this.run.city, this.run.step);
+    this.cityEventId = this.cityFx.event ? this.cityFx.event.id : null;
 
     // The city is a grid of blocks: each district fills one cell, and the
     // streets of touching cells run into each other.
@@ -1609,7 +1616,7 @@ export class StreetScene extends Phaser.Scene {
     if (!JUNK_ITEMS[id]) return false;
     if (!this.run.items[id] || this.run.items[id] <= 0) return false;
 
-    const price = junkPrice(id, atPawn);
+    const price = Math.max(1, Math.round(junkPrice(id, atPawn) * this.sellMul()));
     this.run.items[id] -= 1;
     this.run.money += price;
     this.run.soldIncome += price;
@@ -1624,6 +1631,11 @@ export class StreetScene extends Phaser.Scene {
     const item = LOOT_ITEMS[id];
     if (!item) return;
 
+    if (this.run.bag >= this.bagLimit()) {
+      this.floatText(x, y, '包满了，去卖点东西', '#f0a08a');
+      return;
+    }
+
     this.run.loot[id] = (this.run.loot[id] || 0) + 1;
     this.refreshBagCount();
     playSfx('pickup');
@@ -1635,7 +1647,7 @@ export class StreetScene extends Phaser.Scene {
     if (!LOOT_ITEMS[id]) return false;
     if (!this.run.loot[id] || this.run.loot[id] <= 0) return false;
 
-    const price = lootPrice(id, atPawn);
+    const price = Math.max(1, Math.round(lootPrice(id, atPawn) * this.sellMul()));
     this.run.loot[id] -= 1;
     this.run.money += price;
     this.run.soldIncome += price;
@@ -1665,11 +1677,12 @@ export class StreetScene extends Phaser.Scene {
 
   sellAllJunk(atPawn) {
     let total = 0;
+    const mul = this.sellMul();
 
     for (const id of JUNK_ORDER) {
       while (this.run.items[id] > 0) {
         this.run.items[id] -= 1;
-        total += junkPrice(id, atPawn);
+        total += Math.max(1, Math.round(junkPrice(id, atPawn) * mul));
       }
     }
 
@@ -1802,11 +1815,13 @@ export class StreetScene extends Phaser.Scene {
     if (!rec) return false;
     if (!this.run.goods[id] || this.run.goods[id] <= 0) return false;
 
+    const price = Math.max(1, Math.round(rec.value * this.sellMul()));
+
     this.run.goods[id] -= 1;
-    this.run.money += rec.value;
-    this.run.soldIncome += rec.value;
-    this.progressGoal('sell', rec.value);
-    this.floatText(this.player.x, this.player.y - 46, `+${rec.value} 元`, UI.gold);
+    this.run.money += price;
+    this.run.soldIncome += price;
+    this.progressGoal('sell', price);
+    this.floatText(this.player.x, this.player.y - 46, `+${price} 元`, UI.gold);
     return true;
   }
 
@@ -1989,6 +2004,11 @@ export class StreetScene extends Phaser.Scene {
     const item = JUNK_ITEMS[id];
     if (!item) return;
 
+    if (this.run.bag >= this.bagLimit()) {
+      this.floatText(x, y, '包满了，去卖点东西', '#f0a08a');
+      return;
+    }
+
     this.run.items[id] += 1;
     this.refreshBagCount();
     playSfx('pickup');
@@ -2006,6 +2026,7 @@ export class StreetScene extends Phaser.Scene {
     if (this.run.sitting || this.run.over) return;
 
     this.run.sitting = true;
+    this.begTick = 0;
     this.advanceTime(10);
     this.axes.x = 0;
     this.axes.y = 0;
@@ -2020,6 +2041,12 @@ export class StreetScene extends Phaser.Scene {
       .setVisible(true)
       .setDepth(spot.y + 1);
 
+    this.showBowlStyle();
+
+    // Sitting down is also the moment to decide how to beg.
+    const hud = this.scene.get('Hud');
+    if (hud && hud.openBegChoice && this.scene.isActive('Hud')) hud.openBegChoice();
+
     haptic('ui');
   }
 
@@ -2029,6 +2056,299 @@ export class StreetScene extends Phaser.Scene {
     this.run.sitting = false;
     this.player.setTexture(this.poseTex('idle'));
     this.bowl.setVisible(false);
+    if (this.bowlStyle) this.bowlStyle.setVisible(false);
+  }
+
+  // ------------------------------------------------------------------ begging
+
+  /// The label floating over the bowl: how the beggar is playing it today.
+  showBowlStyle() {
+    const names = { plead: '卖惨', song: '弹唱', fake: '装病' };
+    const style = this.run.begStyle || 'plead';
+
+    if (!this.bowlStyle) {
+      this.bowlStyle = this.add
+        .text(0, 0, '', {
+          fontFamily: FONT,
+          fontSize: '13px',
+          color: '#f2c46a',
+          stroke: '#100d09',
+          strokeThickness: 3
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(6500);
+    }
+
+    this.bowlStyle
+      .setText(names[style] || '卖惨')
+      .setPosition(this.bowl.x, this.bowl.y - 14)
+      .setVisible(!!this.run.sitting);
+  }
+
+  setBegStyle(id) {
+    if (!this.run.sitting) return;
+
+    this.run.begStyle = id === 'song' ? 'song' : id === 'fake' ? 'fake' : 'plead';
+
+    this.showBowlStyle();
+    haptic('ui');
+
+    const names = { plead: '卖惨', song: '弹唱', fake: '装病' };
+
+    this.floatText(
+      this.player.x,
+      this.player.y - 52,
+      `改成${names[this.run.begStyle]}`,
+      UI.cream
+    );
+  }
+
+  /// How much a coin is worth in each style, before the district and the hour.
+  begStyleMul() {
+    const style = this.run.begStyle || 'plead';
+    const seg = segmentOf(this.run.step);
+    const district = this.district.id;
+
+    if (style === 'song') {
+      let m = 1.6;
+      if (seg >= 2) m -= 0.4;
+      if (district === 'slum') m -= 0.5;
+      if (district === 'park' || district === 'square') m += 0.2;
+
+      return Math.max(0.5, m);
+    }
+
+    if (style === 'fake') {
+      return seg === 3 || seg === 0 ? 2.4 : 2;
+    }
+
+    return 1;
+  }
+
+  /// The price of a style that is louder or more of a con than plain begging.
+  updateBegging(dt) {
+    if (!this.run.sitting || this.run.over) return;
+
+    const style = this.run.begStyle || 'plead';
+    this.begTick = (this.begTick || 0) + dt;
+
+    if (style === 'song' && this.begTick >= 8) {
+      this.begTick = 0;
+      this.run.wanted = Math.min(100, (this.run.wanted || 0) + 2);
+      this.floatText(this.player.x, this.player.y - 58, '♪', '#f2c46a');
+    } else if (style === 'fake' && this.begTick >= 9) {
+      this.begTick = 0;
+
+      if (Math.random() < 0.3 && this.run.money > 0) {
+        const loss = Math.min(this.run.money, Phaser.Math.Between(1, 3));
+
+        this.run.money -= loss;
+        this.floatText(this.player.x, this.player.y - 52, `有人摸走了 ${loss} 元`, '#f0a08a');
+        haptic('refuse');
+      }
+    }
+  }
+
+  // ------------------------------------------------------------- weather, city
+
+  updateCity(dt) {
+    const run = this.run;
+
+    ensureCity(run);
+
+    const fx = cityEffects(run.city, run.step);
+    this.cityFx = fx;
+
+    const eventId = fx.event ? fx.event.id : null;
+    if (eventId !== this.cityEventId) {
+      this.cityEventId = eventId;
+
+      const hud = this.scene.get('Hud');
+      if (eventId && hud && hud.showToast) hud.showToast(`城里：${EVENTS[eventId].name}`);
+    }
+
+    setWeatherSound(fx.weather.id);
+    this.drawWeather(dt);
+  }
+
+  /// Rain streaks, snowflakes and the shimmer of a hot afternoon, over the
+  /// street and under the HUD.
+  drawWeather(dt) {
+    if (!this.weatherGfx) this.weatherGfx = this.add.graphics().setDepth(4500);
+
+    const g = this.weatherGfx;
+    g.clear();
+
+    const fx = this.cityFx;
+    if (!fx) return;
+
+    const kind = fx.weather.id;
+    const cam = this.cameras.main.worldView;
+
+    if (kind === 'rain' || kind === 'snow') {
+      if (!this.weatherDrops) {
+        this.weatherDrops = Array.from({ length: 70 }, () => ({
+          x: Math.random(),
+          y: Math.random(),
+          s: 0.6 + Math.random() * 0.8
+        }));
+      }
+
+      const fall = kind === 'rain' ? 1.8 : 0.35;
+
+      for (const d of this.weatherDrops) {
+        d.y += dt * fall * d.s;
+
+        if (d.y > 1) {
+          d.y -= 1;
+          d.x = Math.random();
+        }
+
+        const x = cam.x + d.x * cam.width - (kind === 'rain' ? 40 * d.s : 0);
+        const y = cam.y + d.y * cam.height;
+
+        if (kind === 'rain') {
+          g.lineStyle(1, 0xcfe8f4, 0.3);
+          g.lineBetween(x, y, x - 6, y + 16 * d.s);
+        } else {
+          g.fillStyle(0xffffff, 0.55);
+          g.fillCircle(x, y, 1.6);
+        }
+      }
+    } else if (kind === 'hot') {
+      g.fillStyle(0xf2a83c, 0.05);
+      g.fillRect(cam.x, cam.y, cam.width, cam.height);
+    }
+  }
+
+  // ------------------------------------------------------------------- the bag
+
+  bagLimit() {
+    if (this.run.bagUp === 'cart') return 40;
+    if (this.run.bagUp === 'woven') return 24;
+
+    return 12;
+  }
+
+  cartSpeedMul() {
+    return this.run.bagUp === 'cart' ? 0.88 : 1;
+  }
+
+  discardItem(kind, id) {
+    if (kind === 'loot') {
+      if (!this.run.loot[id]) return false;
+      this.run.loot[id] -= 1;
+    } else if (kind === 'good') {
+      if (!this.run.goods[id]) return false;
+      this.run.goods[id] -= 1;
+    } else {
+      if (!this.run.items[id]) return false;
+      this.run.items[id] -= 1;
+    }
+
+    this.refreshBagCount();
+    haptic('refuse');
+
+    return true;
+  }
+
+  sellMul() {
+    return this.cityFx ? this.cityFx.sellMul : 1;
+  }
+
+  /// A pale ring around whatever is nearest, so nothing has to be guessed at.
+  drawHighlight() {
+    if (!this.highlightGfx) this.highlightGfx = this.add.graphics().setDepth(5800);
+
+    const g = this.highlightGfx;
+    g.clear();
+
+    if (this.run.over) return;
+
+    const pulse = 0.35 + Math.sin(this.time.now / 220) * 0.15;
+
+    let x = 0;
+    let y = 0;
+    let r = 0;
+
+    if (this.nearest) {
+      x = this.nearest.x;
+      y = this.nearest.y;
+      r = Math.min(26, this.nearest.radius * 0.32);
+    } else if (this.stealTarget) {
+      x = this.stealTarget.sprite.x;
+      y = this.stealTarget.sprite.y + 6;
+      r = 24;
+    } else if (this.peddleTarget) {
+      x = this.peddleTarget.sprite.x;
+      y = this.peddleTarget.sprite.y + 6;
+      r = 24;
+    } else {
+      return;
+    }
+
+    g.lineStyle(2, 0xffffff, pulse);
+    g.strokeCircle(x, y, r);
+    g.lineStyle(1, 0xffffff, pulse * 0.5);
+    g.strokeCircle(x, y, r + 5);
+  }
+
+  // ------------------------------------------------------------ tester extras
+
+  debugTeleport() {
+    const order = DISTRICT_ORDER;
+    const i = order.indexOf(this.district.id);
+    const next = order[(i + 1) % order.length];
+
+    this.scene.restart({ district: next, run: this.run, spawn: 'bottom' });
+  }
+
+  debugCycleWeather() {
+    const order = ['clear', 'rain', 'snow', 'hot'];
+    const city = ensureCity(this.run);
+    const i = order.indexOf(city.weather);
+
+    city.weather = order[(i + 1) % order.length];
+    playSfx('ui');
+  }
+
+  debugTriggerEvent() {
+    const city = ensureCity(this.run);
+    const ids = Object.keys(EVENTS);
+    const id = ids[Math.floor(Math.random() * ids.length)];
+
+    city.events = [{ id, from: this.run.step, to: this.run.step + EVENTS[id].minutes }];
+    playSfx('ui');
+  }
+
+  debugEvening() {
+    this.run.step = Math.max(this.run.step, 660);
+    this.updateSegment();
+  }
+
+  debugNextDay() {
+    this.run.day += 1;
+    this.run.step = 0;
+    this.run.hunger = HUNGER_MAX;
+    this.run.energy = ENERGY_MAX;
+    this.nightDeadline = 0;
+
+    this.ensureGoals();
+    this.saveNow();
+    playSfx('ui');
+  }
+
+  debugFurniture() {
+    for (const item of FURNITURE) this.setHomePiece(item.slot, item);
+
+    this.checkHomeScene();
+    playSfx('craft');
+  }
+
+  debugClearWanted() {
+    this.run.wanted = 0;
+    this.stopChases();
+    playSfx('ui');
   }
 
   /// The bridge nook only exists in the back alley: a curtained opening under
@@ -2332,7 +2652,8 @@ export class StreetScene extends Phaser.Scene {
 
   /// How far the police can actually see: a wanted man draws their eye.
   copSight() {
-    return COP_SIGHT * (1 + (this.run.wanted || 0) / 150);
+    const fx = this.cityFx;
+    return COP_SIGHT * (1 + (this.run.wanted || 0) / 150) * (fx ? fx.police : 1);
   }
 
   buildHome() {
@@ -2860,7 +3181,9 @@ export class StreetScene extends Phaser.Scene {
   }
 
   getClockText() {
-    return `第 ${this.run.day} 天 · ${minutesToClock(this.run.step)}`;
+    const weather = this.cityFx && this.cityFx.weather ? this.cityFx.weather.name : '晴';
+
+    return `第${this.run.day}天 ${minutesToClock(this.run.step)} · ${weather}`;
   }
 
   applyNight() {
@@ -3041,6 +3364,13 @@ export class StreetScene extends Phaser.Scene {
         this.run.charm = this.run.charm || {};
         this.run.charm[entry.refId] = (this.run.charm[entry.refId] || 0) + 1;
         this.floatText(this.player.x, this.player.y - 46, `买下${entry.name}`, '#a8d98a');
+        return true;
+      }
+
+      case 'bagup': {
+        this.run.money -= entry.price;
+        this.run.bagUp = entry.refId;
+        this.floatText(this.player.x, this.player.y - 46, `换上${entry.name}`, '#a8d98a');
         return true;
       }
 
@@ -3294,7 +3624,12 @@ export class StreetScene extends Phaser.Scene {
 
     const boost = this.district.begBoost || 1;
     const bonus = this.cleanLevel() > 0.8 ? 1 : 0;
-    const amount = Math.max(1, Math.round((Phaser.Math.Between(1, 2) + bonus) * boost));
+    const styleMul = this.begStyleMul();
+    const cityMul = this.cityFx ? this.cityFx.begMul : 1;
+    const amount = Math.max(
+      1,
+      Math.round((Phaser.Math.Between(1, 2) + bonus) * boost * styleMul * cityMul)
+    );
     const coin = this.add.image(source.x, source.y - 6, 'coin').setDepth(source.y + 1);
 
     const tx = this.run.sitting ? this.bowl.x : this.player.x;
@@ -3380,6 +3715,7 @@ export class StreetScene extends Phaser.Scene {
 
   spawnPed(initial) {
     if (this.run.over) return;
+    if (this.cityFx && Math.random() > this.cityFx.pedMul) return;
 
     // A walker turns up somewhere in one of the city's blocks and wanders from
     // there, crossing the road on the way.
@@ -4022,6 +4358,7 @@ export class StreetScene extends Phaser.Scene {
 
     this.musicTension += (mood - this.musicTension) * Math.min(1, dt * 1.8);
     updateAudio(dt, { tension: this.musicTension, night: darknessAt(run.step) });
+    this.updateCity(dt);
 
     if (!run.over) {
       run.hunger = Math.max(0, run.hunger - HUNGER_DRAIN * dt);
@@ -4082,7 +4419,8 @@ export class StreetScene extends Phaser.Scene {
         hudPanels.overOpen);
 
     const segment = segmentOf(run.step);
-    const coldDrain = segment === 3 ? 1.2 : segment === 2 ? 0.4 : 0;
+    const coldExtra = this.cityFx ? Math.max(0, this.cityFx.coldExtra) : 0;
+    const coldDrain = (segment === 3 ? 1.2 : segment === 2 ? 0.4 : 0) + coldExtra;
     if (!run.over && !paused && coldDrain > 0) {
       run.energy = Math.max(0, run.energy - coldDrain * dt);
     }
@@ -4102,13 +4440,16 @@ export class StreetScene extends Phaser.Scene {
       const len = Math.hypot(this.axes.x, this.axes.y) || 1;
       const nx = this.axes.x / len;
       const ny = this.axes.y / len;
-      const speed = this.sneaking || exhausted ? SNEAK_SPEED : SPEED;
+      const speed = (this.sneaking || exhausted ? SNEAK_SPEED : SPEED) * this.cartSpeedMul();
 
       if (this.player.body) this.player.body.setVelocity(nx * speed, ny * speed);
       if (Math.abs(nx) > 0.05) this.player.setFlipX(nx < 0);
       this.walkT += dt * (this.sneaking ? 6 : 12);
 
-      if (!this.sneaking) run.energy = Math.max(0, run.energy - RUN_DRAIN * dt);
+      const heat = this.cityFx ? this.cityFx.heat : 0;
+      if (!this.sneaking) {
+        run.energy = Math.max(0, run.energy - (RUN_DRAIN + heat * 0.6) * dt);
+      }
 
       // A heel on the pavement, once a stride.
       this.stepT -= dt;
@@ -4128,6 +4469,8 @@ export class StreetScene extends Phaser.Scene {
     if (run.energy > 0) this.energyWarned = false;
 
     this.updateWarnings(dt);
+    this.updateBegging(dt);
+    this.drawHighlight();
 
     const bob = moving ? Math.sin(this.walkT) * 0.03 : 0;
     this.player.setScale(1, 1 + bob);

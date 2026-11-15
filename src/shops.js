@@ -228,6 +228,31 @@ export function stockFor(shopId, run) {
       });
     }
 
+    // Bags: the beggar starts with a pouch and works his way up.
+    const bagUp = run && run.bagUp ? run.bagUp : 'pouch';
+
+    items.push({
+      key: 'bagup:woven',
+      kind: 'bagup',
+      refId: 'woven',
+      name: '编织袋',
+      desc: '背包能装 24 件',
+      icon: 'item-rag',
+      price: 20,
+      owned: bagUp === 'woven' || bagUp === 'cart'
+    });
+
+    items.push({
+      key: 'bagup:cart',
+      kind: 'bagup',
+      refId: 'cart',
+      name: '手推车',
+      desc: '能装 40 件，但推着走不快',
+      icon: 'item-scrap',
+      price: 60,
+      owned: bagUp === 'cart'
+    });
+
     return items;
   }
 

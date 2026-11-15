@@ -39,6 +39,11 @@ let musicOn = false;
 let nextBeatAt = 0;
 let beatIndex = 0;
 
+let muted = false;
+let ambience = null;
+let ambienceGain = null;
+let ambienceKind = null;
+
 let tension = BASE_TENSION;
 let nightness = 0;
 let root = MOODS.market.root;
@@ -96,6 +101,48 @@ export function initAudio() {
 
 export function audioReady() {
   return !!ctx;
+}
+
+/// The whole desk on or off, from the tester panel.
+export function setAudioMuted(value) {
+  muted = !!value;
+
+  if (master) master.gain.setTargetAtTime(muted ? 0 : 0.85, ctx.currentTime, 0.1);
+}
+
+export function audioMuted() {
+  return muted;
+}
+
+/// A bed of rain or wind under the street, or nothing at all.
+export function setWeatherSound(kind) {
+  if (!ctx || !noiseBuffer) return;
+  if (kind === ambienceKind) return;
+
+  ambienceKind = kind;
+
+  if (!ambience) {
+    ambience = ctx.createBufferSource();
+    ambience.buffer = noiseBuffer;
+    ambience.loop = true;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 1500;
+    filter.Q.value = 0.6;
+
+    ambienceGain = ctx.createGain();
+    ambienceGain.gain.value = 0.0001;
+
+    ambience.connect(filter);
+    filter.connect(ambienceGain);
+    ambienceGain.connect(master);
+    ambience.start();
+  }
+
+  const target = kind === 'rain' ? 0.05 : kind === 'snow' ? 0.025 : 0.0001;
+
+  ambienceGain.gain.setTargetAtTime(target, ctx.currentTime, 0.8);
 }
 
 /// Two seconds of white noise, reused by every effect that needs a scrape, a
