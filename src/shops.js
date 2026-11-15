@@ -306,6 +306,17 @@ export function stockFor(shopId, run) {
       owned: bagUp === 'cart'
     });
 
+    items.push({
+      key: 'book:peddle',
+      kind: 'book',
+      refId: 'peddle',
+      name: '口才小册子',
+      desc: '读完兜售成功率永久 +8%',
+      icon: 'item-blueprint',
+      price: 30,
+      owned: !!(run && run.books && run.books.peddle)
+    });
+
     return items;
   }
 
@@ -440,6 +451,17 @@ export function stockFor(shopId, run) {
       icon: 'item-blueprint',
       price: 12,
       owned: false
+    });
+
+    items.push({
+      key: 'book:steal',
+      kind: 'book',
+      refId: 'steal',
+      name: '小偷手册',
+      desc: '读完偷窃绿区永久宽 8%',
+      icon: 'item-blueprint',
+      price: 45,
+      owned: !!(run && run.books && run.books.steal)
     });
 
     return items;

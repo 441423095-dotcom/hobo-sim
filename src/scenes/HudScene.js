@@ -21,6 +21,7 @@ import { COFFEE_PRICE, COFFEE_ENERGY, KICK_WANTED } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS } from '../gamble.js';
 import { RECIPES, amountOf, materialLabel } from '../craft.js';
 import { seasonName } from '../city.js';
+import { skillLabel } from '../skill.js';
 import { FONT, UI } from '../style.js';
 
 const DEPTH = {
@@ -1422,6 +1423,7 @@ export class HudScene extends Phaser.Scene {
       { id: 'teleport', label: '换个街区' },
       { id: 'weather', label: '换天气' },
       { id: 'season', label: '换季节' },
+      { id: 'skill', label: '熟练度 +1' },
       { id: 'event', label: '触发城市事件' },
       { id: 'furniture', label: '家具全刷' },
       { id: 'wanted', label: '清通缉' },
@@ -1533,6 +1535,7 @@ export class HudScene extends Phaser.Scene {
       'teleport',
       'weather',
       'season',
+      'skill',
       'event',
       'furniture',
       'wanted',
@@ -1601,6 +1604,17 @@ export class HudScene extends Phaser.Scene {
       this.testerSub.setText(
         street && street.run && street.run.season
           ? `现在：${seasonName(street.run.season)}天`
+          : ''
+      );
+      this.refreshTester();
+      return;
+    }
+
+    if (id === 'skill') {
+      if (street && street.debugSkill) street.debugSkill();
+      this.testerSub.setText(
+        street && street.run
+          ? `${skillLabel(street.run, 'steal')} · ${skillLabel(street.run, 'peddle')}`
           : ''
       );
       this.refreshTester();
@@ -1818,10 +1832,12 @@ export class HudScene extends Phaser.Scene {
     this.bagCloseBtn.on('pointerup', () => this.closeBackpack());
 
     this.bagTip = this.add
-      .text(0, 0, '点食物吃掉，点别的丢掉', {
+      .text(0, 0, '', {
         fontFamily: FONT,
         fontSize: '12px',
-        color: UI.creamDim
+        color: UI.creamDim,
+        align: 'center',
+        lineSpacing: 3
       })
       .setOrigin(0.5, 0.5);
 
@@ -1865,7 +1881,7 @@ export class HudScene extends Phaser.Scene {
     const w = this.w;
     const rowH = 48;
     const pw = Math.min(w - 32, 340);
-    const ph = 66 + this.bagRows.length * (rowH + 5) + 26;
+    const ph = 66 + this.bagRows.length * (rowH + 5) + 46;
     const px = (w - pw) / 2;
     const py = Math.max(40, (this.playH - ph) / 2);
 
@@ -1882,7 +1898,7 @@ export class HudScene extends Phaser.Scene {
     this.bagSub.setPosition(px + 18, py + 38);
     this.bagCloseBtn.setPosition(px + pw - 26, py + 26);
     this.bagCloseIcon.setPosition(px + pw - 26, py + 26).setScale(22 / 96);
-    this.bagTip.setPosition(w / 2, py + ph - 14);
+    this.bagTip.setPosition(w / 2, py + ph - 26);
 
     const rowW = pw - 24;
     const rowX = px + 12;
@@ -1955,6 +1971,11 @@ export class HudScene extends Phaser.Scene {
     const limit = this.street && this.street.bagLimit ? this.street.bagLimit() : 12;
 
     this.bagSub.setText(run ? `背着 ${run.bag}/${limit} 件` : '');
+    this.bagTip.setText(
+      run
+        ? `${skillLabel(run, 'steal')} · ${skillLabel(run, 'peddle')}\n点食物吃掉，点别的丢掉`
+        : ''
+    );
 
     this.bagRows.forEach((row, i) => {
       const entry = entries[i];

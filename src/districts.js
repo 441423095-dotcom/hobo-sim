@@ -143,7 +143,7 @@ export const DISTRICTS = {
       { x: 168, y: 640 },
       { x: 486, y: 860 }
     ],
-    vending: [],
+    vending: [{ x: 510, y: 880 }],
     slots: [{ x: 490, y: 980 }],
     benches: [],
     landmarks: [{ tex: 'bridge', x: 0, y: 250, ox: 0, oy: 0, depth: -22 }]
@@ -226,7 +226,7 @@ export const DISTRICTS = {
       { x: 250, y: 1100, kind: 'stick' }
     ],
     mats: [{ x: 150, y: 800 }],
-    vending: [],
+    vending: [{ x: 500, y: 700 }],
     slots: [],
     benches: [],
     landmarks: [
@@ -285,7 +285,7 @@ export const DISTRICTS = {
       { x: 158, y: 620 },
       { x: 472, y: 1120 }
     ],
-    vending: [],
+    vending: [{ x: 506, y: 880 }],
     slots: [],
     benches: [],
     landmarks: []

@@ -15,6 +15,7 @@ import { RECIPES, recipeById, amountOf, spendMaterial } from '../craft.js';
 import { makeGoalsForDay } from '../goals.js';
 import { saveGame, loadGame, clearGame } from '../save.js';
 import { KING, patronById, favorOf, kingProgress } from '../king.js';
+import { SKILLS, addSkill, skillLevel, skillBonus, bookBonus } from '../skill.js';
 import { zhouGreeting } from '../dialogue.js';
 import {
   begGiveLine,
@@ -1352,6 +1353,10 @@ export class StreetScene extends Phaser.Scene {
     // The torn glove makes every window a fifth wider.
     if (this.run.tools.glove) width *= 1.2;
 
+    // And a practiced hand makes it wider again: the first attempts are meant
+    // to be bad, and only doing it again and again fixes that.
+    width *= 1 + skillBonus(this.run, 'steal') + bookBonus(this.run, 'steal');
+
     // A watched street closes the window: the commercial district is nearly
     // hopeless, the slum a touch easier than the rest.
     width *= district.stealZone || 1;
@@ -1496,6 +1501,9 @@ export class StreetScene extends Phaser.Scene {
     this.stealMode = null;
 
     if (!ped || this.run.over) return;
+
+    // Every hand in a pocket, clean or caught, teaches the hand something.
+    this.practice('steal', 1);
 
     this.advanceTime(20);
 
@@ -2342,6 +2350,12 @@ export class StreetScene extends Phaser.Scene {
     this.run.season = order[(i + 1) % order.length];
     playSfx('ui');
     haptic('ui');
+  }
+
+  debugSkill() {
+    this.practice('steal', SKILLS.steal.perLevel);
+    this.practice('peddle', SKILLS.peddle.perLevel);
+    playSfx('ui');
   }
 
   /// The sky does not wait for tomorrow: a clear morning can turn to rain by the
@@ -3599,6 +3613,17 @@ export class StreetScene extends Phaser.Scene {
         return true;
       }
 
+      // A little manual that teaches the trade once and for all.
+      case 'book': {
+        this.run.books = this.run.books || {};
+        if (this.run.books[entry.refId]) return false;
+
+        this.run.money -= entry.price;
+        this.run.books[entry.refId] = true;
+        this.floatText(this.player.x, this.player.y - 46, `读完了${entry.name}`, '#a8d98a');
+        return true;
+      }
+
       default:
         return false;
     }
@@ -3657,6 +3682,22 @@ export class StreetScene extends Phaser.Scene {
     haptic('sell');
 
     return total;
+  }
+
+  /// One more attempt at a trade, and a word to the player when it turns into a
+  /// level.
+  practice(id, n) {
+    const info = SKILLS[id];
+    if (!info) return;
+
+    const before = skillLevel(this.run, id);
+    const after = addSkill(this.run, id, n || 1);
+
+    if (after <= before) return;
+
+    this.floatText(this.player.x, this.player.y - 54, `${info.name} 熟练 Lv.${after}`, '#f2c46a');
+    playSfx('buy');
+    haptic('buy');
   }
 
   /// How presentable the player looks, 0 for rags and 1 for the best coat.
@@ -4408,6 +4449,7 @@ export class StreetScene extends Phaser.Scene {
     else if (kind === 'gang') rate -= 0.16;
 
     rate += this.cleanLevel() * 0.12;
+    rate += skillBonus(this.run, 'peddle') + bookBonus(this.run, 'peddle');
     rate -= Math.max(0, ped.alert || 0) * 0.2;
 
     const charm = this.pickCharm();
@@ -4440,6 +4482,9 @@ export class StreetScene extends Phaser.Scene {
 
       return 'no';
     }
+
+    // A refusal teaches the tongue as much as a sale does.
+    this.practice('peddle', 1);
 
     const { rate, charm } = this.peddleRate(worth, price, ped);
 
