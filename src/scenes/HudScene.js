@@ -48,7 +48,43 @@ const TRADE_MAX_ROWS = 10;
 
 const PEDDLE_ROWS = 4;
 
-const CRAFT_ROW_HEIGHT = 58;
+const CRAFT_ROW_HEIGHT = 54;
+
+/// Chinese has no spaces, so a canvas word wrap sees one enormous word and
+/// never breaks it: every line ran straight out of its panel. This folds a
+/// string into lines that fit a width, counting a Chinese glyph as a full
+/// character and a Latin one as a little over half.
+function foldText(value, width, fontSize) {
+  const budget = Math.max(4, width / Math.max(8, fontSize));
+  const out = [];
+
+  let line = '';
+  let used = 0;
+
+  for (const ch of String(value == null ? '' : value)) {
+    if (ch === '\n') {
+      out.push(line);
+      line = '';
+      used = 0;
+      continue;
+    }
+
+    const w = ch.charCodeAt(0) < 128 ? 0.55 : 1;
+
+    if (line && used + w > budget) {
+      out.push(line);
+      line = '';
+      used = 0;
+    }
+
+    line += ch;
+    used += w;
+  }
+
+  if (line) out.push(line);
+
+  return out.join('\n');
+}
 
 export class HudScene extends Phaser.Scene {
   constructor() {
@@ -2383,6 +2419,14 @@ export class HudScene extends Phaser.Scene {
     this.dialogueOptions = null;
   }
 
+  /// The words of one line, folded to the width between the portrait and the
+  /// edge of the panel, then the panel sized to hold them.
+  setDialogueLine(value) {
+    const width = Math.max(120, Math.min(this.w - 28, 360) - 132);
+    this.dialogueBody.setText(foldText(value, width, 15));
+    this.layoutDialogue();
+  }
+
   layoutDialogue() {
     const w = this.w;
     const pw = Math.min(w - 28, 360);
@@ -2481,9 +2525,7 @@ export class HudScene extends Phaser.Scene {
 
     this.dialoguePortrait.setTexture(speaker.portrait);
     this.dialogueName.setText(speaker.name);
-    this.dialogueBody.setText(this.dialogueLines[0]);
-
-    this.layoutDialogue();
+    this.setDialogueLine(this.dialogueLines[0]);
     this.showDialogueChoices(false);
     this.showPanel(this.dialogueLayer);
     this.releaseStick();
@@ -2507,8 +2549,7 @@ export class HudScene extends Phaser.Scene {
       return;
     }
 
-    this.dialogueBody.setText(this.dialogueLines[this.dialogueAt]);
-    this.layoutDialogue();
+    this.setDialogueLine(this.dialogueLines[this.dialogueAt]);
     haptic('tick');
   }
 
@@ -3317,6 +3358,19 @@ export class HudScene extends Phaser.Scene {
     }
   }
 
+  /// Icons come from two places — 96px Lucide symbols and the small pixel
+  /// sprites drawn for items — so each is scaled to the same height.
+  fitIcon(image, size) {
+    const height = image.height || size;
+    image.setScale(size / Math.max(1, height));
+    return image;
+  }
+
+  /// A list line, folded to the width it has rather than trusted to wrap.
+  fitRow(text, value, width, size) {
+    text.setText(foldText(value, width, size || 12));
+  }
+
   /// Panels live inside containers, and a hidden container's children can still
   /// answer taps, so their input is switched off with the panel.
   setLayerInput(layer, enabled) {
@@ -3370,12 +3424,13 @@ export class HudScene extends Phaser.Scene {
     const rowW = pw - 24;
     const rowX = px + 12;
     const rowScale = rowW / ROW_WIDTH;
+    this.storeInfoW = rowW - 150;
 
     this.storeRows.forEach((row, i) => {
       const ry = py + headH + rowH / 2 + i * (rowH + gap);
 
       row.bg.setScale(rowScale, 1).setPosition(rowX, ry);
-      row.icon.setPosition(rowX + 26, ry).setScale(24 / 96);
+      this.fitIcon(row.icon, 24).setPosition(rowX + 26, ry);
       row.name.setPosition(rowX + 48, ry - 12);
       row.info.setWordWrapWidth(rowW - 150).setPosition(rowX + 48, ry + 8);
       row.price.setPosition(rowX + rowW - 12, ry);
@@ -3995,11 +4050,16 @@ export class HudScene extends Phaser.Scene {
         .setInteractive();
       const icon = this.add.image(0, 0, rec.tex);
       const name = this.add
-        .text(0, 0, rec.name, { fontFamily: FONT, fontSize: '16px', color: UI.cream })
+        .text(0, 0, rec.name, { fontFamily: FONT, fontSize: '15px', color: UI.cream })
         .setOrigin(0, 0.5);
       const info = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
-        .setOrigin(0, 0.5);
+        .text(0, 0, '', {
+          fontFamily: FONT,
+          fontSize: '11px',
+          color: UI.creamDim,
+          lineSpacing: 2
+        })
+        .setOrigin(0, 0);
       const value = this.add
         .text(0, 0, rec.furniture ? '放进帐篷' : `${rec.value} 元`, {
           fontFamily: FONT,
@@ -4022,9 +4082,9 @@ export class HudScene extends Phaser.Scene {
   layoutCraft() {
     const w = this.w;
     const count = this.craftRows.length;
-    const gap = 6;
+    const gap = 4;
     const pw = Math.min(w - 32, ROW_WIDTH + 24);
-    const ph = 56 + count * (CRAFT_ROW_HEIGHT + gap) + 24;
+    const ph = 60 + count * (CRAFT_ROW_HEIGHT + gap) + 22;
     const px = (w - pw) / 2;
     const py = Math.max(40, (this.playH - ph) / 2);
 
@@ -4046,16 +4106,17 @@ export class HudScene extends Phaser.Scene {
     const rowW = pw - 24;
     const rowX = px + 12;
     const rowScale = rowW / ROW_WIDTH;
+    this.craftInfoW = rowW - 150;
 
     this.craftRows.forEach((row, i) => {
-      const ry = py + 56 + CRAFT_ROW_HEIGHT / 2 + i * (CRAFT_ROW_HEIGHT + gap);
+      const ry = py + 60 + CRAFT_ROW_HEIGHT / 2 + i * (CRAFT_ROW_HEIGHT + gap);
 
       row.bg.setScale(rowScale, 1).setPosition(rowX, ry);
-      row.icon.setPosition(rowX + 26, ry).setScale(1.2);
-      row.name.setPosition(rowX + 48, ry - 9);
-      row.info.setPosition(rowX + 48, ry + 10);
-      row.value.setPosition(rowX + rowW - 12, ry - 9);
-      row.state.setPosition(rowX + rowW - 12, ry + 10);
+      this.fitIcon(row.icon, 26).setPosition(rowX + 26, ry);
+      row.name.setPosition(rowX + 48, ry - 14);
+      row.info.setPosition(rowX + 48, ry - 1);
+      row.value.setPosition(rowX + rowW - 12, ry - 14);
+      row.state.setPosition(rowX + rowW - 12, ry + 9);
     });
   }
 
@@ -4098,7 +4159,9 @@ export class HudScene extends Phaser.Scene {
         .map((id) => `${JUNK_ITEMS[id].name} ${run.items[id]}`)
         .join(' · ');
 
-      this.craftSub.setText(held || '包里没有废品');
+      this.craftSub.setFontSize(12);
+      const held1 = foldText(held || '包里没有废品', pw - 44, 12).split('\n')[0];
+      this.craftSub.setText(held && held1.length < held.length ? `${held1}…` : held1);
       this.shown.craftSig = `${run.bag}|${Object.values(run.goods).join(',')}|${
         Object.keys(run.blueprints).length
       }`;
@@ -4140,7 +4203,7 @@ export class HudScene extends Phaser.Scene {
         .map((id) => `${materialLabel(id)} ${run ? amountOf(run, id) : 0}/${needList[id]}`)
         .join(' · ');
 
-      row.info.setText(needs);
+      this.fitRow(row.info, needs, this.craftInfoW || 150, 11);
       row.info.setColor(enough ? UI.creamDim : '#8a7a66');
       row.name.setColor(locked ? '#8a8070' : UI.cream);
 
@@ -5463,9 +5526,10 @@ export class HudScene extends Phaser.Scene {
         const price = lootPrice(entry.id, atPawn);
         const ok = have > 0;
 
-        row.icon.setTexture(item.tex).setScale(1.2);
+        row.icon.setTexture(item.tex);
+        this.fitIcon(row.icon, 26);
         row.name.setText(item.name);
-        row.info.setText(`持有 ${have} · ${item.use}`);
+        this.fitRow(row.info, `持有 ${have} · ${item.use}`, TRADE_ROW_WIDTH - 170, 12);
         row.price.setText(`${price} 元`);
 
         row.name.setColor(ok ? UI.cream : '#8a8070');
@@ -5490,9 +5554,10 @@ export class HudScene extends Phaser.Scene {
         const price = junkPrice(entry.id, atPawn);
         const ok = have > 0;
 
-        row.icon.setTexture(item.tex).setScale(1.2);
+        row.icon.setTexture(item.tex);
+        this.fitIcon(row.icon, 26);
         row.name.setText(item.name);
-        row.info.setText(`${item.place} · ${item.use} · 持有 ${have}`);
+        this.fitRow(row.info, `${item.place} · ${item.use} · 持有 ${have}`, TRADE_ROW_WIDTH - 170, 12);
         row.price.setText(`${price} 元`);
 
         row.name.setColor(ok ? UI.cream : '#8a8070');
@@ -5508,9 +5573,10 @@ export class HudScene extends Phaser.Scene {
         const have = run ? run.goods[entry.id] || 0 : 0;
         const ok = have > 0;
 
-        row.icon.setTexture(rec.tex).setScale(1.2);
+        row.icon.setTexture(rec.tex);
+        this.fitIcon(row.icon, 26);
         row.name.setText(rec.name);
-        row.info.setText(`持有 ${have} 个 · 单价 ${rec.value} 元`);
+        this.fitRow(row.info, `持有 ${have} 个 · 单价 ${rec.value} 元`, TRADE_ROW_WIDTH - 170, 12);
         row.price.setText(`${rec.value} 元`);
 
         row.name.setColor(ok ? UI.cream : '#8a8070');
@@ -5525,9 +5591,10 @@ export class HudScene extends Phaser.Scene {
       const owned = run ? !!run.tools[entry.id] : false;
       const affordable = money >= tool.price;
 
-      row.icon.setTexture(tool.tex).setScale(1.2);
+      row.icon.setTexture(tool.tex);
+      this.fitIcon(row.icon, 26);
       row.name.setText(tool.name);
-      row.info.setText(owned ? '已经在身上了' : tool.blurb);
+      this.fitRow(row.info, owned ? '已经在身上了' : tool.blurb, TRADE_ROW_WIDTH - 170, 12);
       row.price.setText(owned ? '已拥有' : `${tool.price} 元`);
       row.name.setColor(owned || affordable ? UI.cream : '#8a8070');
       row.info.setColor(owned || affordable ? UI.creamDim : '#736a5c');
@@ -5661,7 +5728,7 @@ export class HudScene extends Phaser.Scene {
 
       row.icon.setTexture(entry.icon);
       row.name.setText(entry.name);
-      row.info.setText(entry.desc);
+      this.fitRow(row.info, entry.desc, this.storeInfoW || 180, 12);
       row.price.setText(entry.owned ? '已拥有' : free ? '回收' : `${entry.price} 元`);
 
       row.name.setColor(entry.owned || affordable ? UI.cream : '#8a8070');

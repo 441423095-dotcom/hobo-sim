@@ -79,7 +79,7 @@ export function initAudio() {
   master.connect(ctx.destination);
 
   musicBus = ctx.createGain();
-  musicBus.gain.value = 0.5;
+  musicBus.gain.value = 0.2;
   musicBus.connect(master);
 
   sfxBus = ctx.createGain();
@@ -334,7 +334,7 @@ export function updateAudio(dt, state) {
   }
 
   if (droneGain) {
-    droneGain.gain.setTargetAtTime(0.045 + tension * 0.05, ctx.currentTime, 0.6);
+    droneGain.gain.setTargetAtTime(0.02 + tension * 0.022, ctx.currentTime, 0.6);
   }
 
   if (!musicOn || !musicBus) return;
