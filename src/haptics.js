@@ -28,40 +28,45 @@
 // Engine, so it does nothing when the game is opened in a plain browser.
 
 export const HAPTICS = {
-  // A single short tick — the smallest thing worth feeling.
-  tick: {
-    events: [
-      { type: 'transient', time: 0, intensity: 0.5, sharpness: 0.8 }
-    ]
-  },
+  tick: { events: [{ intensity: 0.5, sharpness: 0.8, time: 0, type: 'transient' }] },
 
-  // A crack followed by a fading rumble. A tap alone reads as a click; the tail
-  // is what makes it read as an impact.
-  impact: {
-    events: [
-      { type: 'transient', time: 0, intensity: 1, sharpness: 0.9 },
-      { type: 'continuous', time: 0.02, duration: 0.28, intensity: 0.55, sharpness: 0.2 }
-    ]
-  },
+  impact: { events: [{ intensity: 1, sharpness: 0.9, time: 0, type: 'transient' }, { duration: 0.28, intensity: 0.55, sharpness: 0.2, time: 0.02, type: 'continuous' }] },
 
-  // A curve ramps a value smoothly across an event, which stepped segments
-  // cannot do. This one swells and falls away.
-  charge: {
-    events: [
-      { type: 'continuous', time: 0, duration: 0.8, intensity: 0.4, sharpness: 0.3 }
-    ],
-    curves: [
-      {
-        parameter: 'intensity',
-        time: 0,
-        points: [
-          { time: 0, value: 0.1 },
-          { time: 0.6, value: 1 },
-          { time: 0.8, value: 0 }
-        ]
-      }
-    ]
-  }
+  charge: { curves: [{ parameter: 'intensity', points: [{ time: 0, value: 0.1 }, { time: 0.6, value: 1 }, { time: 0.8, value: 0 }], time: 0 }], events: [{ duration: 0.8, intensity: 0.4, sharpness: 0.3, time: 0, type: 'continuous' }] },
+
+  coin: { events: [{ intensity: 0.45, sharpness: 0.95, time: 0, type: 'transient' }, { intensity: 0.28, sharpness: 0.8, time: 0.045, type: 'transient' }] },
+
+  pickup: { events: [{ intensity: 0.32, sharpness: 0.35, time: 0, type: 'transient' }, { duration: 0.1, intensity: 0.2, sharpness: 0.1, time: 0.01, type: 'continuous' }, { intensity: 0.22, sharpness: 0.5, time: 0.12, type: 'transient' }] },
+
+  dig: { curves: [{ parameter: 'intensity', points: [{ time: 0.03, value: 0.15 }, { time: 0.16, value: 0.4 }, { time: 0.37, value: 0 }], time: 0.03 }], events: [{ intensity: 0.4, sharpness: 0.15, time: 0, type: 'transient' }, { attackTime: 0.04, decayTime: 0.3, duration: 0.34, intensity: 0.3, sharpness: 0.05, time: 0.03, type: 'continuous' }] },
+
+  buy: { events: [{ intensity: 0.5, sharpness: 0.7, time: 0, type: 'transient' }, { intensity: 0.65, sharpness: 0.55, time: 0.1, type: 'transient' }] },
+
+  refuse: { events: [{ intensity: 0.35, sharpness: 0.2, time: 0, type: 'transient' }, { intensity: 0.25, sharpness: 0.15, time: 0.08, type: 'transient' }] },
+
+  collapse: { curves: [{ parameter: 'intensity', points: [{ time: 0.03, value: 0.6 }, { time: 0.3, value: 0.35 }, { time: 0.78, value: 0 }], time: 0.03 }], events: [{ intensity: 1, sharpness: 0.2, time: 0, type: 'transient' }, { attackTime: 0.02, decayTime: 0.7, duration: 0.75, intensity: 0.55, sharpness: 0.08, time: 0.03, type: 'continuous' }] },
+
+  ui: { events: [{ intensity: 0.18, sharpness: 0.75, time: 0, type: 'transient' }] },
+
+  steal: { events: [{ intensity: 0.55, sharpness: 0.95, time: 0, type: 'transient' }, { intensity: 0.35, sharpness: 0.85, time: 0.05, type: 'transient' }] },
+
+  stealFail: { curves: [{ parameter: 'intensity', points: [{ time: 0.02, value: 0.45 }, { time: 0.25, value: 0 }], time: 0.02 }], events: [{ intensity: 0.7, sharpness: 0.25, time: 0, type: 'transient' }, { attackTime: 0.02, decayTime: 0.24, duration: 0.26, intensity: 0.4, sharpness: 0.05, time: 0.02, type: 'continuous' }] },
+
+  caught: { curves: [{ parameter: 'intensity', points: [{ time: 0.03, value: 0.7 }, { time: 0.35, value: 0.35 }, { time: 0.7, value: 0 }], time: 0.03 }], events: [{ intensity: 1, sharpness: 0.35, time: 0, type: 'transient' }, { attackTime: 0.02, decayTime: 0.65, duration: 0.68, intensity: 0.6, sharpness: 0.15, time: 0.03, type: 'continuous' }] },
+
+  alarm: { events: [{ intensity: 0.6, sharpness: 0.9, time: 0, type: 'transient' }, { intensity: 0.5, sharpness: 0.9, time: 0.14, type: 'transient' }, { intensity: 0.4, sharpness: 0.85, time: 0.28, type: 'transient' }] },
+
+  sell: { events: [{ intensity: 0.4, sharpness: 0.9, time: 0, type: 'transient' }, { intensity: 0.3, sharpness: 0.85, time: 0.06, type: 'transient' }, { intensity: 0.22, sharpness: 0.8, time: 0.13, type: 'transient' }, { intensity: 0.16, sharpness: 0.75, time: 0.19, type: 'transient' }] },
+
+  unlock: { events: [{ intensity: 0.35, sharpness: 0.7, time: 0, type: 'transient' }, { intensity: 0.5, sharpness: 0.85, time: 0.12, type: 'transient' }, { intensity: 0.6, sharpness: 0.95, time: 0.24, type: 'transient' }] },
+
+  travel: { events: [{ attackTime: 0.06, decayTime: 0.3, duration: 0.36, intensity: 0.3, sharpness: 0.15, time: 0, type: 'continuous' }] },
+
+  craft: { events: [{ intensity: 0.45, sharpness: 0.3, time: 0, type: 'transient' }, { intensity: 0.6, sharpness: 0.5, time: 0.08, type: 'transient' }, { intensity: 0.75, sharpness: 0.8, time: 0.18, type: 'transient' }] },
+
+  sleep: { events: [{ attackTime: 0.35, duration: 0.9, intensity: 0.22, releaseTime: 0.4, sharpness: 0.05, time: 0, type: 'continuous' }] },
+
+  jackpot: { curves: [{ parameter: 'intensity', points: [{ time: 0, value: 0.4 }, { time: 0.25, value: 0.95 }, { time: 0.7, value: 0.6 }, { time: 1.1, value: 0 }], time: 0 }], events: [{ intensity: 0.6, sharpness: 0.8, time: 0, type: 'transient' }, { intensity: 0.8, sharpness: 0.7, time: 0.14, type: 'transient' }, { duration: 1.1, intensity: 0.7, sharpness: 0.25, time: 0.14, type: 'continuous' }, { intensity: 0.9, sharpness: 0.9, time: 0.34, type: 'transient' }] }
 };
 
 const channel =
