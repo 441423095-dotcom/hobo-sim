@@ -88,6 +88,7 @@ export class HudScene extends Phaser.Scene {
     this.stealChoiceOpen = false;
     this.panelOpen = false;
     this.inputLockUntil = 0;
+    this.uiSettleAt = 0;
     this.qte = null;
     this.storeId = null;
     this.storeEntries = [];
@@ -300,7 +301,10 @@ export class HudScene extends Phaser.Scene {
       .setScale(26 / 96)
       .setDepth(DEPTH.hud + 1);
 
-    this.mapBtn.on('pointerdown', () => this.openMap());
+    this.mapBtn.on('pointerdown', () => {
+      this.uiSettleAt = this.time.now + 280;
+      this.openMap();
+    });
 
     this.districtText = this.add
       .text(0, 0, '', {
@@ -608,7 +612,7 @@ export class HudScene extends Phaser.Scene {
 
     this.stealChoiceRows = [];
 
-    const modes = ['money', 'item', 'perfume'];
+    const modes = ['money', 'item'];
 
     for (let i = 0; i < modes.length; i++) {
       const bg = this.add
@@ -686,7 +690,6 @@ export class HudScene extends Phaser.Scene {
 
     const purse = options ? options.purse : 0;
     const loot = options && options.loot ? LOOT_ITEMS[options.loot] : null;
-    const perfume = this.street && this.street.run ? this.street.run.perfume || 0 : 0;
 
     const data = [
       {
@@ -700,12 +703,6 @@ export class HudScene extends Phaser.Scene {
         name: '顺口袋',
         info: loot ? `${loot.name} · 绿区宽，被抓住会拖住你` : '口袋里没什么了',
         ok: !!loot
-      },
-      {
-        icon: 'icon-zap',
-        name: '迷幻香水',
-        info: perfume > 0 ? `${perfume} 瓶 · 直接得手，不用 QTE` : '没有香水',
-        ok: perfume > 0
       }
     ];
 
@@ -753,6 +750,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   closeStealChoice() {
+    if (this.time.now < this.uiSettleAt) return;
     if (!this.stealChoiceOpen) return;
     this.stealChoiceOpen = false;
     this.stealChoiceLayer.setVisible(false);
@@ -767,12 +765,8 @@ export class HudScene extends Phaser.Scene {
     }
 
     const mode = row.mode;
+    this.uiSettleAt = 0;
     this.closeStealChoice();
-
-    if (mode === 'perfume') {
-      if (this.street && !this.street.perfumeSteal()) haptic('refuse');
-      return;
-    }
 
     if (this.street) this.street.trySteal(mode);
   }
@@ -1328,6 +1322,9 @@ export class HudScene extends Phaser.Scene {
 
     if (!this.street) return;
 
+    // A panel opened by this tap must not be closed by the finger lifting.
+    this.uiSettleAt = this.time.now + 280;
+
     // The little map button in the corner belongs to itself.
     if (
       this.mapBtn &&
@@ -1509,6 +1506,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   closeStore() {
+    if (this.time.now < this.uiSettleAt) return;
     if (!this.shopOpen) return;
     this.shopOpen = false;
     this.storeLayer.setVisible(false);
@@ -1571,6 +1569,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   closeTrade() {
+    if (this.time.now < this.uiSettleAt) return;
     if (!this.tradeOpen) return;
     this.tradeOpen = false;
     this.tradeLayer.setVisible(false);
@@ -1723,6 +1722,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   closeCraft() {
+    if (this.time.now < this.uiSettleAt) return;
     if (!this.craftOpen) return;
     this.craftOpen = false;
     this.craftLayer.setVisible(false);
@@ -1976,6 +1976,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   closeHome() {
+    if (this.time.now < this.uiSettleAt) return;
     if (!this.homeOpen) return;
     this.homeOpen = false;
     this.homeLayer.setVisible(false);
@@ -2367,6 +2368,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   closeVending() {
+    if (this.time.now < this.uiSettleAt) return;
     if (!this.vendingOpen) return;
     this.vendingOpen = false;
     this.vendingLayer.setVisible(false);
@@ -2564,6 +2566,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   closeSlot() {
+    if (this.time.now < this.uiSettleAt) return;
     if (!this.slotOpen) return;
     this.slotOpen = false;
     this.slotSpin = null;
@@ -2916,6 +2919,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   closeMap() {
+    if (this.time.now < this.uiSettleAt) return;
     if (!this.mapOpen) return;
     this.mapOpen = false;
     this.mapLayer.setVisible(false);

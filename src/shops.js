@@ -216,17 +216,6 @@ export function stockFor(shopId, run) {
       owned: !!(run && run.booze > 0)
     });
 
-    items.push({
-      key: 'use:perfume',
-      kind: 'perfume',
-      refId: 'perfume',
-      name: '迷幻香水',
-      desc: '跳过 QTE，把人和口袋一起搜了',
-      icon: 'item-perfume',
-      price: 120,
-      owned: !!(run && run.perfume > 0)
-    });
-
     return items;
   }
 

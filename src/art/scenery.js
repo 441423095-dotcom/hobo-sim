@@ -81,6 +81,7 @@ export function buildWorldArt(scene) {
   canvasTexture(scene, 'parkedcar', 54, 96, drawParkedCar);
   canvasTexture(scene, 'hoarding', 200, 46, drawHoarding);
   canvasTexture(scene, 'awning', 120, 26, drawAwning);
+  canvasTexture(scene, 'streetlamp', 22, 88, drawStreetLamp);
   canvasTexture(scene, 'vending', 44, 74, drawVending);
   canvasTexture(scene, 'slotmachine', 48, 64, drawSlotMachine);
   canvasTexture(scene, 'bench', 66, 34, drawBench);
@@ -1373,8 +1374,7 @@ function drawHoarding(ctx, w, h) {
   ctx.fillRect(w * 0.4 + 4, 18, 18, 3);
 }
 
-function drawAwning(ctx, w, h) {
-  ctx.clearRect(0, 0, w, h);
+function drawAwning(ctx, w, h) {  ctx.clearRect(0, 0, w, h);
 
   const colours = ['#8a4a3a', '#d8c8a8'];
   const stripe = 15;
@@ -1408,4 +1408,32 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.lineTo(x, y + r);
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
+}
+
+
+function drawStreetLamp(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Base and post.
+  ctx.fillStyle = '#3a3f46';
+  ctx.fillRect(w * 0.5 - 5, h - 8, 10, 8);
+  ctx.fillRect(w * 0.5 - 2, h * 0.16, 4, h - 22);
+
+  // The arm and the head.
+  ctx.fillRect(w * 0.5 - 2, h * 0.16, 10, 4);
+
+  ctx.fillStyle = '#20242a';
+  ctx.fillRect(w * 0.5 + 4, h * 0.18, 14, 8);
+
+  ctx.fillStyle = 'rgba(242,196,106,0.9)';
+  ctx.fillRect(w * 0.5 + 6, h * 0.2, 10, 3);
+
+  // A soft halo round the head.
+  const glow = ctx.createRadialGradient(w * 0.75, h * 0.22, 2, w * 0.75, h * 0.22, 18);
+  glow.addColorStop(0, 'rgba(242,196,106,0.35)');
+  glow.addColorStop(1, 'rgba(242,196,106,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(w * 0.75, h * 0.22, 18, 0, Math.PI * 2);
+  ctx.fill();
 }

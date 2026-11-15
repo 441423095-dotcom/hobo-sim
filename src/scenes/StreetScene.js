@@ -12,7 +12,7 @@ import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
 import { RECIPES, recipeById, amountOf, spendMaterial } from '../craft.js';
 import { SHOPS, OUTFITS } from '../shops.js';
 import { FURNITURE, HOME_SCENE_COMFORT } from '../home.js';
-import { DAY_LENGTH, minutesToClock, segmentOf, segmentName } from '../time.js';
+import { DAY_LENGTH, darknessAt, minutesToClock, segmentOf, segmentName } from '../time.js';
 import { COFFEE_PRICE, COFFEE_ENERGY, KICK_ENERGY, KICK_WANTED, SEEN_WANTED, BIN_SEARCH_MS } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS, rollSlot } from '../gamble.js';
 import {
@@ -54,7 +54,7 @@ const TRADE_RADIUS = 80;
 
 // Stealing: reach, how close a walker has to be before they get suspicious,
 // and how long the hands stay still after an attempt.
-const STEAL_RANGE = 60;
+const STEAL_RANGE = 84;
 const SEEN_RANGE = 88;
 const STEAL_COOLDOWN = 2200;
 const FAIL_COOLDOWN = 3600;
@@ -337,6 +337,7 @@ export class StreetScene extends Phaser.Scene {
     this.pedMs = this.district.pedMs;
 
     this.buildScenery();
+    this.buildLamps();
     this.buildWalls();
     this.buildAlleyContent();
     this.buildStreetDetail();
@@ -464,11 +465,19 @@ export class StreetScene extends Phaser.Scene {
     // The bin-search progress bar, drawn above whatever is being searched.
     this.searchBarGfx = this.add.graphics().setDepth(5600);
 
-    // Cold light of the evening and the night, over the whole city.
+    // Cold light of the evening and the night, over the whole city, and the
+    // warm pools the street lamps throw once it is dark.
     this.nightOverlay = this.add
       .rectangle(0, 0, this.worldWidth, this.worldHeight, 0x0a1428, 0)
       .setOrigin(0, 0)
       .setDepth(-25);
+
+    this.lightsGfx = this.add
+      .graphics()
+      .setDepth(-23)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    this.lightSpots = [];
   }
 
   stripFor(id) {
@@ -1104,6 +1113,14 @@ export class StreetScene extends Phaser.Scene {
           label: `进${shop.name}`,
           use: () => this.openStore(shop.id)
         });
+
+        // The shop's own light, spilling onto the pavement after dark.
+        if (this.lightSpots) {
+          this.lightSpots.push({
+            x: shop.doorX + strip.x0 + 14,
+            y: shop.doorY + strip.y0 - 26
+          });
+        }
       }
     }
   }
@@ -2320,8 +2337,42 @@ export class StreetScene extends Phaser.Scene {
 
   applyNight() {
     if (!this.nightOverlay) return;
-    const alphas = [0, 0, 0.16, 0.38];
-    this.nightOverlay.setAlpha(alphas[segmentOf(this.run.step)] || 0);
+
+    const dark = darknessAt(this.run.step);
+    this.nightOverlay.setAlpha(dark * 0.55);
+
+    const g = this.lightsGfx;
+    if (!g) return;
+
+    g.clear();
+
+    const lit = Phaser.Math.Clamp((dark - 0.15) / 0.45, 0, 1);
+    if (lit <= 0.02) return;
+
+    for (const light of this.lightSpots || []) {
+      g.fillStyle(0xf2c46a, 0.05 * lit);
+      g.fillCircle(light.x, light.y, 92);
+      g.fillStyle(0xf2c46a, 0.08 * lit);
+      g.fillCircle(light.x, light.y, 52);
+      g.fillStyle(0xffe6b0, 0.12 * lit);
+      g.fillCircle(light.x, light.y, 18);
+    }
+  }
+
+  /// Street lamps down both pavements, one of the pools of light that come on
+  /// as the evening draws in.
+  buildLamps() {
+    const ys = [200, 560, 920, 1280];
+
+    for (const strip of this.strips) {
+      ys.forEach((localY, i) => {
+        const x = strip.x0 + (i % 2 === 0 ? 132 : 506);
+        const y = strip.y0 + localY;
+
+        this.add.image(x, y, 'streetlamp').setOrigin(0.5, 1).setDepth(y);
+        this.lightSpots.push({ x, y: y - 74 });
+      });
+    }
   }
 
   updateSegment() {

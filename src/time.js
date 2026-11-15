@@ -42,3 +42,15 @@ export function segmentOf(minutes) {
 export function segmentName(minutes) {
   return SEGMENTS[segmentOf(minutes)].name;
 }
+
+/// How dark the sky is: 0 through the afternoon, rising from 15:00 and full
+/// dark after 21:00.
+export function darknessAt(minutes) {
+  const hour = hourOf(minutes);
+
+  if (hour < 15) return 0;
+  if (hour < 19) return ((hour - 15) / 4) * 0.7;
+  if (hour < 21) return 0.7 + ((hour - 19) / 2) * 0.3;
+
+  return 1;
+}
