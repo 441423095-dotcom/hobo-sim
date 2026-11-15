@@ -79,6 +79,7 @@ export function buildWorldArt(scene) {
   canvasTexture(scene, 'trashbags', 48, 34, drawTrashBags);
   canvasTexture(scene, 'shack', 86, 64, drawShack);
   canvasTexture(scene, 'dumpster', 74, 54, drawDumpster);
+  canvasTexture(scene, 'manhole', 36, 20, drawManhole);
   canvasTexture(scene, 'backdoor', 40, 56, drawBackdoor);
 
   // Street furniture: crossings, lights, parked cars, works and awnings.
@@ -1547,6 +1548,34 @@ function drawTent(ctx, w, h) {
   ctx.fillRect(w * 0.02, h * 0.66, 22, 4);
   ctx.fillStyle = '#4a3a26';
   ctx.fillRect(w * 0.9, h * 0.7, 18, 24);
+}
+
+function drawManhole(ctx, w, h) {
+  // A cast-iron cover set into the pavement, its ribs worn smooth.
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(w / 2, h - 2, w / 2 - 2, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#3a3a38';
+  ctx.beginPath();
+  ctx.ellipse(w / 2, h / 2, w / 2 - 2, h / 2 - 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#56564f';
+  ctx.lineWidth = 1;
+  for (let x = 7; x < w - 6; x += 5) {
+    ctx.beginPath();
+    ctx.moveTo(x, 5);
+    ctx.lineTo(x, h - 5);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = '#24241f';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(w / 2, h / 2, w / 2 - 3, h / 2 - 4, 0, 0, Math.PI * 2);
+  ctx.stroke();
 }
 
 function drawDumpster(ctx, w, h) {

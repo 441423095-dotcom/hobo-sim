@@ -476,6 +476,7 @@ export class StreetScene extends Phaser.Scene {
     this.buildStreetDetail();
     this.buildBins();
     this.buildLitter();
+    this.buildHides();
     this.buildMats();
     this.buildPlayer();
     this.buildCops();
@@ -1475,6 +1476,108 @@ export class StreetScene extends Phaser.Scene {
         this.addInteractable(def);
       }
     }
+  }
+
+  /// Things worth a look that are not lying in the open: a manhole cover, a
+  /// hedge, a shop's back door, the shade under a parked car. Each one can be
+  /// turned over once a day, and what comes out comes from this street.
+  buildHides() {
+    const spots = {
+      market: [
+        { x: 150, y: 420, kind: 'manhole' },
+        { x: 470, y: 980, kind: 'car' }
+      ],
+      square: [
+        { x: 210, y: 760, kind: 'manhole' },
+        { x: 500, y: 1210, kind: 'car' }
+      ],
+      alley: [
+        { x: 455, y: 300, kind: 'backdoor' },
+        { x: 150, y: 1140, kind: 'manhole' }
+      ],
+      park: [
+        { x: 300, y: 900, kind: 'bush' },
+        { x: 470, y: 320, kind: 'bush' }
+      ],
+      camp: [{ x: 430, y: 380, kind: 'manhole' }],
+      slum: [
+        { x: 150, y: 500, kind: 'manhole' },
+        { x: 452, y: 1240, kind: 'backdoor' }
+      ],
+      commerce: [
+        { x: 420, y: 520, kind: 'car' },
+        { x: 200, y: 1180, kind: 'manhole' }
+      ]
+    };
+
+    const labels = {
+      manhole: '井盖·掀开看看',
+      bush: '花丛·翻一翻',
+      backdoor: '后门·摸一摸',
+      car: '车底·摸一摸'
+    };
+
+    for (const strip of this.strips) {
+      for (const spot of spots[strip.id] || []) {
+        const x = strip.x0 + spot.x;
+        const y = strip.y0 + spot.y;
+
+        const tex =
+          spot.kind === 'manhole'
+            ? 'manhole'
+            : spot.kind === 'bush'
+              ? 'hedge'
+              : spot.kind === 'backdoor'
+                ? 'backdoor'
+                : 'parkedcar';
+
+        const img = this.add
+          .image(x, y, tex)
+          .setOrigin(0.5, 1)
+          .setDepth(spot.kind === 'backdoor' ? -28 : y);
+
+        // Searched today or not: the spot is good again tomorrow.
+        img.setData('day', -1);
+
+        this.addInteractable({
+          x,
+          y: y - 10,
+          radius: 64,
+          label: labels[spot.kind] || '翻一翻',
+          enabled: () => img.getData('day') !== this.run.day,
+          flash: () => this.flashSprite(img),
+          use: () => this.searchHide(img)
+        });
+      }
+    }
+  }
+
+  searchHide(img) {
+    if (img.getData('day') === this.run.day) {
+      haptic('refuse');
+      return;
+    }
+
+    img.setData('day', this.run.day);
+    this.advanceTime(15);
+
+    // Now and then there is a coin under there, and nothing else.
+    if (Math.random() < 0.2) {
+      const amount = Phaser.Math.Between(1, 4);
+
+      this.run.money += amount;
+      this.run.scavengeIncome += amount;
+      this.floatText(img.x, img.y - 30, `摸到 ${amount} 元`, UI.gold);
+      playSfx('coin');
+      haptic('coin');
+      return;
+    }
+
+    // What comes out belongs to the street it was hidden in.
+    const pool = (this.district && this.district.junk) || JUNK_ORDER;
+    const id = pool[Math.floor(Math.random() * pool.length)];
+
+    this.addToBag(id, img.x, img.y - 30);
   }
 
   buildMats() {

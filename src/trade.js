@@ -30,6 +30,9 @@ export const JUNK_ITEMS = {
   pipe: { name: '半截铁管', tex: 'item-pipe', price: 5, place: '黑街', use: '只能卖钱' },
   battery: { name: '废电池', tex: 'item-battery', price: 3, place: '黑街', use: '只能卖钱' },
 
+  // 车底下、井盖里翻出来的东西：拆下来的旧零件。
+  part: { name: '车零件', tex: 'item-pipe', price: 6, place: '街角', use: '只能卖钱' },
+
   // 商业区：写字楼底下的碎纸和咖啡杯。
   receipt: { name: '长小票', tex: 'item-receipt', price: 2, place: '商业区', use: '只能卖钱' },
   cup: { name: '空咖啡杯', tex: 'item-cup', price: 4, place: '商业区', use: '只能卖钱' }
@@ -51,6 +54,7 @@ export const JUNK_ORDER = [
   'wire',
   'cloth',
   'wine',
+  'part',
   'pipe',
   'battery',
   'receipt',
