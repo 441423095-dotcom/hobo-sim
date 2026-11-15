@@ -112,7 +112,7 @@ export function gangHonour(run, id) {
 
 // A gang only has so much face to give out in one day: past this, another
 // envelope of cash is just money, and the street notices nothing new.
-export const GANG_DAILY_CAP = 20;
+export const GANG_DAILY_CAP = 12;
 
 /// Standing with a ceiling on how much of it one day can buy.
 export function addDailyStanding(run, id, n) {
