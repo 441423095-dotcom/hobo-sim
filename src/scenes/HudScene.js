@@ -3924,25 +3924,29 @@ export class HudScene extends Phaser.Scene {
   tradeEntryList() {
     const run = this.street && this.street.run ? this.street.run : null;
     const entries = [];
+    const atPawn = this.tradeMode === 'pawn';
 
-    if (this.tradeMode === 'pawn') {
+    // The stall only weighs rubbish. The pawn takes what is worth money — what
+    // came out of somebody's pocket, what was made at the bench — and lends its
+    // counter to a few tools.
+    if (atPawn) {
       for (const tool of TOOLS) entries.push({ kind: 'tool', id: tool.id });
-    }
 
-    for (const id of LOOT_ORDER) {
-      if (run && (run.loot[id] || 0) > 0) entries.push({ kind: 'loot', id });
+      for (const id of LOOT_ORDER) {
+        if (run && (run.loot[id] || 0) > 0) entries.push({ kind: 'loot', id });
+      }
+
+      if (run) {
+        for (const rec of RECIPES) {
+          if ((run.goods[rec.id] || 0) > 0) entries.push({ kind: 'good', id: rec.id });
+        }
+      }
     }
 
     // Only what is actually in the bag: every district drops its own litter, so
     // the full list would never fit the panel.
     for (const id of JUNK_ORDER) {
       if (run && (run.items[id] || 0) > 0) entries.push({ kind: 'junk', id });
-    }
-
-    if (run) {
-      for (const rec of RECIPES) {
-        if ((run.goods[rec.id] || 0) > 0) entries.push({ kind: 'good', id: rec.id });
-      }
     }
 
     return entries.slice(0, TRADE_MAX_ROWS);
@@ -5491,9 +5495,7 @@ export class HudScene extends Phaser.Scene {
     const atPawn = this.tradeMode === 'pawn';
 
     this.tradeTitle.setText(atPawn ? '老陈当铺' : '街边旧货摊');
-    this.tradeSub.setText(
-      atPawn ? '废品给价高，也卖些趁手的家伙' : '把包里的废品换成零钱'
-    );
+    this.tradeSub.setText(atPawn ? '只收值钱东西，也卖几件趁手的家伙' : '只收废品，论堆换零钱');
 
     this.shown.tradeSig = run
       ? `${run.money}|${run.bag}|${run.tools.lockpick}|${run.tools.coat}|${Object.values(

@@ -1165,33 +1165,45 @@ export class StreetScene extends Phaser.Scene {
   }
 
   buildShops() {
-    const strip = this.stripFor('market');
-    if (!strip) return;
+    // The junk stall belongs to the market, at the bottom of the street. The
+    // pawn shop sits over in the business district, where the things worth
+    // pawning actually come from, so the two sellers are never in one view.
+    const market = this.stripFor('market');
 
-    const ox = strip.x0;
-    const oy = strip.y0;
+    if (market) {
+      const ox = market.x0;
+      const oy = market.y0;
 
-    this.add.image(PAWN.x + ox, PAWN.y + oy, 'pawnshop').setOrigin(0, 0).setDepth(-28);
-    this.add.image(STALL.x + ox, STALL.y + oy, 'stall').setOrigin(0.5, 1).setDepth(STALL.y + oy);
-    this.add
-      .image(STALL.vendorX + ox, STALL.vendorY + oy, 'ped-lady')
-      .setDepth(STALL.vendorY + oy);
+      this.add.image(STALL.x + ox, STALL.y + oy, 'stall').setOrigin(0.5, 1).setDepth(STALL.y + oy);
+      this.add
+        .image(STALL.vendorX + ox, STALL.vendorY + oy, 'ped-lady')
+        .setDepth(STALL.vendorY + oy);
 
-    this.addInteractable({
-      x: STALL.x + ox,
-      y: STALL.y + oy - 30,
-      radius: TRADE_RADIUS,
-      label: '旧货摊·卖废品',
-      use: () => this.openTrade('stall')
-    });
+      this.addInteractable({
+        x: STALL.x + ox,
+        y: STALL.y + oy - 30,
+        radius: TRADE_RADIUS,
+        label: '旧货摊·只收废品',
+        use: () => this.openTrade('stall')
+      });
+    }
 
-    this.addInteractable({
-      x: PAWN.doorX + ox,
-      y: PAWN.doorY + oy,
-      radius: TRADE_RADIUS,
-      label: '当铺·卖废品和工具',
-      use: () => this.openTrade('pawn')
-    });
+    const commerce = this.stripFor('commerce');
+
+    if (commerce) {
+      const ox = commerce.x0;
+      const oy = commerce.y0;
+
+      this.add.image(PAWN.x + ox, PAWN.y + oy, 'pawnshop').setOrigin(0, 0).setDepth(-28);
+
+      this.addInteractable({
+        x: PAWN.doorX + ox,
+        y: PAWN.doorY + oy,
+        radius: TRADE_RADIUS,
+        label: '当铺·收值钱东西',
+        use: () => this.openTrade('pawn')
+      });
+    }
   }
 
   /// Every shop front in this street, each with a door of its own on the
