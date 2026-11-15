@@ -225,10 +225,11 @@ function drawRoad(ctx, h, r) {
 }
 
 // The two sides of the street are not one long wall: each stretch along them is
-// a building of its own, with its own age, height, colour and window type.
-// Blocks are set back from the back of the strip by a few pixels, which is what
-// reads as a lower roof standing against the dark behind it, so the skyline is
-// uneven the whole way down the street and old buildings sit next to new ones.
+// a building of its own, with its own age, height, colour and window type, and
+// between any two of them there is a gap of a yard's width. Blocks are set back
+// from the back of the strip by a few pixels, which is what reads as a lower roof
+// standing against the dark behind it, so the skyline is uneven the whole way
+// down the street and old buildings sit next to new ones.
 
 const FACADE_DISTRICTS = ['market', 'square', 'alley', 'park', 'camp', 'slum', 'commerce'];
 
@@ -298,6 +299,10 @@ function facadeSeed(id, isRight) {
   return seed;
 }
 
+// One module of frontage. A gap between two buildings is one to three of these,
+// so the openings read as part of the street rather than as a crack in a wall.
+const GAP_CELL = 46;
+
 function drawFacade(ctx, w, h, seed, isRight, district) {
   const r = seeded(seed);
   const look = FACADES[district] || FACADES.market;
@@ -307,16 +312,203 @@ function drawFacade(ctx, w, h, seed, isRight, district) {
   ctx.fillRect(0, 0, w, h);
 
   let y = -26;
+
   while (y < h) {
-    const height = 132 + Math.floor(r() * 168);
+    const height = 128 + Math.floor(r() * 156);
     drawBuilding(ctx, w, y, height, isRight, look, r, district);
-    y += height + 3;
+    y += height;
+
+    // One to three modules of air between this block and the next: a yard, a lot
+    // behind a low wall, or an alley running back off the street. Blocks that
+    // touch the end of the strip take a narrower gap rather than a sliver.
+    let gap = GAP_CELL * (1 + Math.floor(r() * 3));
+    while (y + gap > h + 30 && gap > GAP_CELL) gap -= GAP_CELL;
+
+    if (y + gap <= h + 30) {
+      drawGap(ctx, w, y, gap, isRight, r);
+      y += gap;
+    } else {
+      y += 3;
+    }
   }
 
   // Dirt and smoke ground into the top of the strip.
   for (let i = 0; i < 26; i++) {
     ctx.fillStyle = 'rgba(8,7,5,0.22)';
     ctx.fillRect(Math.floor(r() * w), Math.floor(r() * h), 6 + Math.floor(r() * 10), 4);
+  }
+}
+
+/// The opening between two buildings: the ground it opens onto, whatever stands
+/// in it, and the shadow the taller block above throws down into it.
+function drawGap(ctx, w, y, gap, isRight, r) {
+  const roll = r();
+
+  ctx.fillStyle = '#15130f';
+  ctx.fillRect(0, y, w, gap);
+
+  if (roll < 0.36) drawGapAlley(ctx, w, y, gap, isRight, r);
+  else if (roll < 0.72) drawGapYard(ctx, w, y, gap, isRight, r);
+  else drawGapTrees(ctx, w, y, gap, isRight, r);
+
+  // The block above keeps the light out of the top of the opening.
+  const shade = ctx.createLinearGradient(0, y, 0, y + gap);
+  shade.addColorStop(0, 'rgba(3,2,2,0.7)');
+  shade.addColorStop(0.42, 'rgba(3,2,2,0.24)');
+  shade.addColorStop(1, 'rgba(3,2,2,0.05)');
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, y, w, gap);
+
+  // And the two walls on either side darken the ends, so it reads as a hole.
+  const side = ctx.createLinearGradient(0, 0, w, 0);
+  side.addColorStop(0, isRight ? 'rgba(3,3,3,0.5)' : 'rgba(3,3,3,0.06)');
+  side.addColorStop(0.22, 'rgba(3,3,3,0.04)');
+  side.addColorStop(0.78, 'rgba(3,3,3,0.04)');
+  side.addColorStop(1, isRight ? 'rgba(3,3,3,0.06)' : 'rgba(3,3,3,0.5)');
+  ctx.fillStyle = side;
+  ctx.fillRect(0, y, w, gap);
+}
+
+/// An alley going back off the street: cracked concrete, a drain, a puddle, a
+/// bulb over a door at the far end.
+function drawGapAlley(ctx, w, y, gap, isRight, r) {
+  ctx.fillStyle = '#2a2823';
+  ctx.fillRect(0, y, w, gap);
+
+  ctx.fillStyle = 'rgba(12,11,9,0.5)';
+  for (let gy = y + 7; gy < y + gap; gy += 13) ctx.fillRect(0, gy, w, 1);
+
+  ctx.fillStyle = 'rgba(10,9,7,0.35)';
+  for (let gx = 11; gx < w; gx += 23) ctx.fillRect(gx, y, 1, gap);
+
+  // The drain that runs down the middle of it.
+  ctx.fillStyle = '#1b1a16';
+  ctx.fillRect(0, y + gap * 0.46, w, Math.max(4, gap * 0.09));
+  ctx.fillStyle = 'rgba(140,140,128,0.14)';
+  ctx.fillRect(0, y + gap * 0.46, w, 1);
+
+  // Water standing in a low spot, catching what light there is.
+  const px = w * (0.3 + r() * 0.35);
+  const py = y + gap * (0.2 + r() * 0.3);
+
+  ctx.fillStyle = 'rgba(88,116,130,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(px, py, 12 + r() * 9, Math.max(3, gap * 0.09), 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(200,225,235,0.12)';
+  ctx.beginPath();
+  ctx.ellipse(px - 3, py - 2, 6, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Somebody's rubbish stacked against one wall.
+  ctx.fillStyle = '#262420';
+  ctx.fillRect(w * 0.14, y + gap * 0.1, 17, Math.max(8, gap * 0.14));
+  ctx.fillStyle = '#33302a';
+  ctx.fillRect(18 + w * 0.14, y + gap * 0.13, 12, Math.max(7, gap * 0.1));
+
+  // A door at the far end, with a bulb over it that is still on.
+  const backX = isRight ? w - 14 : 2;
+
+  ctx.fillStyle = 'rgba(240,196,124,0.1)';
+  ctx.beginPath();
+  ctx.ellipse(backX + 6, y + gap * 0.5, 18, Math.max(8, gap * 0.3), 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#141210';
+  ctx.fillRect(backX, y + gap * 0.34, 12, Math.max(12, gap * 0.3));
+  ctx.fillStyle = 'rgba(250,214,150,0.75)';
+  ctx.fillRect(backX + 5, y + gap * 0.5 - 1, 2, 2);
+
+  // Cables strung across the opening.
+  ctx.strokeStyle = 'rgba(16,14,12,0.8)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, y + gap * 0.62);
+  ctx.lineTo(w, y + gap * 0.58);
+  ctx.stroke();
+}
+
+/// A yard behind a low brick wall: you can see over it into the weedy back lot.
+function drawGapYard(ctx, w, y, gap, isRight, r) {
+  ctx.fillStyle = '#221e17';
+  ctx.fillRect(0, y, w, gap);
+
+  for (let i = 0; i < Math.max(6, gap * 0.5); i++) {
+    ctx.fillStyle = r() > 0.5 ? 'rgba(74,96,58,0.45)' : 'rgba(56,74,46,0.4)';
+    ctx.fillRect(Math.floor(r() * w), y + Math.floor(r() * gap), 3, 2);
+  }
+
+  const wallX = isRight ? w * 0.56 : w * 0.42;
+
+  // The lot behind the wall is in its shadow.
+  ctx.fillStyle = 'rgba(8,7,5,0.55)';
+  ctx.fillRect(isRight ? wallX + 11 : 0, y, isRight ? w - wallX - 11 : wallX, gap);
+
+  for (let by = y; by < y + gap; by += 7) {
+    ctx.fillStyle = Math.floor((by - y) / 7) % 2 ? '#4a3d30' : '#3e3328';
+    ctx.fillRect(wallX, by, 11, 7);
+  }
+
+  ctx.fillStyle = 'rgba(255,236,200,0.16)';
+  ctx.fillRect(wallX, y, 3, gap);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(wallX + 9, y, 2, gap);
+
+  // Rubble and a crate left out in the rain, this side of the wall.
+  const front = isRight ? wallX : wallX + 11;
+  const boxX = isRight ? front - 22 : front + 8;
+
+  ctx.fillStyle = '#3a2f22';
+  ctx.fillRect(boxX, y + gap * 0.3, 14, 12);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(boxX, y + gap * 0.3 + 12, 14, 2);
+
+  ctx.fillStyle = '#4a4438';
+  ctx.fillRect(isRight ? front - 18 : front + 14, y + gap * 0.66, 8, 6);
+}
+
+/// A scrubby back lot with a tree or two, the ground showing through the gaps
+/// between the buildings.
+function drawGapTrees(ctx, w, y, gap, isRight, r) {
+  ctx.fillStyle = '#1d1a14';
+  ctx.fillRect(0, y, w, gap);
+
+  for (let i = 0; i < Math.max(8, gap * 0.7); i++) {
+    ctx.fillStyle = r() > 0.5 ? 'rgba(74,96,58,0.5)' : 'rgba(52,70,44,0.45)';
+    ctx.fillRect(Math.floor(r() * w), y + Math.floor(r() * gap), 3, 2);
+  }
+
+  const count = gap > 78 ? 2 : 1;
+
+  for (let i = 0; i < count; i++) {
+    const across = count > 1 && i === 1 ? 0.9 : r() * 0.9;
+    const cx = w * (0.26 + 0.42 * across);
+    const cy = y + gap * (0.34 + r() * 0.34);
+    const rad = Math.max(9, Math.min(16, gap * 0.24));
+
+    // The shadow it lays on the ground, thrown away from the kerb.
+    ctx.fillStyle = 'rgba(0,0,0,0.32)';
+    ctx.beginPath();
+    ctx.ellipse(cx + (isRight ? 5 : -5), cy + 6, rad, rad * 0.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#3a2e22';
+    ctx.fillRect(cx - 2, cy - 3, 4, 8);
+
+    const leaf = ['#31502c', '#3a5b33', '#294525'];
+    for (let j = 0; j < 5; j++) {
+      const a = (j / 5) * Math.PI * 2;
+      ctx.fillStyle = leaf[j % leaf.length];
+      ctx.beginPath();
+      ctx.arc(
+        cx + Math.cos(a) * rad * 0.42,
+        cy + Math.sin(a) * rad * 0.42 - 2,
+        rad * 0.62,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
   }
 }
 

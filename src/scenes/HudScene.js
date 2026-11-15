@@ -4939,7 +4939,14 @@ export class HudScene extends Phaser.Scene {
         .setOrigin(0.5, 0);
 
       const status = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
+        .text(0, 0, '', {
+          fontFamily: FONT,
+          fontSize: '11px',
+          color: UI.creamDim,
+          align: 'center',
+          lineSpacing: 3,
+          wordWrap: { width: 100 }
+        })
         .setOrigin(0.5, 0);
 
       const lock = this.add.image(0, 0, 'icon-lock').setScale(0.16).setVisible(false);
@@ -5024,8 +5031,10 @@ export class HudScene extends Phaser.Scene {
 
       block.plate.setPosition(c.x, c.y);
       block.icon.setPosition(c.x, c.y);
-      block.label.setPosition(c.x, c.y + 32);
-      block.status.setPosition(c.x, c.y + 52);
+      block.label.setPosition(c.x, c.y + 29);
+      block.status
+        .setWordWrapWidth(Math.max(78, this.mapRect.w / CITY_COLS - 8))
+        .setPosition(c.x, c.y + 48);
       block.lock.setPosition(c.x + 19, c.y - 19);
       block.star.setPosition(c.x - 19, c.y - 19);
       block.zone.setScale(104, 104).setPosition(c.x, c.y + 10);
@@ -5084,11 +5093,19 @@ export class HudScene extends Phaser.Scene {
       block.label.setColor(current ? '#a8e08a' : locked ? '#6b6257' : '#f2ead5');
       const need = DISTRICTS[id].unlockAfter;
 
+      // What the place is like underfoot: the risk, the takings, who else is
+      // out. The block is narrow, so each one is a short paragraph.
+      const blurb = DISTRICTS[id].blurb || '';
+
       block.status
         .setText(
-          current ? '我在这里' : locked ? (need ? `先去${DISTRICTS[need].name}` : '还没解锁') : DISTRICTS[id].eat || '走过去就行'
+          locked
+            ? need
+              ? `先去${DISTRICTS[need].name}`
+              : '还没解锁'
+            : blurb
         )
-        .setColor(current ? '#8fd07a' : locked ? '#5a554c' : UI.creamDim);
+        .setColor(current ? '#a8e08a' : locked ? '#5a554c' : UI.creamDim);
 
       block.lock.setVisible(locked).setTint(0x8a8070);
       block.star.setVisible(id === QUEST_TARGET.district).setTint(0xf2c46a);
