@@ -358,6 +358,7 @@ export class StreetScene extends Phaser.Scene {
     this.atExit = null;
     this.cops = [];
     this.qtePed = null;
+    this.stealTake = 0;
     this.sneaking = false;
     this.energyWarned = false;
     this.heartT = 0;
@@ -1442,6 +1443,10 @@ export class StreetScene extends Phaser.Scene {
     this.stealMode = asItem ? 'item' : 'money';
     this.qtePed = ped;
 
+    // What is in the purse at the moment the hand goes in is what the hand
+    // comes out with, whatever happens to the walker while the window is open.
+    this.stealTake = asItem ? 0 : Math.max(0, Math.round(ped.purse));
+
     const zone = this.stealZone(ped, this.stealMode);
 
     if (this.run.booze > 0) {
@@ -1533,8 +1538,10 @@ export class StreetScene extends Phaser.Scene {
     }
 
     if (success) {
-      const amount = perfect ? ped.purse * 2 : ped.purse;
-      ped.purse = 0;
+      const take = Math.max(0, Math.round(this.stealTake || ped.purse || 0));
+      const amount = Math.max(1, Math.round(perfect ? take * 2 : take));
+
+      ped.purse = Math.max(0, ped.purse - take);
       ped.alert = 1;
 
       this.run.money += amount;
@@ -1554,9 +1561,16 @@ export class StreetScene extends Phaser.Scene {
       this.floatText(
         ped.sprite.x,
         ped.sprite.y - 30,
-        perfect ? `完美一刀 ${amount} 元` : `摸到 ${amount} 元`,
+        perfect ? `完美一刀 +${amount} 元` : `摸到 +${amount} 元`,
         UI.gold
       );
+
+      // And the same news over the beggar's own head, so the money going up is
+      // never a guess.
+      this.floatText(this.player.x, this.player.y - 58, `+${amount} 元`, UI.gold);
+
+      const hud2 = this.scene.get('Hud');
+      if (hud2 && hud2.showToast) hud2.showToast(`摸到 ${amount} 元，装进兜里`);
 
       if (perfect) this.stayQuiet(ped);
       else this.caughtInTheAct();
@@ -1565,6 +1579,8 @@ export class StreetScene extends Phaser.Scene {
       playSfx('steal');
       haptic('steal');
       this.sayBubble(ped, stealNoticedLine());
+
+      this.stealTake = 0;
       return;
     }
 

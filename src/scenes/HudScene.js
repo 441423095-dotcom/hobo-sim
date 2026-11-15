@@ -5977,8 +5977,24 @@ export class HudScene extends Phaser.Scene {
     const run = street.run;
 
     if (run.money !== this.shown.money) {
+      const before = this.shown.money;
       this.shown.money = run.money;
       this.moneyText.setText(`${run.money} 元`);
+
+      // Money arriving should be seen, not just counted: the chip gives a small
+      // bounce when the number goes up.
+      if (typeof before === 'number' && run.money > before) {
+        this.tweens.killTweensOf(this.moneyText);
+        this.moneyText.setScale(1);
+        this.tweens.add({
+          targets: this.moneyText,
+          scaleX: 1.16,
+          scaleY: 1.16,
+          duration: 90,
+          yoyo: true,
+          ease: 'Quad.easeOut'
+        });
+      }
     }
 
     if (run.bag !== this.shown.bag) {
