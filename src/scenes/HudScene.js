@@ -22,6 +22,7 @@ import { SLOT_COST, SLOT_SYMBOLS } from '../gamble.js';
 import { RECIPES, amountOf, materialLabel } from '../craft.js';
 import { seasonName } from '../city.js';
 import { skillLabel } from '../skill.js';
+import { STORY_GOALS, STORY_STEPS } from '../story.js';
 import { FONT, UI } from '../style.js';
 
 const DEPTH = {
@@ -3335,6 +3336,8 @@ export class HudScene extends Phaser.Scene {
   }
 
   goalsSignature(run) {
+    if (run && run.story >= 1 && run.story <= STORY_STEPS) return `story#${run.story}`;
+
     if (!run || !run.goals || run.goals.day !== run.day) {
       return `none#${run ? run.day : 0}`;
     }
@@ -3349,6 +3352,40 @@ export class HudScene extends Phaser.Scene {
     const goals = run && run.goals && run.goals.day === run.day ? run.goals.list : [];
 
     this.shown.goals = this.goalsSignature(run);
+
+    // The first day is the story's, not Old Zhou's list.
+    const story = run ? run.story || 0 : 0;
+
+    if (story >= 1 && story <= STORY_STEPS) {
+      const info = STORY_GOALS[story];
+
+      this.goalRowCount = 1;
+      this.goalTitle.setText('第一天');
+      this.goalCount.setText(`${story}/${STORY_STEPS}`);
+
+      this.goalRows.forEach((row, i) => {
+        if (i > 0) {
+          row.setVisible(false);
+          return;
+        }
+
+        row
+          .setVisible(true)
+          .setText(info ? info.label : '')
+          .setColor(UI.cream);
+      });
+
+      this.layoutGoals();
+
+      const barW = this.goalBarW || 0;
+      const frac = (story - 1) / STORY_STEPS;
+
+      this.goalFill.setVisible(true).setScale(Math.max(0.02, (barW * frac) / 100), 1);
+      this.goalFill.fillColor = UI.amberBright;
+
+      if (this.w) this.layoutFloaters(this.w, this.playH);
+      return;
+    }
 
     if (!goals.length) {
       this.goalRowCount = 0;

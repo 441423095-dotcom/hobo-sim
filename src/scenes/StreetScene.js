@@ -26,6 +26,7 @@ import {
 } from '../gangs.js';
 import { SKILLS, addSkill, skillLevel, skillBonus, bookBonus } from '../skill.js';
 import { zhouGreeting } from '../dialogue.js';
+import { STORY_LINES } from '../story.js';
 import {
   begGiveLine,
   begRefuseLine,
@@ -312,8 +313,12 @@ export class StreetScene extends Phaser.Scene {
       }
     }
 
+    // A brand new run opens where the story does: at the lean-to in the camp.
+    const fresh = !this.carriedRun && !this.pendingDistrict;
+
     this.district =
       DISTRICTS[this.pendingDistrict] ||
+      (fresh ? DISTRICTS.camp : null) ||
       DISTRICTS[this.registry.get('district')] ||
       DISTRICTS[START_DISTRICT];
     this.registry.set('district', this.district.id);
@@ -362,6 +367,10 @@ export class StreetScene extends Phaser.Scene {
         city: null,
         goals: null
       };
+
+    // Chapter one begins on a fresh run; an old save is already past it.
+    if (!this.run.story) this.run.story = this.carriedRun ? 4 : 1;
+
     this.carriedRun = null;
     if (typeof this.run.elapsed !== 'number') this.run.elapsed = 0;
     if (typeof this.run.energy !== 'number') this.run.energy = ENERGY_MAX;
@@ -540,7 +549,41 @@ export class StreetScene extends Phaser.Scene {
     this.input.once('pointerdown', () => initAudio());
 
     // Old Zhou says what the day's list is once the screen has settled.
-    this.time.delayedCall(700, () => this.announceGoals());
+    // Old Zhou says what the day's list is once the screen has settled — but on
+    // the first day the story is the list.
+    if (!(this.run.story >= 1 && this.run.story <= 3)) {
+      this.time.delayedCall(700, () => this.announceGoals());
+    }
+
+    // Chapter one opens with him standing over the beggar.
+    if (this.run.story === 1 && !this.run.storySeen) {
+      this.run.storySeen = true;
+      this.time.delayedCall(1200, () => this.zhouStoryLine(STORY_LINES.wake));
+    }
+  }
+
+  // ------------------------------------------------------------- chapter one
+
+  /// A line from Old Zhou, with one button to close it.
+  zhouStoryLine(text, options) {
+    const hud = this.scene.get('Hud');
+    if (!hud || !hud.showDialogue) return;
+
+    hud.showDialogue('zhou', [text], null, options || [{ label: '知道了' }]);
+  }
+
+  /// The bread is eaten: the day is spent, and the old man sends him home.
+  storyAfterBread() {
+    this.run.story = 3;
+    this.run.step = Math.max(this.run.step, 660);
+    this.applyNight();
+    this.updateSegment();
+    this.saveNow();
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast) hud.showToast('天黑了，街上开始冷起来。');
+
+    this.time.delayedCall(900, () => this.zhouStoryLine(STORY_LINES.afterBread));
   }
 
   /// Something edible out of a bin: a bag of snacks, half a bottle of wine.
@@ -1697,8 +1740,9 @@ export class StreetScene extends Phaser.Scene {
 
   buildPlayer() {
     const strip = this.stripFor(this.district.id) || this.strips[0];
-    const spawnX = strip.x0 + 200;
-    const spawnY = strip.y0 + (this.spawnAt === 'top' ? 150 : 1180);
+    const intro = this.run && this.run.story === 1;
+    const spawnX = strip.x0 + (intro ? 260 : 200);
+    const spawnY = strip.y0 + (intro ? 640 : this.spawnAt === 'top' ? 150 : 1180);
 
     this.playerShadow = this.add.image(spawnX, spawnY + 18, 'shadow').setDepth(1);
 
@@ -2303,6 +2347,10 @@ export class StreetScene extends Phaser.Scene {
     playSfx('eat');
     haptic('buy');
     this.floatText(this.player.x, this.player.y - 46, `${food.name} +${food.restore}`, '#a8d98a');
+
+    // Chapter one: the first proper meal of the run ends the day.
+    if (id === 'bread' && this.run.story === 2) this.storyAfterBread();
+
     return true;
   }
 
@@ -3392,6 +3440,8 @@ export class StreetScene extends Phaser.Scene {
     this.advanceTime(25);
     this.progressGoal('bins', 1);
 
+    if (this.run.story === 1) this.run.binsFound = (this.run.binsFound || 0) + 1;
+
     this.tweens.add({
       targets: bin,
       angle: 4,
@@ -3791,6 +3841,36 @@ export class StreetScene extends Phaser.Scene {
   talkOldZhou() {
     haptic('ui');
 
+    // Chapter one comes first: the old man leads him through the first day.
+    const story = this.run.story || 0;
+
+    if (story === 1) {
+      if ((this.run.binsFound || 0) < 1) {
+        this.zhouStoryLine(STORY_LINES.beforeBin);
+        return;
+      }
+
+      this.run.story = 2;
+      this.saveNow();
+      this.floatText(this.player.x, this.player.y - 48, '老周点了点头', UI.creamDim);
+      this.zhouStoryLine(STORY_LINES.afterBin);
+      return;
+    }
+
+    if (story === 2) {
+      this.zhouStoryLine(
+        (this.run.money || 0) < 4
+          ? '杂货铺在市场街，面包四块。钱不够就先卖点废品。'
+          : STORY_LINES.beforeBread
+      );
+      return;
+    }
+
+    if (story === 3) {
+      this.zhouStoryLine(STORY_LINES.beforeSleep);
+      return;
+    }
+
     // Enough of the street behind him, and the old man calls the vote.
     if (kingProgress(this.run).canElect) {
       this.winKing('election');
@@ -4106,6 +4186,7 @@ export class StreetScene extends Phaser.Scene {
     }
 
     // A new morning, so a new list from Old Zhou.
+    if (this.run.story === 3) this.run.story = 4;
     this.ensureGoals();
     this.time.delayedCall(600, () => this.announceGoals());
     this.saveNow();
