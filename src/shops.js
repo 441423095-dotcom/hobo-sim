@@ -328,7 +328,7 @@ export function stockFor(shopId, run) {
       kind: 'umbrella',
       refId: 'umbrella',
       name: '旧伞',
-      desc: '下雨时不至于淋透，受冻减半',
+      desc: '下雨时伞一撑，身上一直是干的',
       icon: 'icon-umbrella',
       price: priceOf(14),
       owned: !!(run && run.umbrella)
@@ -517,6 +517,18 @@ export function stockFor(shopId, run) {
       icon: 'item-blueprint',
       price: 45,
       owned: !!(run && run.books && run.books.steal)
+    });
+
+    // A black umbrella the hat man has no further use for.
+    items.push({
+      key: 'umbrella',
+      kind: 'umbrella',
+      refId: 'umbrella',
+      name: '黑伞',
+      desc: '撑开就淋不着，黑市价',
+      icon: 'icon-umbrella',
+      price: 10,
+      owned: !!(run && run.umbrella)
     });
 
     // A bottle of the good stuff, kept back behind the counter for the beggar

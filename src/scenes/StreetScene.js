@@ -92,6 +92,10 @@ const BRAZIER_BURN_MS = 30000;
 const BRAZIER_FEED_MS = 25000;
 const BRAZIER_REGEN = 1.6;
 
+// Rain with nothing over his head soaks the beggar through: an umbrella or a
+// shop awning is the difference between a bad day and a lost one.
+const RAIN_DRAIN = 0.45;
+
 const HUNGER_DRAIN = 0.3; // hunger points per second
 const BEG_RADIUS = 100;
 const TRADE_RADIUS = 80;
@@ -461,6 +465,9 @@ export class StreetScene extends Phaser.Scene {
     this.passerbyAt = 0;
     this.mugAt = 0;
     this.errandAt = 0;
+    this.snowFires = false;
+    this.warnedWeather = null;
+    this.awnings = [];
     this.warmAt = 0;
     this.warmUntil = 0;
     this.loadHome();
@@ -527,6 +534,7 @@ export class StreetScene extends Phaser.Scene {
     this.buildGangCamps();
     this.buildAlleyCorners();
     this.buildBraziers();
+    this.buildCover();
     this.buildPrompt();
 
     this.nightDeadline = 0;
@@ -624,11 +632,14 @@ export class StreetScene extends Phaser.Scene {
     return true;
   }
 
-  /// The corners where a fire can be lit. There are only a couple of them, they
-  /// start cold, and they burn on whatever the beggar has to feed them.
+  /// The corners where a fire can be lit. They start cold, and they burn on
+  /// whatever the beggar has to feed them — except when it snows, when somebody
+  /// has already gone round and lit them.
   buildBraziers() {
     const spots = [
       { district: 'park', x: 150, y: 640 },
+      // Under the bridge in the back alley, out of the weather.
+      { district: 'alley', x: 300, y: 310 },
       { district: 'camp', x: 486, y: 1150 }
     ];
 
@@ -689,7 +700,15 @@ export class StreetScene extends Phaser.Scene {
         this.refreshBagCount();
       }
 
-      state.until = Math.max(state.until, this.time.now) + BRAZIER_FEED_MS;
+      // Feeding a fire the snow lit makes it the beggar's own: it burns for as
+      // long as the fuel lasts, snow or no snow.
+      const base =
+        state.until === Number.MAX_SAFE_INTEGER
+          ? this.time.now
+          : Math.max(state.until, this.time.now);
+
+      state.snowLit = false;
+      state.until = base + BRAZIER_FEED_MS;
 
       this.floatText(this.player.x, this.player.y - 46, '添了把火，烧得更久了', '#f2c46a');
       playSfx('coin');
@@ -1552,8 +1571,55 @@ export class StreetScene extends Phaser.Scene {
         if (this.spotBlocked(strip, 392, ay, 120, 26)) continue;
 
         this.add.image(x0 + 392, y0 + ay, 'awning').setOrigin(0, 0).setDepth(y0 + ay);
+        if (this.awnings) this.awnings.push({ x: x0 + 392, y: y0 + ay });
       }
     }
+  }
+
+  /// Everything that has something over it: the awnings over shop doors, the
+  /// shopfronts themselves, and the bridge above the back alley. Standing in one
+  /// of these keeps the rain off.
+  buildCover() {
+    this.coverRects = [];
+
+    for (const strip of this.strips) {
+      for (const shop of SHOPS) {
+        if (shop.district !== strip.id || shop.ground) continue;
+
+        // The awning over a doorway reaches out across the pavement in front
+        // of it, which is where the beggar can actually stand.
+        this.coverRects.push({
+          x: shop.doorX + strip.x0 - 70,
+          y: shop.doorY + strip.y0 - 90,
+          w: 140,
+          h: 126
+        });
+      }
+    }
+
+    for (const awning of this.awnings || []) {
+      this.coverRects.push({ x: awning.x, y: awning.y - 8, w: 120, h: 54 });
+    }
+
+    const alley = this.stripFor('alley');
+    if (alley) {
+      this.coverRects.push({
+        x: alley.x0,
+        y: alley.y0 + 236,
+        w: STREET_WIDTH,
+        h: 124
+      });
+    }
+  }
+
+  /// Is there something over the beggar's head right now?
+  underCover() {
+    if (!this.player || !this.coverRects || !this.coverRects.length) return false;
+
+    const px = this.player.x;
+    const py = this.player.y;
+
+    return this.coverRects.some((r) => px > r.x && px < r.x + r.w && py > r.y && py < r.y + r.h);
   }
 
   /// Opening a district's gate when it unlocks.
@@ -3111,19 +3177,78 @@ export class StreetScene extends Phaser.Scene {
     city.weather = ids[Math.floor(Math.random() * ids.length)];
 
     const hud = this.scene.get('Hud');
-    if (hud && hud.showToast) {
-      if (city.weather === 'rain') {
-        hud.showToast(
-          this.run.umbrella ? '下雨了 —— 伞撑着，冷得慢一点' : '下雨了 —— 没伞要淋透，杂货铺有卖'
-        );
-      } else if (city.weather === 'snow') {
-        hud.showToast('下雪了 —— 桥洞和后巷有火盆，别硬扛');
-      } else {
-        hud.showToast(`天变了：${WEATHERS[city.weather].name}`);
+
+    if (city.weather === 'rain' || city.weather === 'snow') {
+      // Rain and snow say their piece in warnWeather, which also covers the
+      // weather a day starts with.
+      this.warnedWeather = null;
+    } else if (hud && hud.showToast) {
+      hud.showToast(`天变了：${WEATHERS[city.weather].name}`);
+      playSfx('voice');
+    }
+
+    haptic('ui');
+  }
+
+  /// Rain and snow get a word, once a day each: they are the two kinds of
+  /// weather the street can actually kill you with.
+  warnWeather() {
+    const fx = this.cityFx;
+    if (!fx || !fx.weather) return;
+
+    const run = this.run;
+    const id = fx.weather.id;
+
+    if (id !== 'rain' && id !== 'snow') return;
+
+    const stamp = `${run.day}:${id}`;
+    if (this.warnedWeather === stamp) return;
+    this.warnedWeather = stamp;
+
+    const hud = this.scene.get('Hud');
+    if (!hud || !hud.showToast) return;
+
+    if (id === 'rain') {
+      hud.showToast(
+        run.umbrella ? '下雨了 —— 伞撑着，身上干着' : '下雨了 —— 没伞要淋透，杂货铺和黑市都有卖'
+      );
+      playSfx('thunder');
+    } else {
+      hud.showToast('下雪了 —— 桥洞、后巷和营地生着火，烤一烤，别在雪里待太久');
+      playSfx('voice');
+    }
+
+    haptic('ui');
+  }
+
+  /// When the snow comes down somebody has already gone round and lit the
+  /// braziers; when it stops, they are left to burn out.
+  updateSnowFires() {
+    const snowing = !!(this.cityFx && this.cityFx.weather && this.cityFx.weather.id === 'snow');
+
+    if (snowing === this.snowFires) return;
+    this.snowFires = snowing;
+
+    if (!this.braziers) return;
+
+    for (const b of this.braziers) {
+      // The gang's own barrel is theirs: it burns whatever the sky is doing.
+      if (!b.fire) continue;
+
+      if (snowing) {
+        if (b.lit) continue;
+
+        b.lit = true;
+        b.until = Number.MAX_SAFE_INTEGER;
+        b.snowLit = true;
+        b.fire.setVisible(true);
+      } else if (b.snowLit) {
+        b.lit = false;
+        b.until = 0;
+        b.snowLit = false;
+        b.fire.setVisible(false);
       }
     }
-    playSfx(city.weather === 'rain' ? 'thunder' : 'voice');
-    haptic('ui');
   }
 
   /// The gangs own the alleys after dark. Walk through the alley or the black
@@ -5756,6 +5881,8 @@ export class StreetScene extends Phaser.Scene {
     updateAudio(dt, { tension: this.musicTension, night: darknessAt(run.step) });
     this.updateCity(dt);
     this.updateSky();
+    this.updateSnowFires();
+    this.warnWeather();
     this.maybePasserby();
     this.updateNightDanger();
     this.updateBraziers(dt);
@@ -5821,15 +5948,27 @@ export class StreetScene extends Phaser.Scene {
         hudPanels.overOpen);
 
     const segment = segmentOf(run.step);
-    const coldExtra = this.cityFx ? Math.max(0, this.cityFx.coldExtra) * 0.3 : 0;
-    const wet = !!(this.cityFx && this.cityFx.weather && this.cityFx.weather.id === 'rain');
+    const weatherId = this.cityFx && this.cityFx.weather ? this.cityFx.weather.id : 'clear';
+    const wet = weatherId === 'rain';
+    const snowing = weatherId === 'snow';
+    const covered = this.underCover();
+    const umbrella = wet && !!run.umbrella;
+
+    let coldExtra = this.cityFx ? Math.max(0, this.cityFx.coldExtra) * 0.3 : 0;
+
+    // Under an awning or an umbrella the rain never touches him; snow still
+    // bites, but a roof over his head takes half of it.
+    if (covered) coldExtra *= snowing ? 0.5 : 0;
+    if (umbrella) coldExtra = 0;
 
     let coldDrain = (segment === 3 ? 1.2 : segment === 2 ? 0.4 : 0) + coldExtra;
 
-    // A fire takes the shiver out of the bones for a while, and an umbrella
-    // keeps the rain off: without one the wet cold bites twice as hard.
+    // A fire takes the shiver out of the bones for a while.
     if (this.time.now < (this.warmUntil || 0)) coldDrain *= 0.4;
-    if (wet && this.run.umbrella) coldDrain *= 0.5;
+
+    // Caught out in the open in the rain: an umbrella is the only thing keeping
+    // it out of his clothes.
+    if (wet && !covered && !umbrella) coldDrain += RAIN_DRAIN;
 
     if (!run.over && !paused && coldDrain > 0) {
       run.energy = Math.max(0, run.energy - coldDrain * dt);
