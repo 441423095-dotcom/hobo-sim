@@ -552,6 +552,7 @@ function drawBuilding(ctx, w, y, height, isRight, look, r, district) {
 
   // A tank on the roof of the odd block, a fire escape down the side of another.
   if (r() < 0.34) drawRoofTank(ctx, wallX, wallW, y, isRight);
+  if (r() < 0.5) drawRoofClutter(ctx, wallX, wallW, y, r);
   if (r() < 0.32 && height > 168) drawFireEscape(ctx, wallX, wallW, y, height, isRight);
 
   // An air conditioner under a window, dripping down the wall.
@@ -820,6 +821,59 @@ function drawFireEscape(ctx, wallX, wallW, y, height, isRight) {
 
   ctx.fillStyle = 'rgba(20,18,16,0.9)';
   ctx.fillRect(x, y + 40, 2, height - 70);
+}
+
+/// Rooftop clutter: a chimney, a stair hut, a dish, a pole of washing. What
+/// makes a skyline look lived in rather than drawn.
+function drawRoofClutter(ctx, wallX, wallW, y, r) {
+  const kind = Math.floor(r() * 4);
+  const x = wallX + 8 + Math.floor(r() * Math.max(1, wallW - 30));
+
+  if (kind === 0) {
+    ctx.fillStyle = '#3a2f26';
+    ctx.fillRect(x, y - 16, 10, 16);
+    ctx.fillStyle = '#2a211a';
+    ctx.fillRect(x + 1, y - 18, 8, 3);
+    return;
+  }
+
+  if (kind === 1) {
+    ctx.fillStyle = '#332c24';
+    ctx.fillRect(x, y - 20, 22, 20);
+    ctx.fillStyle = 'rgba(255,236,200,0.12)';
+    ctx.fillRect(x, y - 20, 22, 2);
+    ctx.fillStyle = '#221c16';
+    ctx.fillRect(x + 8, y - 12, 6, 12);
+    return;
+  }
+
+  if (kind === 2) {
+    ctx.strokeStyle = 'rgba(150,150,140,0.7)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 8, y);
+    ctx.lineTo(x + 8, y - 16);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(190,190,180,0.6)';
+    ctx.beginPath();
+    ctx.arc(x + 8, y - 18, 4, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  // A pole with somebody's washing on it.
+  ctx.strokeStyle = 'rgba(160,150,130,0.6)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 12);
+  ctx.lineTo(x + 26, y - 14);
+  ctx.stroke();
+
+  const cloth = ['#8a8070', '#6a7a80', '#8a6a58'];
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = cloth[i % cloth.length];
+    ctx.fillRect(x + 3 + i * 8, y - 12, 5, 8);
+  }
 }
 
 function drawRoofTank(ctx, wallX, wallW, y, isRight) {

@@ -3613,6 +3613,39 @@ export class StreetScene extends Phaser.Scene {
     return total;
   }
 
+  /// Sells a whole stack over the counter: one tap, one price. Junk goes
+  /// through the recycling tally, pockets and craft goods at their own rates.
+  sellBatch(kind, id) {
+    if (this.run.over) return 0;
+    if (kind === 'junk') return this.recycleJunk(id);
+
+    const have = kind === 'loot' ? this.run.loot[id] || 0 : this.run.goods[id] || 0;
+    if (have <= 0) return 0;
+
+    let each = 0;
+    if (kind === 'loot') each = lootPrice(id, false);
+    if (kind === 'good') {
+      const rec = recipeById(id);
+      each = rec ? rec.value : 0;
+    }
+
+    each = Math.max(1, Math.round(each * this.sellMul()));
+    const total = each * have;
+
+    if (kind === 'loot') this.run.loot[id] = 0;
+    else this.run.goods[id] = 0;
+
+    this.run.money += total;
+    this.run.soldIncome += total;
+    this.run.bag = Math.max(0, this.run.bag - have);
+    this.progressGoal('sell', total);
+    this.refreshBagCount();
+    playSfx('sell');
+    haptic('sell');
+
+    return total;
+  }
+
   /// How presentable the player looks, 0 for rags and 1 for the best coat.
   cleanLevel() {
     const outfit = OUTFITS.find((o) => o.id === this.run.outfit);

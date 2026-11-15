@@ -12,7 +12,7 @@ import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
 import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
 import { DISTRICTS, DISTRICT_ORDER, QUEST_TARGET } from '../districts.js';
 import { STREET_ORDER, CITY_COLS, CITY_ROWS, cellOf, neighbourOf } from '../streets.js';
-import { SHOPS, stockFor } from '../shops.js';
+import { SHOPS, stockFor, sellListFor } from '../shops.js';
 import { FURNITURE, FURNITURE_RECIPES, HOME_SLOTS, furnitureById } from '../home.js';
 import { savedInfo } from '../save.js';
 import { KING, PATRONS, kingProgress, supporters } from '../king.js';
@@ -543,13 +543,40 @@ export class HudScene extends Phaser.Scene {
     this.storeCloseIcon = this.add.image(0, 0, 'icon-x');
     this.storeCloseBtn.on('pointerup', () => this.closeStore());
 
+    // Shops that take things back get a second counter: one tab to buy, one to
+    // sell, so the beggar never has to hunt for the pawn shop to empty his bag.
+    const mkTab = (label) => {
+      const bg = this.add
+        .rectangle(0, 0, 36, 24, UI.panelRow, 1)
+        .setStrokeStyle(1, UI.amber, 0.5)
+        .setInteractive();
+      const text = this.add
+        .text(0, 0, label, { fontFamily: FONT, fontSize: '13px', color: UI.cream })
+        .setOrigin(0.5, 0.5)
+        .setVisible(false);
+
+      return { bg, text };
+    };
+
+    this.storeTabBuy = mkTab('买');
+    this.storeTabSell = mkTab('卖');
+    this.storeTabBuy.bg.on('pointerdown', () => this.setStoreMode('buy'));
+    this.storeTabSell.bg.on('pointerdown', () => this.setStoreMode('sell'));
+
+    this.storeMode = 'buy';
+    this.storeTabShown = false;
+
     this.storeLayer.add([
       this.storeBackdrop,
       this.storePanelGfx,
       this.storeTitle,
       this.storeSub,
       this.storeCloseBtn,
-      this.storeCloseIcon
+      this.storeCloseIcon,
+      this.storeTabBuy.bg,
+      this.storeTabBuy.text,
+      this.storeTabSell.bg,
+      this.storeTabSell.text
     ]);
 
     this.storeRows = [];
@@ -561,10 +588,16 @@ export class HudScene extends Phaser.Scene {
         .setInteractive();
       const icon = this.add.image(0, 0, 'icon-sandwich');
       const name = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '17px', color: UI.cream })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '16px', color: UI.cream })
         .setOrigin(0, 0.5);
       const info = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
+        .text(0, 0, '', {
+          fontFamily: FONT,
+          fontSize: '12px',
+          color: UI.creamDim,
+          lineSpacing: 2,
+          wordWrap: { width: 190 }
+        })
         .setOrigin(0, 0.5);
       const price = this.add
         .text(0, 0, '', {
@@ -2353,9 +2386,16 @@ export class HudScene extends Phaser.Scene {
   layoutDialogue() {
     const w = this.w;
     const pw = Math.min(w - 28, 360);
-    const ph = 168;
     const px = (w - pw) / 2;
-    const py = Math.max(40, this.playH - ph - 24);
+
+    // The width the words get, and then however tall they turn out to be: the
+    // panel grows to hold the line instead of letting it run out of the box.
+    const bodyW = pw - 132;
+    this.dialogueBody.setWordWrapWidth(bodyW);
+
+    const bodyH = Math.max(1, this.dialogueBody.height);
+    const ph = Math.max(168, 78 + bodyH + 50);
+    const py = Math.max(24, this.playH - ph - 20);
 
     this.dialogueBackdrop.setScale(w, this.h).setPosition(0, 0);
 
@@ -2367,24 +2407,25 @@ export class HudScene extends Phaser.Scene {
     g.strokeRoundedRect(px, py, pw, ph, 14);
 
     // The portrait sits in its own frame, a head out of the street.
+    const frameH = Math.min(140, ph - 28);
     g.fillStyle(0x11100d, 1);
-    g.fillRoundedRect(px + 12, py + 14, 92, 140, 10);
+    g.fillRoundedRect(px + 12, py + 14, 92, frameH, 10);
     g.lineStyle(1.5, UI.amber, 0.4);
-    g.strokeRoundedRect(px + 12, py + 14, 92, 140, 10);
+    g.strokeRoundedRect(px + 12, py + 14, 92, frameH, 10);
 
-    this.dialoguePortrait.setPosition(px + 58, py + 88).setScale(2.1);
+    this.dialoguePortrait.setPosition(px + 58, py + 14 + frameH / 2).setScale(2.1);
 
     this.dialogueName.setPosition(px + 118, py + 26);
-    this.dialogueBody.setPosition(px + 118, py + 48);
-    this.dialogueBody.setWordWrapWidth(pw - 136);
-    this.dialogueHint.setPosition(px + pw - 14, py + ph - 16);
+    this.dialogueBody.setPosition(px + 118, py + 44);
+    this.dialogueHint.setPosition(px + pw - 14, py + ph - 14);
 
     const choiceW = (pw - 132 - 10) / 2;
-    const choiceY = py + ph - 40;
+    const choiceY = py + ph - 34;
+    this.dialogueChoiceW = choiceW;
 
-    this.dialogueChoiceA.setSize(choiceW, 34).setScale(1, 1).setPosition(px + 118, choiceY);
+    this.dialogueChoiceA.setSize(choiceW, 32).setScale(1, 1).setPosition(px + 118, choiceY);
     this.dialogueChoiceAText.setPosition(px + 118 + choiceW / 2, choiceY);
-    this.dialogueChoiceB.setSize(choiceW, 34).setScale(1, 1).setPosition(px + 128 + choiceW, choiceY);
+    this.dialogueChoiceB.setSize(choiceW, 32).setScale(1, 1).setPosition(px + 128 + choiceW, choiceY);
     this.dialogueChoiceBText.setPosition(px + 128 + choiceW + choiceW / 2, choiceY);
   }
 
@@ -2409,6 +2450,7 @@ export class HudScene extends Phaser.Scene {
         box.setInteractive();
         if (box.input) box.input.enabled = true;
         text.setText(option.label);
+        text.setFontSize(option.label.length > 6 ? 12 : 14);
       } else if (box.input) {
         box.input.enabled = false;
       }
@@ -2466,6 +2508,7 @@ export class HudScene extends Phaser.Scene {
     }
 
     this.dialogueBody.setText(this.dialogueLines[this.dialogueAt]);
+    this.layoutDialogue();
     haptic('tick');
   }
 
@@ -3282,11 +3325,17 @@ export class HudScene extends Phaser.Scene {
 
   layoutStore() {
     const w = this.w;
+    const shop = SHOPS.find((s) => s.id === this.storeId);
+    const tabs = !!(shop && shop.buyBack);
+
+    this.storeTabShown = tabs;
+
     const count = Math.max(1, this.storeEntries.length);
     const rowH = ROW_HEIGHT;
     const gap = 8;
+    const headH = tabs ? 86 : 56;
     const pw = Math.min(w - 32, ROW_WIDTH + 24);
-    const ph = 56 + count * (rowH + gap) + 20;
+    const ph = headH + count * (rowH + gap) + 20;
     const px = (w - pw) / 2;
     const py = Math.max(48, (this.playH - ph) / 2);
 
@@ -3300,24 +3349,45 @@ export class HudScene extends Phaser.Scene {
     g.strokeRoundedRect(px, py, pw, ph, 16);
 
     this.storeTitle.setPosition(px + 18, py + 14);
-    this.storeSub.setPosition(px + 18, py + 36);
+    this.storeSub.setFontSize(12).setWordWrapWidth(pw - 100).setPosition(px + 18, py + 38);
 
     this.storeCloseBtn.setPosition(px + pw - 26, py + 26);
     this.storeCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+
+    this.storeTabBuy.bg
+      .setVisible(tabs)
+      .setPosition(px + 40, py + 68)
+      .setFillStyle(this.storeMode === 'buy' ? 0x4a3a24 : UI.panelRowDim, 1);
+    this.storeTabBuy.text.setVisible(tabs).setPosition(px + 40, py + 68);
+    this.storeTabSell.bg
+      .setVisible(tabs)
+      .setPosition(px + 84, py + 68)
+      .setFillStyle(this.storeMode === 'sell' ? 0x4a3a24 : UI.panelRowDim, 1);
+    this.storeTabSell.text.setVisible(tabs).setPosition(px + 84, py + 68);
 
     const rowW = pw - 24;
     const rowX = px + 12;
     const rowScale = rowW / ROW_WIDTH;
 
     this.storeRows.forEach((row, i) => {
-      const ry = py + 56 + rowH / 2 + i * (rowH + gap);
+      const ry = py + headH + rowH / 2 + i * (rowH + gap);
 
       row.bg.setScale(rowScale, 1).setPosition(rowX, ry);
       row.icon.setPosition(rowX + 26, ry).setScale(24 / 96);
-      row.name.setPosition(rowX + 48, ry - 8);
-      row.info.setPosition(rowX + 48, ry + 11);
+      row.name.setPosition(rowX + 48, ry - 12);
+      row.info.setWordWrapWidth(rowW - 150).setPosition(rowX + 48, ry + 8);
       row.price.setPosition(rowX + rowW - 12, ry);
     });
+  }
+
+  setStoreMode(mode) {
+    if (!this.shopOpen || this.storeMode === mode) return;
+
+    this.storeMode = mode;
+    this.shown.storeSig = null;
+    haptic('ui');
+    this.layoutStore();
+    this.refreshStore();
   }
 
   layoutTrade() {
@@ -3772,6 +3842,7 @@ export class HudScene extends Phaser.Scene {
 
     this.storeId = id;
     this.shopOpen = true;
+    this.storeMode = 'buy';
     this.showPanel(this.storeLayer);
     this.releaseStick();
     this.shown.storeSig = null;
@@ -5551,14 +5622,17 @@ export class HudScene extends Phaser.Scene {
   refreshStore() {
     const run = this.street && this.street.run ? this.street.run : null;
     const shop = SHOPS.find((s) => s.id === this.storeId);
+    const selling = this.storeMode === 'sell' && !!(shop && shop.buyBack);
 
     this.storeTitle.setText(shop ? shop.name : '');
-    this.storeSub.setText(shop ? `${shop.owner}：${shop.blurb}` : '');
+    this.storeSub.setText(
+      shop ? (selling ? '把包里的东西卖给他 · 一次一堆' : `${shop.owner}：${shop.blurb}`) : ''
+    );
 
-    this.storeEntries = stockFor(this.storeId, run);
+    this.storeEntries = selling ? sellListFor(this.storeId, run) : stockFor(this.storeId, run);
 
     this.shown.storeSig = run
-      ? `${run.money}|${run.outfit}|${Object.keys(run.blueprints).length}|${
+      ? `${this.storeMode}|${run.money}|${run.outfit}|${Object.keys(run.blueprints).length}|${
           run.tools.lockpick
         }|${run.tools.glove}|${run.tools.blade}|${run.booze}|${run.perfume}|${run.bag}`
       : '';
@@ -5578,7 +5652,8 @@ export class HudScene extends Phaser.Scene {
       if (!entry) return;
 
       const free = entry.kind === 'recycle';
-      const affordable = !!run && (free || run.money >= entry.price);
+      const sellable = entry.kind === 'sell';
+      const affordable = !!run && (free || sellable || run.money >= entry.price);
 
       row.icon.setTexture(entry.icon);
       row.name.setText(entry.name);
@@ -5596,6 +5671,22 @@ export class HudScene extends Phaser.Scene {
     if (!this.street || !row.entry) return;
 
     const entry = row.entry;
+
+    if (entry.kind === 'sell') {
+      const paid = this.street.sellBatch ? this.street.sellBatch(entry.via, entry.refId) : 0;
+
+      if (paid <= 0) {
+        haptic('refuse');
+        return;
+      }
+
+      playSfx('sell');
+      haptic('sell');
+      this.shown.storeSig = null;
+      this.refreshStore();
+      return;
+    }
+
     if (entry.owned) {
       haptic('refuse');
       return;

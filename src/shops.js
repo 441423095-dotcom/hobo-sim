@@ -2,7 +2,8 @@
 // does when the player buys it.
 
 import { FOODS } from './food.js';
-import { JUNK_ITEMS } from './trade.js';
+import { JUNK_ITEMS, JUNK_ORDER, junkPrice } from './trade.js';
+import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from './loot.js';
 import { RECIPES } from './craft.js';
 
 export const SHOPS = [
@@ -11,6 +12,7 @@ export const SHOPS = [
     name: '便利店',
     owner: '看店的老张',
     blurb: '热食和烟酒，什么时候都开着',
+    buyBack: true,
     district: 'market',
     tex: 'shopfront',
     x: 500,
@@ -24,6 +26,7 @@ export const SHOPS = [
     name: '杂货铺',
     owner: '老板娘',
     blurb: '吃的，还有做手工用的材料',
+    buyBack: true,
     district: 'market',
     tex: 'grocerystore',
     x: 0,
@@ -339,7 +342,7 @@ export function stockFor(shopId, run) {
       desc:
         run && run.outfit === o.id
           ? '正穿在身上'
-          : `${o.blurb} · 体面 ${Math.round(o.clean * 100)}%（乞讨更容易，路人少起疑）`,
+          : `体面 ${Math.round(o.clean * 100)}% · 乞讨更顺`,
       icon: o.icon,
       price: o.price,
       owned: !!(run && run.outfit === o.id)
@@ -376,7 +379,7 @@ export function stockFor(shopId, run) {
       kind: 'stealth',
       refId: 'blade',
       name: '锋利刀片',
-      desc: '多一段金色完美区：收益翻倍，还不惊动人',
+      desc: '金色完美区：翻倍、不惊动人',
       icon: 'item-blade',
       price: 65,
       owned: !!(run && run.tools.blade)
@@ -412,7 +415,7 @@ export function stockFor(shopId, run) {
       kind: 'booze',
       refId: 'booze',
       name: '烈酒',
-      desc: '当场喝下，下一次 QTE 指针慢 30%',
+      desc: '烈酒：下一次 QTE 指针变慢',
       icon: 'item-booze',
       price: 28,
       owned: !!(run && run.booze > 0)
@@ -444,4 +447,68 @@ export function stockFor(shopId, run) {
   }
 
   return [];
+}
+
+/// What a shop that buys things back will take off the beggar's hands, priced
+/// for the whole stack: one tap, one sale.
+export function sellListFor(shopId, run) {
+  const shop = SHOPS.find((s) => s.id === shopId);
+  if (!run || !shop || !shop.buyBack) return [];
+
+  const items = [];
+
+  for (const id of JUNK_ORDER) {
+    const count = run.items[id] || 0;
+    if (count <= 0) continue;
+
+    const each = junkPrice(id, false);
+    items.push({
+      key: `sell:junk:${id}`,
+      kind: 'sell',
+      via: 'junk',
+      refId: id,
+      name: JUNK_ITEMS[id].name,
+      desc: `×${count} · 一件 ${each} 元`,
+      icon: JUNK_ITEMS[id].tex,
+      price: each * count,
+      owned: false
+    });
+  }
+
+  for (const id of LOOT_ORDER) {
+    const count = run.loot[id] || 0;
+    if (count <= 0) continue;
+
+    const each = lootPrice(id, false);
+    items.push({
+      key: `sell:loot:${id}`,
+      kind: 'sell',
+      via: 'loot',
+      refId: id,
+      name: LOOT_ITEMS[id].name,
+      desc: `×${count} · 一件 ${each} 元`,
+      icon: LOOT_ITEMS[id].tex,
+      price: each * count,
+      owned: false
+    });
+  }
+
+  for (const rec of RECIPES) {
+    const count = run.goods[rec.id] || 0;
+    if (count <= 0) continue;
+
+    items.push({
+      key: `sell:good:${rec.id}`,
+      kind: 'sell',
+      via: 'good',
+      refId: rec.id,
+      name: rec.name,
+      desc: `×${count} · 一件 ${rec.value} 元`,
+      icon: rec.tex,
+      price: rec.value * count,
+      owned: false
+    });
+  }
+
+  return items.slice(0, 10);
 }
