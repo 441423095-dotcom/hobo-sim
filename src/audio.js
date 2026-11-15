@@ -40,6 +40,8 @@ let nextBeatAt = 0;
 let beatIndex = 0;
 
 let muted = false;
+let musicOff = false;
+let sfxOff = false;
 let ambience = null;
 let ambienceGain = null;
 let ambienceKind = null;
@@ -79,11 +81,11 @@ export function initAudio() {
   master.connect(ctx.destination);
 
   musicBus = ctx.createGain();
-  musicBus.gain.value = 0.2;
+  musicBus.gain.value = musicOff ? 0 : 0.2;
   musicBus.connect(master);
 
   sfxBus = ctx.createGain();
-  sfxBus.gain.value = 0.9;
+  sfxBus.gain.value = sfxOff ? 0 : 0.9;
   sfxBus.connect(master);
 
   noiseBuffer = buildNoise();
@@ -112,6 +114,32 @@ export function setAudioMuted(value) {
 
 export function audioMuted() {
   return muted;
+}
+
+/// The music bed on its own, from the settings panel.
+export function setMusicOff(value) {
+  musicOff = !!value;
+
+  if (ctx && musicBus) {
+    musicBus.gain.setTargetAtTime(musicOff ? 0 : 0.2, ctx.currentTime, 0.1);
+  }
+}
+
+export function musicIsOff() {
+  return musicOff;
+}
+
+/// And the effects on their own.
+export function setSfxOff(value) {
+  sfxOff = !!value;
+
+  if (ctx && sfxBus) {
+    sfxBus.gain.setTargetAtTime(sfxOff ? 0 : 0.9, ctx.currentTime, 0.1);
+  }
+}
+
+export function sfxIsOff() {
+  return sfxOff;
 }
 
 /// A bed of rain or wind under the street, or nothing at all.

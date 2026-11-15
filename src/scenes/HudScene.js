@@ -6,6 +6,7 @@
 import { registerIcons } from '../icons.js';
 import { haptic, setHapticsEnabled, hapticsEnabled } from '../feedback.js';
 import { playSfx, setAudioMuted, audioMuted } from '../audio.js';
+import { setMusicOff, musicIsOff, setSfxOff, sfxIsOff } from '../audio.js';
 import { layoutFor } from '../layout.js';
 import { FOODS } from '../food.js';
 import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
@@ -117,7 +118,8 @@ export class HudScene extends Phaser.Scene {
       'building-2',
       'factory',
       'list-checks',
-      'umbrella'
+      'umbrella',
+      'settings'
     ]);
 
     this.street = this.scene.get('Street');
@@ -188,6 +190,7 @@ export class HudScene extends Phaser.Scene {
     this.buildStealChoice();
     this.buildPeddle();
     this.buildTester();
+    this.buildOptions();
     this.buildBegChoice();
     this.buildBackpack();
     this.buildGoals();
@@ -1372,6 +1375,179 @@ export class HudScene extends Phaser.Scene {
 
   /// A little panel for whoever is testing the game: one save slot on the device
   /// and a few hand-outs for getting to the part you want to look at.
+  buildOptions() {
+    this.optionsOpen = false;
+
+    // The gear in the corner, wide enough to hit with a thumb.
+    this.optBtn = this.add
+      .circle(0, 0, 24, 0x1a1611, 0.9)
+      .setStrokeStyle(2, UI.amber, 0.6)
+      .setDepth(DEPTH.hud)
+      .setInteractive();
+
+    this.optIcon = this.add.image(0, 0, 'icon-settings').setScale(24 / 96).setDepth(DEPTH.hud + 1);
+
+    this.optBtn.on('pointerdown', () => {
+      this.uiSettleAt = Math.max(this.uiSettleAt, this.time.now + 300);
+      haptic('ui');
+      this.openSettings();
+    });
+
+    this.menuLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 2).setVisible(false);
+
+    this.menuBackdrop = this.add
+      .rectangle(0, 0, 1, 1, 0x0b0906, 0.62)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.menuBackdrop.on('pointerup', () => this.closeSettings());
+
+    this.menuGfx = this.add.graphics();
+
+    this.menuTitle = this.add
+      .text(0, 0, '设置', {
+        fontFamily: FONT,
+        fontSize: '19px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0, 0);
+
+    this.menuSub = this.add
+      .text(0, 0, '声音和手感，随时可以关掉', {
+        fontFamily: FONT,
+        fontSize: '12px',
+        color: UI.creamDim
+      })
+      .setOrigin(0, 0);
+
+    this.menuCloseBtn = this.add
+      .circle(0, 0, 22, 0x3a3128, 0.95)
+      .setStrokeStyle(2, UI.amber, 0.8)
+      .setInteractive();
+    this.menuCloseIcon = this.add.image(0, 0, 'icon-x').setScale(22 / 96);
+    this.menuCloseBtn.on('pointerup', () => this.closeSettings());
+
+    this.menuLayer.add([
+      this.menuBackdrop,
+      this.menuGfx,
+      this.menuTitle,
+      this.menuSub,
+      this.menuCloseBtn,
+      this.menuCloseIcon
+    ]);
+
+    const rows = [
+      { id: 'music', label: '音乐' },
+      { id: 'sfx', label: '音效' },
+      { id: 'haptics', label: '震动' },
+      { id: 'tester', label: '测试面板' }
+    ];
+
+    this.menuRows = rows.map((row) => {
+      const bg = this.add
+        .rectangle(0, 0, 1, 1, UI.panelRow, 1)
+        .setOrigin(0, 0.5)
+        .setInteractive();
+      const label = this.add
+        .text(0, 0, row.label, { fontFamily: FONT, fontSize: '16px', color: UI.cream })
+        .setOrigin(0, 0.5);
+      const state = this.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: UI.gold })
+        .setOrigin(1, 0.5);
+
+      bg.on('pointerdown', () => this.pressMenuRow(row.id));
+
+      this.menuLayer.add([bg, label, state]);
+      return { ...row, bg, label, state };
+    });
+  }
+
+  layoutSettings() {
+    const w = this.w;
+    const rowH = 46;
+    const pw = Math.min(w - 48, 320);
+    const ph = 92 + this.menuRows.length * (rowH + 6) + 16;
+    const px = (w - pw) / 2;
+    const py = Math.max(60, (this.playH - ph) / 2);
+
+    this.menuBackdrop.setScale(w, this.h).setPosition(0, 0);
+
+    const g = this.menuGfx;
+    g.clear();
+    g.fillStyle(UI.panel, 0.98);
+    g.fillRoundedRect(px, py, pw, ph, 16);
+    g.lineStyle(2, UI.amber, 0.6);
+    g.strokeRoundedRect(px, py, pw, ph, 16);
+
+    this.menuTitle.setPosition(px + 18, py + 16);
+    this.menuSub.setPosition(px + 18, py + 42);
+    this.menuCloseBtn.setPosition(px + pw - 30, py + 30);
+    this.menuCloseIcon.setPosition(px + pw - 30, py + 30);
+
+    const rowW = pw - 28;
+
+    this.menuRows.forEach((row, i) => {
+      const ry = py + 92 + rowH / 2 + i * (rowH + 6);
+
+      row.bg.setScale(rowW, rowH).setPosition(px + 14, ry);
+      row.label.setPosition(px + 30, ry);
+      row.state.setPosition(px + 14 + rowW - 16, ry);
+    });
+  }
+
+  refreshSettings() {
+    if (!this.menuRows) return;
+
+    for (const row of this.menuRows) {
+      if (row.id === 'tester') {
+        row.state.setText('打开 ›').setColor(UI.creamDim);
+        continue;
+      }
+
+      let on = true;
+      if (row.id === 'music') on = !musicIsOff();
+      else if (row.id === 'sfx') on = !sfxIsOff();
+      else if (row.id === 'haptics') on = hapticsEnabled();
+
+      row.state.setText(on ? '开' : '关').setColor(on ? '#a8d98a' : '#8a8070');
+    }
+  }
+
+  openSettings() {
+    if (this.optionsOpen) return;
+
+    this.optionsOpen = true;
+    this.showPanel(this.menuLayer);
+    this.layoutSettings();
+    this.refreshSettings();
+    this.releaseStick();
+  }
+
+  closeSettings() {
+    if (this.time.now < this.uiSettleAt) return;
+    if (!this.optionsOpen) return;
+
+    this.optionsOpen = false;
+    this.hidePanel(this.menuLayer);
+    haptic('ui');
+  }
+
+  pressMenuRow(id) {
+    haptic('ui');
+
+    if (id === 'music') setMusicOff(!musicIsOff());
+    else if (id === 'sfx') setSfxOff(!sfxIsOff());
+    else if (id === 'haptics') setHapticsEnabled(!hapticsEnabled());
+    else if (id === 'tester') {
+      this.uiSettleAt = 0;
+      this.closeSettings();
+      this.openTester();
+      return;
+    }
+
+    this.refreshSettings();
+  }
+
   buildTester() {
     this.testerLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 1).setVisible(false);
 
@@ -3175,6 +3351,7 @@ export class HudScene extends Phaser.Scene {
     if (this.winOpen) this.layoutWin();
     if (this.dialogueOpen) this.layoutDialogue();
     if (this.loreOpen) this.layoutLore();
+    if (this.optionsOpen) this.layoutSettings();
     this.layoutOverlay();
   }
 
@@ -3250,6 +3427,10 @@ export class HudScene extends Phaser.Scene {
 
     this.mapBtn.setPosition(w - 34, 33);
     this.mapIcon.setPosition(w - 34, 33);
+    if (this.optBtn) {
+      this.optBtn.setPosition(w - 86, 33);
+      this.optIcon.setPosition(w - 86, 33);
+    }
     this.districtText.setPosition(w / 2, 75);
     this.clockText.setPosition(24, 33);
     this.wantedText.setPosition(w - 34, 104);
@@ -3824,7 +4005,9 @@ export class HudScene extends Phaser.Scene {
       this.homeOpen ||
       this.vendingOpen ||
       this.slotOpen ||
-      this.stealChoiceOpen
+      this.stealChoiceOpen ||
+      this.optOpen ||
+      this.optionsOpen
     );
   }
 
@@ -5981,6 +6164,11 @@ export class HudScene extends Phaser.Scene {
     this.loreOpen = false;
     this.loreLayer.setVisible(false);
     this.setLayerInput(this.loreLayer, false);
+    this.optionsOpen = false;
+    if (this.menuLayer) {
+      this.menuLayer.setVisible(false);
+      this.setLayerInput(this.menuLayer, false);
+    }
 
     for (const pair of [
       ['begOpen', this.begLayer],
@@ -6057,6 +6245,11 @@ export class HudScene extends Phaser.Scene {
     this.loreOpen = false;
     this.loreLayer.setVisible(false);
     this.setLayerInput(this.loreLayer, false);
+    this.optionsOpen = false;
+    if (this.menuLayer) {
+      this.menuLayer.setVisible(false);
+      this.setLayerInput(this.menuLayer, false);
+    }
 
     this.shown.money = null;
     this.shown.bag = null;
