@@ -17,7 +17,7 @@ export const FURNITURE = [
     price: 0,
     need: { cardboard: 4, rag: 1 },
     craft: { cardboard: 4, rag: 1 },
-    durability: 8,
+    durability: 5,
     repair: { cardboard: 2 },
     starter: true,
     blurb: '捡来的纸板压平，垫上破布'
@@ -31,7 +31,7 @@ export const FURNITURE = [
     price: 55,
     need: null,
     craft: { cardboard: 5, can: 2 },
-    durability: 10,
+    durability: 6,
     repair: { cardboard: 2, can: 1 },
     blurb: '从旧货摊搬来的木箱，自己也能钉一个'
   },
@@ -44,7 +44,7 @@ export const FURNITURE = [
     price: 90,
     need: null,
     craft: { can: 3, brick: 2, scrap: 1 },
-    durability: 12,
+    durability: 7,
     repair: { scrap: 1, brick: 1 },
     blurb: '钻了孔的油桶，烧炭取暖'
   },
@@ -57,7 +57,7 @@ export const FURNITURE = [
     price: 0,
     need: { newspaper: 3, cardboard: 2 },
     craft: { newspaper: 3, cardboard: 2 },
-    durability: 3,
+    durability: 2,
     repair: { newspaper: 2 },
     temp: true,
     blurb: '把废报纸压平铺在地上，几天就散'

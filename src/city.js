@@ -86,14 +86,33 @@ export function rollEvents() {
 }
 
 export function makeCity(day) {
-  return { day, weather: rollWeather(), events: rollEvents() };
+  return { day, weather: rollWeather(), next: rollWeather(), events: rollEvents() };
 }
 
-/// The next morning's weather, rolled once a day and kept on the run.
+/// The next morning's weather is rolled with the day it follows and kept on the
+/// run, so the tent can be judged against what is coming rather than against
+/// what is already falling.
 export function ensureCity(run) {
-  if (!run.city || run.city.day !== run.day) run.city = makeCity(run.day);
+  if (!run.city || run.city.day !== run.day) {
+    const before = run.city;
+    const city = makeCity(run.day);
+
+    // What last night's forecast promised is what the morning gets.
+    if (before && before.next && WEATHERS[before.next]) city.weather = before.next;
+
+    run.city = city;
+  }
+
+  if (!run.city.next || !WEATHERS[run.city.next]) run.city.next = rollWeather();
 
   return run.city;
+}
+
+/// The name of tomorrow's weather: "雨", "雪", "闷热" or "晴".
+export function forecastOf(city) {
+  const weather = city && WEATHERS[city.next];
+
+  return weather ? weather.name : '';
 }
 
 export function activeEvent(city, minute) {

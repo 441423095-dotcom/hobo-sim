@@ -7,7 +7,7 @@ import { createGameArt } from '../art/index.js';
 import { layoutFor } from '../layout.js';
 import { haptic } from '../feedback.js';
 import { initAudio, playSfx, setDistrictMood, updateAudio, setWeatherSound } from '../audio.js';
-import { ensureCity, cityEffects, EVENTS } from '../city.js';
+import { ensureCity, cityEffects, forecastOf, EVENTS } from '../city.js';
 import { FOODS } from '../food.js';
 import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
 import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
@@ -3260,6 +3260,13 @@ export class StreetScene extends Phaser.Scene {
     const weather = this.cityFx && this.cityFx.weather ? this.cityFx.weather.name : '晴';
 
     return `第${this.run.day}天 ${minutesToClock(this.run.step)} · ${weather}`;
+  }
+
+  /// Tomorrow's weather, for the night before it.
+  getForecastText() {
+    if (!this.run) return '';
+
+    return forecastOf(ensureCity(this.run));
   }
 
   applyNight() {

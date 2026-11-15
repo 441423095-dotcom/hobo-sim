@@ -382,17 +382,34 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0.5)
       .setDepth(DEPTH.hud);
 
-    // The clock chip is also the tester's door: a tap opens the little panel of
-    // saves and hand-outs.
+    // The clock chip is also the tester's door, but the top-left corner is where
+    // a thumb comes to rest by accident, so it takes a press held down rather
+    // than a tap: resting a hand there should never open a panel.
     this.clockBtn = this.add
       .rectangle(12, 33, 192, 34, 0x000000, 0)
       .setOrigin(0, 0.5)
       .setDepth(DEPTH.hud + 2)
       .setInteractive();
 
-    this.clockBtn.on('pointerdown', () => {
-      this.uiSettleAt = this.time.now + 280;
-      this.openTester();
+    this.clockHold = null;
+
+    this.clockBtn.on('pointerdown', (pointer) => {
+      const id = pointer.id;
+
+      if (this.clockHold) this.clockHold.remove(false);
+
+      this.clockHold = this.time.delayedCall(600, () => {
+        this.clockHold = null;
+
+        // The finger has to still be there: a tap, or a thumb dragged off the
+        // chip, is not a request for the tester.
+        const held = this.input.manager.pointers.find((p) => p.id === id);
+        if (!held || !held.isDown) return;
+        if (this.time.now < this.inputLockUntil) return;
+
+        this.uiSettleAt = this.time.now + 280;
+        this.openTester();
+      });
     });
 
     // The bag chip opens the backpack; the goal card opens the whole list.
@@ -2039,7 +2056,7 @@ export class HudScene extends Phaser.Scene {
         [
           '左半边按住拖：走路，拖得越轻走得越慢（潜行）。',
           '右半边点一下：跟最近的东西打交道——翻桶、坐下乞讨、偷、兜售。',
-          '左上角时钟＝测试面板，右上角背包＝背包，目标卡＝今天的活。',
+          '左上角时钟长按＝测试面板，右上角背包＝背包，目标卡＝今天的活。',
           '天黑前回城郊帐篷，别在街上冻着。'
         ].join('\n'),
         {
@@ -2651,6 +2668,13 @@ export class HudScene extends Phaser.Scene {
     this.tweens.killTweensOf(layer);
     layer.setVisible(true).setAlpha(0.001).setScale(0.96);
 
+    // Whatever opens a panel — a tap on a shop, the last line of a dialogue, a
+    // row in another panel — the thumb lifting from that same tap must not land
+    // on the new backdrop and close it again. A moment of quiet after the panel
+    // arrives, long enough for even a slow tap to have let go: one flick is all
+    // it takes for a page to flash open and shut.
+    this.uiSettleAt = Math.max(this.uiSettleAt, this.time.now + 420);
+
     this.tweens.add({
       targets: layer,
       alpha: 1,
@@ -2827,10 +2851,10 @@ export class HudScene extends Phaser.Scene {
     this.overStats = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '15px',
+        fontSize: '14px',
         color: UI.cream,
         align: 'center',
-        lineSpacing: 6
+        lineSpacing: 2
       })
       .setOrigin(0.5, 0);
 
@@ -4379,6 +4403,11 @@ export class HudScene extends Phaser.Scene {
         .setText(`睡一觉：精力 +${preview.energy} · 饱食 +${preview.hunger}`)
         .setColor(UI.creamDim);
     }
+
+    // What the morning will be like. Whether the fire is worth keeping lit is a
+    // decision made right here, on the way to bed.
+    const forecast = street && street.getForecastText ? street.getForecastText() : '';
+    this.sleepText.setText(forecast ? `睡一觉 · 明天${forecast}` : '睡一觉');
   }
 
   placeFurnitureItem(item) {
@@ -5519,7 +5548,8 @@ export class HudScene extends Phaser.Scene {
           run.beggingIncome + run.scavengeIncome + run.stolenIncome + run.soldIncome
         } 元`,
         `背包物品  ${run.bag} 件`,
-        `在街上撑了  ${clock}`
+        `在街上撑了  ${clock}`,
+        '进度停在最近一次存档'
       ].join('\n')
     );
 
