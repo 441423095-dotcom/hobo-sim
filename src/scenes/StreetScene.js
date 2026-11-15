@@ -405,6 +405,8 @@ export class StreetScene extends Phaser.Scene {
     this.cops = [];
     this.qtePed = null;
     this.stealTake = 0;
+    this.alertPed = null;
+    this.alertValue = 0;
     this.sneaking = false;
     this.energyWarned = false;
     this.heartT = 0;
@@ -1392,8 +1394,9 @@ export class StreetScene extends Phaser.Scene {
   stealZone(ped, mode) {
     const district = (ped.strip && ped.strip.district) || this.district;
     const asItem = mode === 'item';
+    const alert = this.encounterAlert(ped);
 
-    let width = (asItem ? 0.46 : 0.34) - ped.alert * 0.2;
+    let width = (asItem ? 0.46 : 0.34) - alert * 0.2;
     if (this.run.tools.lockpick) width += 0.1;
     if (this.run.tools.coat) width += 0.04;
 
@@ -1415,7 +1418,7 @@ export class StreetScene extends Phaser.Scene {
     const perfectWidth = this.run.tools.blade ? width * 0.4 : 0;
     const perfectStart = perfectWidth > 0 ? start + (width - perfectWidth) / 2 : 0;
 
-    let speed = (0.8 + ped.alert * 0.9) * (district.stealSpeed || 1) * (asItem ? 0.82 : 1);
+    let speed = (0.8 + alert * 0.9) * (district.stealSpeed || 1) * (asItem ? 0.82 : 1);
 
     // A shot of liquor steadies the next hand, and only the next one.
     if (this.run.booze > 0) speed *= 0.7;
@@ -1435,10 +1438,27 @@ export class StreetScene extends Phaser.Scene {
     const ped = this.stealTarget;
     if (!ped) return null;
 
+    // Coming up to somebody is the moment the encounter is set: the odds are
+    // fixed here, so standing there while they get jumpier does not close the
+    // window under the player's thumb.
+    this.encounterAlert(ped);
+
     return {
       purse: ped.purse,
       loot: ped.loot && !ped.lootTaken ? ped.loot : null
     };
+  }
+
+  /// The walker's alertness for this encounter: whatever it was when the beggar
+  /// first came up to them.
+  encounterAlert(ped) {
+    if (!ped) return 0;
+    if (this.alertPed === ped) return this.alertValue || 0;
+
+    this.alertPed = ped;
+    this.alertValue = ped.alert || 0;
+
+    return this.alertValue;
   }
 
   /// Reaching for a wallet or into a pocket opens the QTE panel; the HUD calls
@@ -1550,6 +1570,7 @@ export class StreetScene extends Phaser.Scene {
 
     this.qtePed = null;
     this.stealMode = null;
+    this.alertPed = null;
 
     if (!ped || this.run.over) return;
 
@@ -4550,7 +4571,7 @@ export class StreetScene extends Phaser.Scene {
 
     rate += this.cleanLevel() * 0.12;
     rate += skillBonus(this.run, 'peddle') + bookBonus(this.run, 'peddle');
-    rate -= Math.max(0, ped.alert || 0) * 0.2;
+    rate -= Math.max(0, this.encounterAlert(ped)) * 0.2;
 
     const charm = this.pickCharm();
     if (charm === 'cigarettes') rate += 0.18;
@@ -4609,6 +4630,7 @@ export class StreetScene extends Phaser.Scene {
       haptic('sell');
       playSfx('sell');
       ped.alert = Math.max(0, ped.alert - 0.15);
+      this.alertPed = null;
 
       return 'ok';
     }
@@ -4625,6 +4647,7 @@ export class StreetScene extends Phaser.Scene {
     this.sayBubble(ped, peddleRefuseLine());
     haptic('stealFail');
     playSfx('stealFail');
+    this.alertPed = null;
 
     return 'no';
   }
@@ -4651,8 +4674,15 @@ export class StreetScene extends Phaser.Scene {
     }
 
     this.nearest = best;
-    this.stealTarget = best ? null : this.findStealTarget();
-    this.peddleTarget = best ? null : this.findPeddleTarget();
+    const steal = best ? null : this.findStealTarget();
+    const peddle = best ? null : this.findPeddleTarget();
+
+    // A different person in front of him: the odds go back to how jumpy they
+    // were when he walked up, not how jumpy they have become since.
+    if (steal !== this.stealTarget || peddle !== this.peddleTarget) this.alertPed = null;
+
+    this.stealTarget = steal;
+    this.peddleTarget = peddle;
 
     if (best) {
       if (this.prompt.text !== best.label) this.prompt.setText(best.label);
