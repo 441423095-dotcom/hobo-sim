@@ -14,6 +14,7 @@ import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
 import { RECIPES, recipeById, amountOf, spendMaterial } from '../craft.js';
 import { makeGoalsForDay } from '../goals.js';
 import { saveGame, loadGame, clearGame } from '../save.js';
+import { KING, patronById, favorOf, kingProgress } from '../king.js';
 import {
   begGiveLine,
   begRefuseLine,
@@ -283,6 +284,8 @@ export class StreetScene extends Phaser.Scene {
         booze: 0,
         perfume: 0,
         charm: { cigarettes: 0, ticket: 0 },
+        favor: {},
+        king: null,
         beggingIncome: 0,
         scavengeIncome: 0,
         stolenIncome: 0,
@@ -1621,6 +1624,7 @@ export class StreetScene extends Phaser.Scene {
     this.run.money += price;
     this.run.soldIncome += price;
     this.progressGoal('sell', price);
+    this.addFavor(atPawn ? 'chen' : 'stall', 8);
     this.refreshBagCount();
     this.floatText(this.player.x, this.player.y - 46, `+${price} 元`, UI.gold);
     return true;
@@ -1652,6 +1656,7 @@ export class StreetScene extends Phaser.Scene {
     this.run.money += price;
     this.run.soldIncome += price;
     this.progressGoal('sell', price);
+    this.addFavor(atPawn ? 'chen' : 'stall', 8);
     this.refreshBagCount();
     this.floatText(this.player.x, this.player.y - 46, `+${price} 元`, UI.gold);
     return true;
@@ -1690,6 +1695,7 @@ export class StreetScene extends Phaser.Scene {
       this.run.money += total;
       this.run.soldIncome += total;
       this.progressGoal('sell', total);
+      this.addFavor(atPawn ? 'chen' : 'stall', 8);
       this.refreshBagCount();
       this.floatText(this.player.x, this.player.y - 46, `+${total} 元`, UI.gold);
     }
@@ -2800,6 +2806,7 @@ export class StreetScene extends Phaser.Scene {
 
     playSfx('coin');
     haptic('unlock');
+    this.addFavor('zhou', 8);
 
     const hud = this.scene.get('Hud');
     if (!hud || !hud.showToast) return;
@@ -2871,9 +2878,56 @@ export class StreetScene extends Phaser.Scene {
     this.sayBubble(this.oldZhou, this.zhouAdviceLine());
   }
 
+  /// How much this person on the street thinks of the beggar, and the moment
+  /// they decide they would back him for king.
+  addFavor(id, amount) {
+    if (!patronById(id) || this.run.over || amount <= 0) return;
+
+    this.run.favor = this.run.favor || {};
+
+    const before = favorOf(this.run, id);
+    const after = Math.min(100, before + amount);
+
+    this.run.favor[id] = after;
+
+    if (before < KING.favorGoal && after >= KING.favorGoal) {
+      const patron = patronById(id);
+      const hud = this.scene.get('Hud');
+
+      if (hud && hud.showToast) hud.showToast(`${patron.name}开始站在你这边。`);
+      haptic('unlock');
+    }
+  }
+
+  /// Two ways to the throne: the street's backing, or the money.
+  checkKing() {
+    if (!this.run || this.run.king) return;
+
+    if (kingProgress(this.run).canBuy) this.winKing('money');
+  }
+
+  winKing(how) {
+    if (!this.run || this.run.king) return;
+
+    this.run.king = { how, day: this.run.day, money: this.run.money };
+    this.run.sitting = false;
+
+    this.stopChases();
+    haptic('jackpot');
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showWin) hud.showWin(this.run.king);
+  }
+
   /// Tapping the old man repeats the list, with how far each job has got.
   talkOldZhou() {
     haptic('ui');
+
+    // Enough of the street behind him, and the old man calls the vote.
+    if (kingProgress(this.run).canElect) {
+      this.winKing('election');
+      return;
+    }
 
     const goals = this.todayGoals();
     if (!goals.length) return;
@@ -4382,6 +4436,7 @@ export class StreetScene extends Phaser.Scene {
     this.musicTension += (mood - this.musicTension) * Math.min(1, dt * 1.8);
     updateAudio(dt, { tension: this.musicTension, night: darknessAt(run.step) });
     this.updateCity(dt);
+    this.checkKing();
 
     if (!run.over) {
       run.hunger = Math.max(0, run.hunger - HUNGER_DRAIN * dt);

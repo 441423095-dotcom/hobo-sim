@@ -15,6 +15,7 @@ import { STREET_ORDER, CITY_COLS, CITY_ROWS, cellOf, neighbourOf } from '../stre
 import { SHOPS, stockFor } from '../shops.js';
 import { FURNITURE, FURNITURE_RECIPES, HOME_SLOTS, furnitureById } from '../home.js';
 import { savedInfo } from '../save.js';
+import { KING, PATRONS, kingProgress, supporters } from '../king.js';
 import { COFFEE_PRICE, COFFEE_ENERGY, KICK_WANTED } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS } from '../gamble.js';
 import { RECIPES, amountOf, materialLabel } from '../craft.js';
@@ -97,6 +98,7 @@ export class HudScene extends Phaser.Scene {
     this.bagOpen = false;
     this.goalsOpen = false;
     this.helpOpen = false;
+    this.winOpen = false;
     this.panelOpen = false;
     this.inputLockUntil = 0;
     this.uiSettleAt = 0;
@@ -146,6 +148,7 @@ export class HudScene extends Phaser.Scene {
     this.buildBackpack();
     this.buildGoals();
     this.buildHelp();
+    this.buildWin();
     this.buildOverlay();
 
     // The panels start closed: a hidden container can still answer taps, so
@@ -166,6 +169,7 @@ export class HudScene extends Phaser.Scene {
     this.setLayerInput(this.bagLayer, false);
     this.setLayerInput(this.goalsLayer, false);
     this.setLayerInput(this.helpLayer, false);
+    this.setLayerInput(this.winLayer, false);
 
     // Closing is the corner button's job now: the little crosses in the panel
     // corners are gone, so there is nothing to catch by accident.
@@ -859,7 +863,8 @@ export class HudScene extends Phaser.Scene {
       this.begOpen ||
       this.bagOpen ||
       this.goalsOpen ||
-      this.helpOpen
+      this.helpOpen ||
+      this.winOpen
     )
       return;
 
@@ -1322,6 +1327,7 @@ export class HudScene extends Phaser.Scene {
       { id: 'event', label: '触发城市事件' },
       { id: 'furniture', label: '家具全刷' },
       { id: 'wanted', label: '清通缉' },
+      { id: 'favor', label: '好感各 +25' },
       { id: 'sound', label: '音效：开' },
       { id: 'haptics', label: '震动：开' }
     ];
@@ -1430,7 +1436,8 @@ export class HudScene extends Phaser.Scene {
       'weather',
       'event',
       'furniture',
-      'wanted'
+      'wanted',
+      'favor'
     ];
 
     if (extra.indexOf(id) >= 0) {
@@ -1531,6 +1538,13 @@ export class HudScene extends Phaser.Scene {
 
     if (id === 'wanted') {
       if (street && street.debugClearWanted) street.debugClearWanted();
+      this.refreshTester();
+    }
+
+    if (id === 'favor') {
+      if (street && street.addFavor) {
+        for (const patron of PATRONS) street.addFavor(patron.id, 25);
+      }
       this.refreshTester();
     }
   }
@@ -1918,7 +1932,7 @@ export class HudScene extends Phaser.Scene {
   layoutGoalsPanel() {
     const w = this.w;
     const pw = Math.min(w - 32, 340);
-    const ph = 86 + this.goalsRows.length * 24 + 16;
+    const ph = 100 + this.goalsRows.length * 24 + 16;
     const px = (w - pw) / 2;
     const py = Math.max(44, (this.playH - ph) / 2);
 
@@ -1937,16 +1951,19 @@ export class HudScene extends Phaser.Scene {
     this.goalsCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
 
     this.goalsRows.forEach((row, i) => {
-      row.setPosition(px + 20, py + 84 + i * 24);
+      row.setPosition(px + 20, py + 100 + i * 24);
     });
   }
 
   refreshGoalsList() {
     const run = this.street && this.street.run ? this.street.run : null;
     const goals = run && run.goals && run.goals.day === run.day ? run.goals.list : [];
+    const kp = kingProgress(run);
 
     this.goalsSub.setText(
-      goals.length ? `第 ${run.day} 天 · 办完有赏` : '今天没有活'
+      goals.length
+        ? `第 ${run.day} 天 · 办完有赏\n王座：好感 ${kp.supporters}/5（要 ${kp.needed}） · 存款 ${kp.money}/${kp.moneyGoal}`
+        : '今天没有活'
     );
 
     this.goalsRows.forEach((row, i) => {
@@ -2096,6 +2113,137 @@ export class HudScene extends Phaser.Scene {
     } catch (err) {
       // No storage: it will simply show again next time.
     }
+  }
+
+  // ------------------------------------------------------------ king of hobos
+
+  buildWin() {
+    this.winLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 4).setVisible(false);
+
+    this.winBackdrop = this.add
+      .rectangle(0, 0, 1, 1, 0x0b0906, 0.9)
+      .setOrigin(0, 0)
+      .setInteractive();
+
+    this.winGfx = this.add.graphics();
+
+    this.winTitle = this.add
+      .text(0, 0, '流浪汉之王', {
+        fontFamily: FONT,
+        fontSize: '26px',
+        color: '#f2c46a',
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.winBody = this.add
+      .text(0, 0, '', {
+        fontFamily: FONT,
+        fontSize: '15px',
+        color: UI.creamDim,
+        align: 'center',
+        lineSpacing: 5,
+        wordWrap: { width: 260 }
+      })
+      .setOrigin(0.5, 0);
+
+    this.winStats = this.add
+      .text(0, 0, '', {
+        fontFamily: FONT,
+        fontSize: '13px',
+        color: UI.cream,
+        align: 'center',
+        lineSpacing: 5
+      })
+      .setOrigin(0.5, 0);
+
+    this.winBtn = this.add
+      .rectangle(0, 0, 200, 44, 0x4a3a24, 1)
+      .setStrokeStyle(2, UI.amberBright, 0.9)
+      .setInteractive();
+    this.winBtnText = this.add
+      .text(0, 0, '重新开始', {
+        fontFamily: FONT,
+        fontSize: '17px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5, 0.5);
+    this.winBtn.on('pointerdown', () => this.closeWin());
+
+    this.winLayer.add([
+      this.winBackdrop,
+      this.winGfx,
+      this.winTitle,
+      this.winBody,
+      this.winStats,
+      this.winBtn,
+      this.winBtnText
+    ]);
+  }
+
+  layoutWin() {
+    const w = this.w;
+    const pw = Math.min(w - 48, 320);
+    const ph = 330;
+    const px = (w - pw) / 2;
+    const py = Math.max(52, (this.playH - ph) / 2);
+
+    this.winBackdrop.setScale(w, this.h).setPosition(0, 0);
+
+    const g = this.winGfx;
+    g.clear();
+    g.fillStyle(UI.panel, 0.98);
+    g.fillRoundedRect(px, py, pw, ph, 18);
+    g.lineStyle(2.5, UI.amberBright, 0.85);
+    g.strokeRoundedRect(px, py, pw, ph, 18);
+
+    this.winTitle.setPosition(w / 2, py + 40);
+    this.winBody.setPosition(w / 2, py + 72);
+    this.winStats.setPosition(w / 2, py + 178);
+    this.winBtn.setScale((pw - 56) / 200, 1).setPosition(w / 2, py + ph - 40);
+    this.winBtnText.setPosition(w / 2, py + ph - 40);
+  }
+
+  /// The run has ended on top: the old man's vote, or the ten thousand.
+  showWin(king) {
+    if (this.winOpen || !king) return;
+
+    const run = this.street && this.street.run ? this.street.run : null;
+    const backers = run ? supporters(run) : [];
+
+    this.winOpen = true;
+
+    this.layoutWin();
+
+    this.winBody.setText(
+      king.how === 'election'
+        ? `街上的乞丐、摊主和店家都认了你。\n老周把碗一放：以后这条街，你说了算。\n\n站在你这边的人：${backers
+            .map((p) => p.name)
+            .join('、')}`
+        : '你把攒下的十万块拍在桌上。\n没有人再问你昨天睡在哪儿。\n\n这条街，从今天起姓你的姓。'
+    );
+
+    this.winStats.setText(
+      [
+        `第 ${king.day} 天登顶`,
+        `身上 ${king.money} 元`,
+        `支持者 ${backers.length}/5`
+      ].join('\n')
+    );
+
+    this.showPanel(this.winLayer);
+    haptic('jackpot');
+  }
+
+  closeWin() {
+    if (!this.winOpen) return;
+
+    this.winOpen = false;
+    this.hidePanel(this.winLayer);
+
+    this.uiSettleAt = 0;
+    if (this.street) this.street.restartRun();
   }
 
   /// A panel coming in: a quick grow and fade, rather than a hard cut.
@@ -2345,6 +2493,7 @@ export class HudScene extends Phaser.Scene {
     if (this.bagOpen) this.layoutBackpack();
     if (this.goalsOpen) this.layoutGoalsPanel();
     if (this.helpOpen) this.layoutHelp();
+    if (this.winOpen) this.layoutWin();
     this.layoutOverlay();
   }
 
@@ -2714,7 +2863,8 @@ export class HudScene extends Phaser.Scene {
       this.begOpen ||
       this.bagOpen ||
       this.goalsOpen ||
-      this.helpOpen
+      this.helpOpen ||
+      this.winOpen
     )
       return;
     // Left half: a thumb summons the movement plate. Right half: a tap does
@@ -2830,7 +2980,8 @@ export class HudScene extends Phaser.Scene {
       this.begOpen ||
       this.bagOpen ||
       this.goalsOpen ||
-      this.helpOpen
+      this.helpOpen ||
+      this.winOpen
     )
       return;
 
@@ -2967,6 +3118,11 @@ export class HudScene extends Phaser.Scene {
 
     if (this.helpOpen) {
       this.closeHelp();
+      return;
+    }
+
+    if (this.winOpen) {
+      this.closeWin();
       return;
     }
 
@@ -4844,6 +5000,18 @@ export class HudScene extends Phaser.Scene {
     haptic('buy');
     this.shown.storeSig = null;
     this.refreshStore();
+
+    // Shopkeepers remember a customer who keeps coming back.
+    if (this.street && this.street.addFavor) {
+      const favorId =
+        this.storeId === 'black'
+          ? 'cap'
+          : this.storeId && this.storeId.indexOf('stall-') === 0
+            ? 'stall'
+            : 'zhang';
+
+      this.street.addFavor(favorId, 8);
+    }
   }
 
   // ------------------------------------------------------------- end of a run
@@ -4878,6 +5046,9 @@ export class HudScene extends Phaser.Scene {
     this.testerOpen = false;
     this.testerLayer.setVisible(false);
     this.setLayerInput(this.testerLayer, false);
+    this.winOpen = false;
+    this.winLayer.setVisible(false);
+    this.setLayerInput(this.winLayer, false);
 
     for (const pair of [
       ['begOpen', this.begLayer],
@@ -4944,6 +5115,9 @@ export class HudScene extends Phaser.Scene {
     this.goalsOpen = false;
     this.goalsLayer.setVisible(false);
     this.setLayerInput(this.goalsLayer, false);
+    this.winOpen = false;
+    this.winLayer.setVisible(false);
+    this.setLayerInput(this.winLayer, false);
 
     this.shown.money = null;
     this.shown.bag = null;
