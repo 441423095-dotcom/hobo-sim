@@ -590,11 +590,7 @@ export class StreetScene extends Phaser.Scene {
   /// flattened cardboard and a patch of shadow, with a couple of the boys
   /// slumped against the bin or flat out on the boxes.
   buildAlleyCorners() {
-    const corners = [
-      { district: 'alley', x: 446, y: 1040, gang: 'crow' },
-      { district: 'alley', x: 188, y: 302, gang: 'crow' },
-      { district: 'slum', x: 452, y: 640, gang: 'tin' }
-    ];
+    const corners = [{ district: 'alley', x: 446, y: 1040, gang: 'crow' }];
 
     for (const corner of corners) {
       const strip = this.stripFor(corner.district);
@@ -611,19 +607,8 @@ export class StreetScene extends Phaser.Scene {
       this.add.image(x + 82, y - 2, 'trashbags').setOrigin(0.5, 1).setDepth(y - 1);
 
       // One slumped against the bin, one flat out on the cardboard.
-      this.add
-        .image(x - 8, y + 2, 'ped-gang')
-        .setOrigin(0.5, 1)
-        .setScale(1, 0.62)
-        .setAngle(-7)
-        .setDepth(y + 3);
-
-      this.add
-        .image(x - 52, y - 6, 'ped-gang')
-        .setOrigin(0.5, 0.5)
-        .setRotation(Math.PI / 2)
-        .setScale(0.86)
-        .setDepth(y + 4);
+      this.add.image(x - 10, y + 4, 'gang-sit').setDepth(y + 3);
+      this.add.image(x - 52, y + 2, 'gang-lie').setDepth(y + 2);
 
       if (this.lightSpots) this.lightSpots.push({ x, y: y - 60 });
 

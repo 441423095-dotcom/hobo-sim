@@ -168,9 +168,65 @@ const PED = [
   '....kkkkkkk.....'
 ];
 
-// A hooded figure with a bandana across the face: the gang of the black street.
-const GANG = [
+// One of the boys sat against the wall with his knees up, and another flat out
+// on the cardboard. Padded at the top like the sitting player, so both stand on
+// the same line as a walker.
+const GANG_SIT = [
   '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '....kkkkkkkk....',
+  '...kgggggggggk..',
+  '...kgssssssgsk..',
+  '...kSssbbssSk...',
+  '..kkcccccccckk..',
+  '..kcccccccccck..',
+  '..kccdccccdcck..',
+  '..kddddddddddk..',
+  '..kppppkkpppk...',
+  '..kBBkkkkkBBk...'
+];
+
+const GANG_LIE = [
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '...kkkkkkkkkk...',
+  '..kgggggggggggk.',
+  '..kpppppppppBBk.',
+  '..kkkkkkkkkkkk..'
+];
+
+// A hooded figure with a bandana across the face: the gang of the black street.
+const GANG = [  '................',
   '.....kkkkkk.....',
   '....kggggggk....',
   '....kggggggk....',
@@ -672,6 +728,8 @@ export function buildSpriteArt(scene) {
   pixelTexture(scene, 'ped-oldlady', PED, PAL_OLDLADY);
   pixelTexture(scene, 'ped-worker', PED, PAL_WORKER);
   pixelTexture(scene, 'ped-gang', GANG, PAL_GANG);
+  pixelTexture(scene, 'gang-sit', GANG_SIT, PAL_GANG);
+  pixelTexture(scene, 'gang-lie', GANG_LIE, PAL_GANG);
   pixelTexture(scene, 'ped-patrol', PED, PAL_PATROL);
   pixelTexture(scene, 'guard', GUARD, PAL_GUARD);
   pixelTexture(scene, 'oldzhou', PED, PAL_OLD);
