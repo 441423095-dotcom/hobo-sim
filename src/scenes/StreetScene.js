@@ -12,7 +12,7 @@ import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
 import { RECIPES, recipeById, amountOf, spendMaterial } from '../craft.js';
 import { SHOPS, OUTFITS } from '../shops.js';
 import { FURNITURE, HOME_SCENE_COMFORT } from '../home.js';
-import { SEGMENTS, STEPS_PER_DAY, segmentOf, segmentName } from '../time.js';
+import { DAY_LENGTH, minutesToClock, segmentOf, segmentName } from '../time.js';
 import { COFFEE_PRICE, COFFEE_ENERGY, KICK_ENERGY, KICK_WANTED, SEEN_WANTED, BIN_SEARCH_MS } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS, rollSlot } from '../gamble.js';
 import {
@@ -1036,7 +1036,7 @@ export class StreetScene extends Phaser.Scene {
       this.addLoot(lootId, ped.sprite.x, ped.sprite.y - 10);
     }
 
-    this.advanceTime(1);
+    this.advanceTime(20);
     haptic('steal');
     this.floatText(ped.sprite.x, ped.sprite.y - 34, '香水一散，他眼神就软了', '#c9a8e6');
     return true;
@@ -1053,7 +1053,7 @@ export class StreetScene extends Phaser.Scene {
 
     if (!ped || this.run.over) return;
 
-    this.advanceTime(1);
+    this.advanceTime(20);
 
     if (success && mode === 'item') {
       const id = ped.loot;
@@ -1494,7 +1494,7 @@ export class StreetScene extends Phaser.Scene {
     if (this.run.sitting || this.run.over) return;
 
     this.run.sitting = true;
-    this.advanceTime(1);
+    this.advanceTime(10);
     this.axes.x = 0;
     this.axes.y = 0;
     this.player.body.setVelocity(0, 0);
@@ -1695,7 +1695,7 @@ export class StreetScene extends Phaser.Scene {
     if (charges <= 0) return;
 
     bin.setData('charges', charges - 1);
-    this.advanceTime(1);
+    this.advanceTime(25);
 
     this.tweens.add({
       targets: bin,
@@ -1991,15 +1991,16 @@ export class StreetScene extends Phaser.Scene {
     return { ...rest, summary, day: this.run.day };
   }
 
-  /// Big actions push the clock forward: bins, begging, theft, a morning of work.
-  advanceTime(steps = 1) {
+  /// Big actions push the clock forward: a bin takes twenty-five minutes, a lift
+  /// twenty, settling down to beg ten. Walking is free.
+  advanceTime(minutes = 0) {
     if (this.run.over) return;
-    this.run.step = Math.min(STEPS_PER_DAY, this.run.step + steps);
+    this.run.step = Math.min(DAY_LENGTH, this.run.step + minutes);
     this.updateSegment();
   }
 
   getClockText() {
-    return `第 ${this.run.day} 天 · ${segmentName(this.run.step)}`;
+    return `第 ${this.run.day} 天 · ${segmentName(this.run.step)} ${minutesToClock(this.run.step)}`;
   }
 
   applyNight() {
@@ -2385,7 +2386,7 @@ export class StreetScene extends Phaser.Scene {
         if (this.run.over) return;
         this.run.money += amount;
         this.run.beggingIncome += amount;
-        this.advanceTime(1);
+        this.advanceTime(15);
         this.floatText(tx, ty - 26, `+${amount} 元`, UI.gold);
         haptic('coin');
       }
