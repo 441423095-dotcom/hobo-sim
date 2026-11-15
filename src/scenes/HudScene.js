@@ -4236,8 +4236,14 @@ export class HudScene extends Phaser.Scene {
       const enough =
         !!run && Object.keys(needList).every((id) => amountOf(run, id) >= needList[id]);
 
+      // Each line says where the material comes from, so the trip is planned
+      // before the bag is opened.
       const needs = Object.keys(needList)
-        .map((id) => `${materialLabel(id)} ${run ? amountOf(run, id) : 0}/${needList[id]}`)
+        .map((id) => {
+          const junk = JUNK_ITEMS[id];
+          const place = junk ? `(${junk.place})` : '';
+          return `${materialLabel(id)}${place} ${run ? amountOf(run, id) : 0}/${needList[id]}`;
+        })
         .join(' · ');
 
       this.fitRow(row.info, needs, this.craftInfoW || 150, 11);

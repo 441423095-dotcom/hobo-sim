@@ -426,6 +426,7 @@ export class StreetScene extends Phaser.Scene {
     this.alertExplained = false;
     this.skyFlipAt = 0;
     this.passerbyAt = 0;
+    this.mugAt = 0;
     this.warmAt = 0;
     this.warmUntil = 0;
     this.loadHome();
@@ -1894,7 +1895,7 @@ export class StreetScene extends Phaser.Scene {
     const asItem = mode === 'item';
     const alert = this.encounterAlert(ped);
 
-    let width = (asItem ? 0.46 : 0.34) - alert * 0.2;
+    let width = (asItem ? 0.5 : 0.4) - alert * 0.18;
     if (this.run.tools.lockpick) width += 0.1;
     if (this.run.tools.coat) width += 0.04;
 
@@ -1908,7 +1909,7 @@ export class StreetScene extends Phaser.Scene {
     // A watched street closes the window: the commercial district is nearly
     // hopeless, the slum a touch easier than the rest.
     width *= district.stealZone || 1;
-    width = Phaser.Math.Clamp(width, 0.1, asItem ? 0.6 : 0.5);
+    width = Phaser.Math.Clamp(width, 0.14, asItem ? 0.66 : 0.58);
 
     const start = Phaser.Math.FloatBetween(0.1, Math.max(0.12, 0.9 - width));
 
@@ -1916,7 +1917,7 @@ export class StreetScene extends Phaser.Scene {
     const perfectWidth = this.run.tools.blade ? width * 0.4 : 0;
     const perfectStart = perfectWidth > 0 ? start + (width - perfectWidth) / 2 : 0;
 
-    let speed = (0.8 + alert * 0.9) * (district.stealSpeed || 1) * (asItem ? 0.82 : 1);
+    let speed = (0.55 + alert * 0.55) * (district.stealSpeed || 1) * (asItem ? 0.85 : 1);
 
     // A shot of liquor steadies the next hand, and only the next one.
     if (this.run.booze > 0) speed *= 0.7;
@@ -2969,6 +2970,73 @@ export class StreetScene extends Phaser.Scene {
     }
     playSfx(city.weather === 'rain' ? 'thunder' : 'voice');
     haptic('ui');
+  }
+
+  /// The gangs own the alleys after dark. Walk through the alley or the black
+  /// street in the evening and somebody may step out of a doorway — unless they
+  /// already know the beggar's face, or he is standing in the firelight.
+  updateNightDanger() {
+    const run = this.run;
+    if (run.over || !this.district) return;
+
+    const id = this.district.id;
+    const gang = id === 'alley' ? GANGS.crow : id === 'slum' ? GANGS.tin : null;
+    if (!gang) return;
+
+    const segment = segmentOf(run.step);
+    if (segment < 2) return;
+
+    // Never while a panel is open: being robbed while reading a shop list is
+    // just unfair.
+    const hudPanel = this.scene.get('Hud');
+    if (hudPanel && hudPanel.anyPanelOpen && hudPanel.anyPanelOpen()) return;
+
+    if (this.time.now < this.mugAt) return;
+    this.mugAt = this.time.now + 9000 + Math.random() * 9000;
+
+    const standing = gangStanding(run, gang.id);
+    if (standing >= 40) return;
+
+    // Standing in the firelight of their own camp: left alone.
+    const campStrip = this.stripFor(gang.district);
+    if (campStrip) {
+      const cx = campStrip.x0 + gang.spot.x;
+      const cy = campStrip.y0 + gang.spot.y;
+      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, cx, cy) < 190) return;
+    }
+
+    const chance = (segment === 3 ? 0.4 : 0.22) * (1 - Math.min(0.7, standing / 60));
+    if (Math.random() > chance) return;
+
+    this.mugPlayer();
+  }
+
+  mugPlayer() {
+    const run = this.run;
+    const lost = Math.floor(run.money * (0.2 + Math.random() * 0.2));
+
+    this.mugAt = this.time.now + 55000;
+    run.energy = Math.max(0, run.energy - 8);
+    this.cameras.main.shake(220, 0.006);
+
+    if (lost > 0) run.money -= lost;
+
+    if (lost > 0) {
+      this.floatText(this.player.x, this.player.y - 52, `被抢走 ${lost} 元`, '#f08a7a');
+    } else {
+      this.floatText(this.player.x, this.player.y - 50, '身上没钱，被推了一把', '#f08a7a');
+    }
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast) {
+      hud.showToast(
+        lost > 0 ? '巷子里冲出两个人，把你按在墙上掏了兜' : '巷子里两个人翻了你的兜，什么也没翻到'
+      );
+    }
+
+    playSfx('caught');
+    haptic('caught');
+    this.stealReadyAt = this.time.now + 4000;
   }
 
   /// Now and then something small happens between the beggar and one of the
@@ -5324,6 +5392,7 @@ export class StreetScene extends Phaser.Scene {
     this.updateCity(dt);
     this.updateSky();
     this.maybePasserby();
+    this.updateNightDanger();
     this.checkKing();
 
     if (!run.over) {

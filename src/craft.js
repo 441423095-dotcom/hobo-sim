@@ -33,18 +33,18 @@ export const RECIPES = [
     id: 'knife',
     name: '简易刀具',
     tex: 'item-knife',
-    value: 24,
+    value: 30,
     blueprint: true,
-    blueprintPrice: 30,
+    blueprintPrice: 24,
     need: { scrap: 1, rag: 1 }
   },
   {
     id: 'crowbar',
     name: '撬棍',
     tex: 'item-crowbar',
-    value: 38,
+    value: 52,
     blueprint: true,
-    blueprintPrice: 44,
+    blueprintPrice: 38,
     need: { scrap: 2, rope: 1 }
   }
 ];
