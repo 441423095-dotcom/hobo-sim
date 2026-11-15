@@ -73,6 +73,10 @@ import {
 
 const SPEED = 134;
 const HUNGER_MAX = 100;
+const BRAZIER_BURN_MS = 30000;
+const BRAZIER_FEED_MS = 25000;
+const BRAZIER_REGEN = 1.6;
+
 const HUNGER_DRAIN = 0.3; // hunger points per second
 const BEG_RADIUS = 100;
 const TRADE_RADIUS = 80;
@@ -556,13 +560,15 @@ export class StreetScene extends Phaser.Scene {
     return true;
   }
 
-  /// The corners where a fire can be lit. There are only a couple of them, and
-  /// they are cold until somebody puts a flame to them.
+  /// The corners where a fire can be lit. There are only a couple of them, they
+  /// start cold, and they burn on whatever the beggar has to feed them.
   buildBraziers() {
     const spots = [
       { district: 'park', x: 150, y: 640 },
       { district: 'camp', x: 486, y: 1150 }
     ];
+
+    this.braziers = [];
 
     for (const spot of spots) {
       const strip = this.stripFor(spot.district);
@@ -581,30 +587,55 @@ export class StreetScene extends Phaser.Scene {
 
       if (this.lightSpots) this.lightSpots.push({ x, y: y - 30 });
 
-      const state = { lit: false };
+      const state = { x, y, lit: false, until: 0, fire };
+
+      this.braziers.push(state);
 
       this.addInteractable({
         x,
         y: y - 10,
         radius: 70,
         label: '火盆',
-        use: () => this.useBrazier(state, fire)
+        use: () => this.useBrazier(state)
       });
     }
   }
 
-  useBrazier(state, fire) {
+  /// Anything that catches: a match of paper, a stick, a scrap of cloth.
+  brazierFuel() {
+    const fuels = ['newspaper', 'cardboard', 'flyer', 'receipt', 'cloth', 'stick'];
+
+    return fuels.find((id) => (this.run.items[id] || 0) > 0) || null;
+  }
+
+  useBrazier(state) {
+    const hasLighter = (this.run.loot.lighter || 0) > 0;
+    const fuel = this.brazierFuel();
+
+    // Lit already: feed it, or just stand in the warmth.
     if (state.lit) {
-      this.warmUp();
+      if (!fuel && !hasLighter) {
+        haptic('refuse');
+        this.floatText(this.player.x, this.player.y - 46, '火还烧着，先烤着吧', UI.creamDim);
+        return;
+      }
+
+      if (!hasLighter) {
+        this.run.items[fuel] -= 1;
+        this.refreshBagCount();
+      }
+
+      state.until = Math.max(state.until, this.time.now) + BRAZIER_FEED_MS;
+
+      this.floatText(this.player.x, this.player.y - 46, '添了把火，烧得更久了', '#f2c46a');
+      playSfx('coin');
+      haptic('buy');
       return;
     }
 
-    const hasLighter = (this.run.loot.lighter || 0) > 0;
-    const fuel = ['cardboard', 'newspaper', 'stick'].find((id) => (this.run.items[id] || 0) > 0);
-
     if (!hasLighter && !fuel) {
       haptic('refuse');
-      this.floatText(this.player.x, this.player.y - 46, '火盆是凉的，得有打火机或纸板', UI.creamDim);
+      this.floatText(this.player.x, this.player.y - 46, '火盆是凉的，得有能点火的东西', UI.creamDim);
       return;
     }
 
@@ -614,32 +645,39 @@ export class StreetScene extends Phaser.Scene {
     }
 
     state.lit = true;
-    fire.setVisible(true);
-    this.run.energy = Math.min(ENERGY_MAX, this.run.energy + 6);
+    state.until = this.time.now + BRAZIER_BURN_MS;
+    state.fire.setVisible(true);
 
     this.floatText(
       this.player.x,
       this.player.y - 46,
-      hasLighter ? '打火机一打，火起来了' : '塞进纸板，火起来了',
+      hasLighter ? '打火机一打，火起来了' : '塞进纸片，火起来了',
       '#f2c46a'
     );
     playSfx('coin');
     haptic('buy');
   }
 
-  warmUp() {
-    if (this.time.now < (this.warmAt || 0)) {
-      haptic('refuse');
-      return;
+  /// Standing by a burning brazier warms the beggar slowly, right up until the
+  /// last of the fuel goes out.
+  updateBraziers(dt) {
+    if (!this.braziers || !this.braziers.length || !this.run) return;
+
+    for (const b of this.braziers) {
+      if (!b.lit) continue;
+
+      if (this.time.now >= b.until) {
+        b.lit = false;
+        b.fire.setVisible(false);
+        continue;
+      }
+
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, b.x, b.y - 10);
+      if (d > 96) continue;
+
+      this.run.energy = Math.min(ENERGY_MAX, this.run.energy + BRAZIER_REGEN * dt);
+      this.warmUntil = this.time.now + 6000;
     }
-
-    this.warmAt = this.time.now + 12000;
-    this.warmUntil = this.time.now + 22000;
-    this.run.energy = Math.min(ENERGY_MAX, this.run.energy + 14);
-
-    this.floatText(this.player.x, this.player.y - 46, '烤了会儿火，暖和过来', '#f2c46a');
-    playSfx('eat');
-    haptic('eat');
   }
 
   /// Corners where the gangs sit out of the way: a tipped dumpster, a stack of
@@ -5434,6 +5472,7 @@ export class StreetScene extends Phaser.Scene {
     this.updateSky();
     this.maybePasserby();
     this.updateNightDanger();
+    this.updateBraziers(dt);
     this.checkKing();
 
     if (!run.over) {
