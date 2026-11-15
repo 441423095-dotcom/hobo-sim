@@ -168,15 +168,43 @@ export const OUTFITS = [
     icon: 'item-shirt',
     clean: 0.45,
     price: 32,
-    blurb: '干净一点，讨钱也体面些'
+    sprite: 'shirt',
+    blurb: '洗干净了，讨钱也体面些'
   },
-  { id: 'suit', name: '旧西装', icon: 'item-suitwear', clean: 0.7, price: 80, blurb: '看着像个上班的' },
+  {
+    id: 'work',
+    name: '工装外套',
+    icon: 'item-shirt',
+    clean: 0.55,
+    price: 45,
+    sprite: 'shirt',
+    blurb: '脏是脏点，好歹像干活的'
+  },
+  {
+    id: 'suit',
+    name: '旧西装',
+    icon: 'item-suitwear',
+    clean: 0.7,
+    price: 80,
+    sprite: 'suit',
+    blurb: '看着像个上班的'
+  },
+  {
+    id: 'uniform',
+    name: '旧制服',
+    icon: 'item-suitwear',
+    clean: 0.85,
+    price: 115,
+    sprite: 'suit',
+    blurb: '不知道从哪个单位顺出来的'
+  },
   {
     id: 'coat',
     name: '体面大衣',
     icon: 'item-overcoat',
     clean: 1,
     price: 150,
+    sprite: 'coat',
     blurb: '没人会当你是乞丐'
   }
 ];
@@ -185,7 +213,7 @@ export const OUTFITS = [
 /// the player already carries, so the panel can grey it out.
 export function stockFor(shopId, run) {
   if (shopId === 'convenience') {
-    return FOODS.map((f) => ({
+    const items = FOODS.map((f) => ({
       key: `food:${f.id}`,
       kind: 'food',
       refId: f.id,
@@ -195,6 +223,29 @@ export function stockFor(shopId, run) {
       price: f.price,
       owned: false
     }));
+
+    // The shop takes the two things it sells by the crate: cardboard and
+    // bottles. One tap, all of it, at the counter price.
+    for (const [id, label] of [
+      ['cardboard', '纸板'],
+      ['bottle', '玻璃瓶']
+    ]) {
+      const have = run && run.items ? run.items[id] || 0 : 0;
+      if (have <= 0) continue;
+
+      items.push({
+        key: `recycle:${id}`,
+        kind: 'recycle',
+        refId: id,
+        name: `回收 ${label} ×${have}`,
+        desc: '一次全卖，按件算钱',
+        icon: JUNK_ITEMS[id].tex,
+        price: 0,
+        owned: false
+      });
+    }
+
+    return items;
   }
 
   if (shopId === 'grocery') {
@@ -285,7 +336,10 @@ export function stockFor(shopId, run) {
       kind: 'outfit',
       refId: o.id,
       name: o.name,
-      desc: run && run.outfit === o.id ? '正穿在身上' : o.blurb,
+      desc:
+        run && run.outfit === o.id
+          ? '正穿在身上'
+          : `${o.blurb} · 体面 ${Math.round(o.clean * 100)}%（乞讨更容易，路人少起疑）`,
       icon: o.icon,
       price: o.price,
       owned: !!(run && run.outfit === o.id)

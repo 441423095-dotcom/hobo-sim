@@ -7,7 +7,7 @@ import { createGameArt } from '../art/index.js';
 import { layoutFor } from '../layout.js';
 import { haptic } from '../feedback.js';
 import { initAudio, playSfx, setDistrictMood, updateAudio, setWeatherSound } from '../audio.js';
-import { ensureCity, cityEffects, forecastOf, EVENTS } from '../city.js';
+import { ensureCity, cityEffects, forecastOf, seasonOf, WEATHERS, EVENTS } from '../city.js';
 import { FOODS } from '../food.js';
 import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
 import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
@@ -63,7 +63,7 @@ import {
 
 const SPEED = 134;
 const HUNGER_MAX = 100;
-const HUNGER_DRAIN = 0.42; // hunger points per second
+const HUNGER_DRAIN = 0.3; // hunger points per second
 const BEG_RADIUS = 100;
 const TRADE_RADIUS = 80;
 
@@ -87,7 +87,7 @@ const SNEAK_SPEED = 58;
 // Energy: spent by running and by being caught, regained by food and by resting
 // on the cardboard.
 const ENERGY_MAX = 100;
-const RUN_DRAIN = 1.25;
+const RUN_DRAIN = 0.85;
 const SIT_RECOVER = 3.5;
 const STEAL_FAIL_ENERGY = 12;
 const CAUGHT_ENERGY = 15;
@@ -365,6 +365,8 @@ export class StreetScene extends Phaser.Scene {
     this.musicTension = 0.15;
     this.zhouAdviceAt = 0;
     this.alertExplained = false;
+    this.skyFlipAt = 0;
+    this.passerbyAt = 0;
     this.loadHome();
     this.ensureGoals();
     ensureCity(this.run);
@@ -2321,6 +2323,86 @@ export class StreetScene extends Phaser.Scene {
     playSfx('ui');
   }
 
+  debugCycleSeason() {
+    const order = ['spring', 'summer', 'autumn', 'winter'];
+    const i = order.indexOf(this.run.season || 'spring');
+
+    this.run.season = order[(i + 1) % order.length];
+    playSfx('ui');
+    haptic('ui');
+  }
+
+  /// The sky does not wait for tomorrow: a clear morning can turn to rain by the
+  /// afternoon, and the season turns with the calendar, a week at a time.
+  updateSky() {
+    const run = this.run;
+
+    if (!run.season) run.season = seasonOf(run.day);
+
+    if (this.time.now < this.skyFlipAt) return;
+    this.skyFlipAt = this.time.now + 50000;
+
+    if (Math.random() > 0.18) return;
+
+    const city = ensureCity(run);
+    const ids = Object.keys(WEATHERS).filter((id) => id !== city.weather);
+    city.weather = ids[Math.floor(Math.random() * ids.length)];
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast) hud.showToast(`天变了：${WEATHERS[city.weather].name}`);
+    playSfx('voice');
+    haptic('ui');
+  }
+
+  /// Now and then something small happens between the beggar and one of the
+  /// people walking past: a coin dropped, a snack handed over, a face turned
+  /// away. None of it is a fight; it is the street being alive.
+  maybePasserby() {
+    const run = this.run;
+    if (run.over || !this.peds || !this.peds.length) return;
+    if (this.time.now < this.passerbyAt) return;
+
+    this.passerbyAt = this.time.now + 18000 + Math.random() * 16000;
+
+    const near = this.peds.filter((ped) => {
+      const sprite = ped && ped.sprite;
+      if (!sprite) return false;
+
+      return Phaser.Math.Distance.Between(sprite.x, sprite.y, this.player.x, this.player.y) < 280;
+    });
+
+    if (!near.length) return;
+
+    const ped = near[Math.floor(Math.random() * near.length)];
+    const roll = Math.random();
+
+    if (roll < 0.42) {
+      run.money += 2;
+      run.beggingIncome += 2;
+      this.floatText(ped.sprite.x, ped.sprite.y - 44, '掉了两块钱', UI.gold);
+      playSfx('coin');
+      haptic('coin');
+      return;
+    }
+
+    if (roll < 0.72 && run.bag < this.bagLimit()) {
+      run.loot.snackbar = (run.loot.snackbar || 0) + 1;
+      run.bag += 1;
+      this.floatText(this.player.x, this.player.y - 46, '有人塞了个小零食', '#a8d98a');
+      playSfx('pickup');
+      haptic('pickup');
+      return;
+    }
+
+    const lines = ['离远点。', '还没吃呢？', '别在这儿摆着了。', '这地方真晦气。'];
+    this.floatText(
+      ped.sprite.x,
+      ped.sprite.y - 44,
+      lines[Math.floor(Math.random() * lines.length)],
+      UI.creamDim
+    );
+  }
+
   debugTriggerEvent() {
     const city = ensureCity(this.run);
     const ids = Object.keys(EVENTS);
@@ -2567,6 +2649,17 @@ export class StreetScene extends Phaser.Scene {
     const roll = Math.random();
 
     if (roll < 0.2) {
+      // Half a box of somebody's dinner, still wrapped. It goes into the bag,
+      // and the beggar eats it from there when he is ready.
+      if (this.run.bag < this.bagLimit()) {
+        this.run.loot.leftover = (this.run.loot.leftover || 0) + 1;
+        this.run.bag += 1;
+        this.floatText(bin.x, bin.y - 36, '捡到半盒剩饭', '#a8d98a');
+        playSfx('pickup');
+        haptic('pickup');
+        return;
+      }
+
       this.run.energy = Math.min(ENERGY_MAX, this.run.energy + 18);
       this.floatText(bin.x, bin.y - 36, '半块面包 +精力', '#a8d98a');
       playSfx('pickup');
@@ -3483,9 +3576,41 @@ export class StreetScene extends Phaser.Scene {
         return true;
       }
 
+      // Not a sale but a collection: the shop takes the bottles and the
+      // cardboard back off the beggar's hands.
+      case 'recycle': {
+        const paid = this.recycleJunk(entry.refId);
+        if (paid <= 0) return false;
+
+        this.floatText(this.player.x, this.player.y - 46, `回收 +${paid} 元`, UI.gold);
+        return true;
+      }
+
       default:
         return false;
     }
+  }
+
+  /// Sells every piece of one kind of rubbish over the counter of a shop that
+  /// takes it back.
+  recycleJunk(kind) {
+    const have = this.run.items[kind] || 0;
+    if (have <= 0) return 0;
+
+    const each = Math.max(1, Math.round(junkPrice(kind, false) * this.sellMul()));
+    const total = each * have;
+
+    this.run.items[kind] = 0;
+    this.run.money += total;
+    this.run.soldIncome += total;
+    this.run.bag = Math.max(0, this.run.bag - have);
+
+    this.progressGoal('sell', total);
+    this.refreshBagCount();
+    playSfx('sell');
+    haptic('sell');
+
+    return total;
   }
 
   /// How presentable the player looks, 0 for rags and 1 for the best coat.
@@ -3496,7 +3621,9 @@ export class StreetScene extends Phaser.Scene {
 
   /// The sprite for a pose, with the suffix of whatever the player is wearing.
   poseTex(pose) {
-    const id = this.run.outfit && this.run.outfit !== 'rags' ? this.run.outfit : '';
+    const outfit = OUTFITS.find((o) => o.id === this.run.outfit);
+    const id = (outfit && outfit.sprite) || '';
+
     return id ? `beggar-${pose}-${id}` : `beggar-${pose}`;
   }
 
@@ -4453,6 +4580,8 @@ export class StreetScene extends Phaser.Scene {
     this.musicTension += (mood - this.musicTension) * Math.min(1, dt * 1.8);
     updateAudio(dt, { tension: this.musicTension, night: darknessAt(run.step) });
     this.updateCity(dt);
+    this.updateSky();
+    this.maybePasserby();
     this.checkKing();
 
     if (!run.over) {

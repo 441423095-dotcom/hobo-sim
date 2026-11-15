@@ -33,11 +33,22 @@ export const LOOT_ITEMS = {
     price: 38,
     kind: 'value',
     use: '只能卖钱'
+  },
+  // Not from a pocket but from a bin: half a box of somebody's dinner, still
+  // wrapped. It goes in the bag and is eaten from there.
+  leftover: {
+    name: '剩菜饭',
+    tex: 'item-snackbar',
+    price: 1,
+    kind: 'food',
+    hunger: 16,
+    energy: 6,
+    use: '垃圾桶里捡的，还能吃'
   }
 };
 
 // The cheap things first, so they sit at the top of the pocket in the panel.
-export const LOOT_ORDER = ['cigarettes', 'snackbar', 'wallet', 'phone'];
+export const LOOT_ORDER = ['leftover', 'cigarettes', 'snackbar', 'wallet', 'phone'];
 
 /// The stall gives the listed price; the pawn shop knows what a stolen phone is
 /// worth and pays a few coins more.

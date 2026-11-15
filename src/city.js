@@ -149,3 +149,25 @@ export function cityLabel(city, minute) {
 
   return ev ? `${weather.name} · ${EVENTS[ev.id].name}` : weather.name;
 }
+
+
+// The year, a week a season: it decides what drifts through the air over the
+// street, and nothing else.
+export const SEASONS = [
+  { id: 'spring', name: '春' },
+  { id: 'summer', name: '夏' },
+  { id: 'autumn', name: '秋' },
+  { id: 'winter', name: '冬' }
+];
+
+export function seasonOf(day) {
+  const i = Math.floor(Math.max(0, day - 1) / 7) % SEASONS.length;
+
+  return SEASONS[i].id;
+}
+
+export function seasonName(id) {
+  const season = SEASONS.find((s) => s.id === id);
+
+  return season ? season.name : '春';
+}

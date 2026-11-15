@@ -20,6 +20,7 @@ import { SPEAKERS, shopTalk, tradeTalk, zhouLore } from '../dialogue.js';
 import { COFFEE_PRICE, COFFEE_ENERGY, KICK_WANTED } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS } from '../gamble.js';
 import { RECIPES, amountOf, materialLabel } from '../craft.js';
+import { seasonName } from '../city.js';
 import { FONT, UI } from '../style.js';
 
 const DEPTH = {
@@ -143,6 +144,7 @@ export class HudScene extends Phaser.Scene {
     this.buildVending();
     this.buildSlot();
     this.buildMap();
+    this.buildDrift();
     this.buildQte();
     this.buildStealChoice();
     this.buildPeddle();
@@ -1350,6 +1352,7 @@ export class HudScene extends Phaser.Scene {
       { id: 'tomorrow', label: '跳到明天' },
       { id: 'teleport', label: '换个街区' },
       { id: 'weather', label: '换天气' },
+      { id: 'season', label: '换季节' },
       { id: 'event', label: '触发城市事件' },
       { id: 'furniture', label: '家具全刷' },
       { id: 'wanted', label: '清通缉' },
@@ -1460,6 +1463,7 @@ export class HudScene extends Phaser.Scene {
       'tomorrow',
       'teleport',
       'weather',
+      'season',
       'event',
       'furniture',
       'wanted',
@@ -1519,6 +1523,17 @@ export class HudScene extends Phaser.Scene {
 
     if (id === 'haptics') {
       setHapticsEnabled(!hapticsEnabled());
+      this.refreshTester();
+      return;
+    }
+
+    if (id === 'season') {
+      if (street && street.debugCycleSeason) street.debugCycleSeason();
+      this.testerSub.setText(
+        street && street.run && street.run.season
+          ? `现在：${seasonName(street.run.season)}天`
+          : ''
+      );
       this.refreshTester();
       return;
     }
@@ -1734,7 +1749,11 @@ export class HudScene extends Phaser.Scene {
     this.bagCloseBtn.on('pointerup', () => this.closeBackpack());
 
     this.bagTip = this.add
-      .text(0, 0, '点一件丢掉', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
+      .text(0, 0, '点食物吃掉，点别的丢掉', {
+        fontFamily: FONT,
+        fontSize: '12px',
+        color: UI.creamDim
+      })
       .setOrigin(0.5, 0.5);
 
     this.bagLayer.add([
@@ -1754,6 +1773,7 @@ export class HudScene extends Phaser.Scene {
         .rectangle(0, 0, 1, 1, UI.panelRow, 1)
         .setOrigin(0, 0.5)
         .setInteractive();
+      const icon = this.add.image(0, 0, 'item-can').setScale(0.5);
       const name = this.add
         .text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: UI.cream })
         .setOrigin(0, 0.5);
@@ -1764,10 +1784,10 @@ export class HudScene extends Phaser.Scene {
         .text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: UI.gold })
         .setOrigin(1, 0.5);
 
-      const row = { bg, name, info, count, entry: null };
-      bg.on('pointerdown', () => this.dropBagRow(row));
+      const row = { bg, icon, name, info, count, entry: null };
+      bg.on('pointerdown', () => this.pressBagRow(row));
 
-      this.bagLayer.add([bg, name, info, count]);
+      this.bagLayer.add([bg, icon, name, info, count]);
       this.bagRows.push(row);
     }
   }
@@ -1802,8 +1822,9 @@ export class HudScene extends Phaser.Scene {
       const ry = py + 66 + rowH / 2 + i * (rowH + 5);
 
       row.bg.setScale(rowW, rowH).setPosition(rowX, ry);
-      row.name.setPosition(rowX + 12, ry - 8);
-      row.info.setPosition(rowX + 12, ry + 10);
+      row.icon.setPosition(rowX + 22, ry);
+      row.name.setPosition(rowX + 44, ry - 8);
+      row.info.setPosition(rowX + 44, ry + 10);
       row.count.setPosition(rowX + rowW - 12, ry);
     });
   }
@@ -1817,7 +1838,14 @@ export class HudScene extends Phaser.Scene {
     for (const id of JUNK_ORDER) {
       const count = run.items[id] || 0;
       if (count > 0) {
-        entries.push({ kind: 'junk', id, name: JUNK_ITEMS[id].name, info: '废品 · 能卖钱', count });
+        entries.push({
+          kind: 'junk',
+          id,
+          name: JUNK_ITEMS[id].name,
+          info: '废品 · 能卖钱',
+          icon: JUNK_ITEMS[id].tex,
+          count
+        });
       }
     }
 
@@ -1828,7 +1856,8 @@ export class HudScene extends Phaser.Scene {
           kind: 'loot',
           id,
           name: LOOT_ITEMS[id].name,
-          info: `顺来的 · ${LOOT_ITEMS[id].use}`,
+          info: `${LOOT_ITEMS[id].kind === 'food' ? '能吃的' : '顺来的'} · ${LOOT_ITEMS[id].use}`,
+          icon: LOOT_ITEMS[id].tex,
           count
         });
       }
@@ -1837,7 +1866,14 @@ export class HudScene extends Phaser.Scene {
     for (const rec of RECIPES) {
       const count = run.goods[rec.id] || 0;
       if (count > 0) {
-        entries.push({ kind: 'good', id: rec.id, name: rec.name, info: '自己做的 · 能卖钱', count });
+        entries.push({
+          kind: 'good',
+          id: rec.id,
+          name: rec.name,
+          info: '自己做的 · 能卖钱',
+          icon: rec.tex,
+          count
+        });
       }
     }
 
@@ -1856,12 +1892,14 @@ export class HudScene extends Phaser.Scene {
 
       row.entry = entry || null;
       row.bg.setVisible(!!entry);
+      row.icon.setVisible(!!entry);
       row.name.setVisible(!!entry);
       row.info.setVisible(!!entry);
       row.count.setVisible(!!entry);
       if (row.bg.input) row.bg.input.enabled = !!entry;
       if (!entry) return;
 
+      row.icon.setTexture(entry.icon);
       row.name.setText(entry.name);
       row.info.setText(entry.info);
       row.count.setText(`×${entry.count}`);
@@ -1894,6 +1932,97 @@ export class HudScene extends Phaser.Scene {
 
     this.street.discardItem(row.entry.kind, row.entry.id);
     this.refreshBackpack();
+  }
+
+  /// A tap on a row: what can be eaten is eaten on the spot, what cannot is
+  /// thrown away.
+  pressBagRow(row) {
+    const entry = row.entry;
+    if (!entry || !this.street) return;
+
+    const item = entry.kind === 'loot' ? LOOT_ITEMS[entry.id] : null;
+
+    if (item && (item.hunger || item.energy)) {
+      const ok = this.street.useLoot(entry.id);
+
+      if (ok) {
+        const run = this.street.run;
+        run.bag = Math.max(0, run.bag - 1);
+        if (this.street.refreshBagCount) this.street.refreshBagCount();
+        playSfx('eat');
+      }
+
+      haptic(ok ? 'buy' : 'refuse');
+      this.refreshBackpack();
+      return;
+    }
+
+    this.dropBagRow(row);
+  }
+
+  // -------------------------------------------------------------- the seasons
+
+  /// Petals, seeds, leaves and snow, a handful at a time, drifting across the
+  /// street in whatever season it is. Only decoration: nothing here touches the
+  /// run, and the whole lot sits under every panel.
+  buildDrift() {
+    this.driftGfx = this.add.graphics().setDepth(-5);
+    this.drift = [];
+
+    for (let i = 0; i < 14; i++) {
+      this.drift.push({
+        x: Math.random(),
+        y: Math.random(),
+        vx: 0.01 + Math.random() * 0.02,
+        vy: 0.04 + Math.random() * 0.05,
+        size: 2 + Math.random() * 2.5,
+        swing: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  updateDrift(dt) {
+    if (!this.driftGfx) return;
+
+    const g = this.driftGfx;
+    g.clear();
+
+    const run = this.street && this.street.run ? this.street.run : null;
+    const season = run && run.season ? run.season : 'spring';
+    const w = this.w;
+    const h = this.playH;
+
+    if (!w || !h) return;
+
+    for (const mote of this.drift) {
+      mote.swing += dt;
+      mote.x += mote.vx * dt + Math.sin(mote.swing) * 0.0015;
+      mote.y += mote.vy * dt;
+
+      if (mote.y > 1.02) {
+        mote.y = -0.02;
+        mote.x = Math.random();
+      }
+      if (mote.x > 1.02) mote.x = -0.02;
+      if (mote.x < -0.02) mote.x = 1.02;
+
+      const x = mote.x * w;
+      const y = mote.y * h;
+
+      if (season === 'winter') {
+        g.fillStyle(0xffffff, 0.5);
+        g.fillCircle(x, y, mote.size);
+      } else if (season === 'autumn') {
+        g.fillStyle(0xcf8a4a, 0.55);
+        g.fillRect(x, y, mote.size * 1.6, mote.size);
+      } else if (season === 'summer') {
+        g.fillStyle(0xf2e0a0, 0.32);
+        g.fillCircle(x, y, mote.size * 0.6);
+      } else {
+        g.fillStyle(0xe8a8bc, 0.5);
+        g.fillRect(x, y, mote.size * 1.4, mote.size * 0.8);
+      }
+    }
   }
 
   // ------------------------------------------------------------- today's jobs
@@ -5448,12 +5577,13 @@ export class HudScene extends Phaser.Scene {
       row.entry = entry || null;
       if (!entry) return;
 
-      const affordable = !!run && run.money >= entry.price;
+      const free = entry.kind === 'recycle';
+      const affordable = !!run && (free || run.money >= entry.price);
 
       row.icon.setTexture(entry.icon);
       row.name.setText(entry.name);
       row.info.setText(entry.desc);
-      row.price.setText(entry.owned ? '已拥有' : `${entry.price} 元`);
+      row.price.setText(entry.owned ? '已拥有' : free ? '回收' : `${entry.price} 元`);
 
       row.name.setColor(entry.owned || affordable ? UI.cream : '#8a8070');
       row.info.setColor(entry.owned || affordable ? UI.creamDim : '#736a5c');
@@ -5650,6 +5780,7 @@ export class HudScene extends Phaser.Scene {
     }
 
     const dt = Math.min(delta || 16, 60) / 1000;
+    this.updateDrift(dt);
     if (this.qte) this.updateQte(dt);
     if (this.slotOpen) {
       this.updateSlot(dt);
