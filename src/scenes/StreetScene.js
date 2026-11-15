@@ -142,10 +142,13 @@ const GANG_GRAB = 26;
 const GANG_COOLDOWN = 9000;
 const GANG_ENERGY = 12;
 
-// Narrow alleys cut through the buildings between two blocks. The low one is
-// open to anyone; the high one is fenced until somebody picks the lock.
+// Narrow alleys cut through the buildings between two blocks. Most are open to
+// anyone; the one at the bottom of the street is fenced until somebody picks the
+// lock.
 const ALLEYS = [
   { y: 240, locked: false },
+  { y: 820, locked: false },
+  { y: 980, locked: false },
   { y: 1200, locked: true }
 ];
 const ALLEY_H = 78;
@@ -315,6 +318,7 @@ export class StreetScene extends Phaser.Scene {
     const carried = payload.run || null;
     this.carriedRun = carried && !carried.over ? carried : null;
     this.spawnAt = payload.spawn === 'top' ? 'top' : 'bottom';
+    this.busRide = !!payload.busRide;
   }
 
   create() {
@@ -530,6 +534,7 @@ export class StreetScene extends Phaser.Scene {
     this.buildVending();
     this.buildSlotMachines();
     this.buildBenches();
+    this.buildBusStops();
     this.buildDepot();
     this.buildNightLot();
     if (this.strips.some((strip) => strip.district.shops)) this.buildShops();
@@ -573,6 +578,15 @@ export class StreetScene extends Phaser.Scene {
     this.registerVisit();
 
     if (!this.scene.isActive('Hud')) this.scene.launch('Hud');
+
+    // Stepping off the bus: the street is already built, and the stop is under
+    // the beggar's feet.
+    if (this.busRide) {
+      this.time.delayedCall(700, () => {
+        const hud = this.scene.get('Hud');
+        if (hud && hud.showToast) hud.showToast(`坐了两站，到${this.district.name}了`);
+      });
+    }
 
     // The street's own soundtrack. Browsers only allow audio once a thumb has
     // touched the screen, so the desk is opened on the first tap.
@@ -1830,8 +1844,10 @@ export class StreetScene extends Phaser.Scene {
   buildPlayer() {
     const strip = this.stripFor(this.district.id) || this.strips[0];
     const intro = this.run && this.run.story === 1;
-    const spawnX = strip.x0 + (intro ? 260 : 200);
-    const spawnY = strip.y0 + (intro ? 640 : this.spawnAt === 'top' ? 150 : 1180);
+    const stop = this.busRide ? this.district.busStop : null;
+    const spawnX = strip.x0 + (stop ? stop.x + 34 : intro ? 260 : 200);
+    const spawnY =
+      strip.y0 + (stop ? stop.y + 12 : intro ? 640 : this.spawnAt === 'top' ? 150 : 1180);
 
     this.playerShadow = this.add.image(spawnX, spawnY + 18, 'shadow').setDepth(1);
 
@@ -3454,6 +3470,46 @@ export class StreetScene extends Phaser.Scene {
         });
       }
     }
+  }
+
+  // -------------------------------------------------------------- the bus stops
+
+  /// One stop on every street, so the whole city is a couple of fares away.
+  buildBusStops() {
+    for (const strip of this.strips) {
+      const spot = strip.district.busStop;
+      if (!spot) continue;
+
+      const x = spot.x + strip.x0;
+      const y = spot.y + strip.y0;
+
+      this.add.image(x, y, 'busstop').setOrigin(0.5, 1).setDepth(y);
+
+      this.addInteractable({
+        x,
+        y: y - 12,
+        radius: 76,
+        label: '公交站 · 2 元一程',
+        use: () => this.openBusStop()
+      });
+    }
+  }
+
+  openBusStop() {
+    const hud = this.scene.get('Hud');
+    if (hud && hud.openBus && this.scene.isActive('Hud')) hud.openBus(this.district.id);
+  }
+
+  /// The bus runs the length of the city: the fare is paid at the stop, and the
+  /// street rebuilds around the stop it lets the beggar off at.
+  busTravel(id) {
+    if (!DISTRICTS[id] || id === this.district.id) return;
+    if (!this.unlockedList().includes(id)) return;
+
+    playSfx('bell');
+    haptic('ui');
+
+    this.scene.restart({ district: id, run: this.run, spawn: 'bottom', busRide: true });
   }
 
   // -------------------------------------------------------------- the bus depot

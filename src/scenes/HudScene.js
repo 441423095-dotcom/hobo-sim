@@ -38,6 +38,9 @@ const DEPTH = {
 const ROW_WIDTH = 300;
 const ROW_HEIGHT = 66;
 
+// What one ride on the bus costs, paid at the stop.
+const BUS_FARE = 2;
+
 // Control sizes are fixed rather than derived per frame: the band is tall
 // enough for them at its smallest, and leaving the circles alone keeps their
 // stroke widths consistent.
@@ -144,6 +147,8 @@ export class HudScene extends Phaser.Scene {
     this.slotOpen = false;
     this.slotSpin = null;
       this.mapOpen = false;
+    this.mapBus = false;
+    this.busFrom = null;
     this.stealChoiceOpen = false;
     this.peddleOpen = false;
     this.testerOpen = false;
@@ -5873,8 +5878,14 @@ export class HudScene extends Phaser.Scene {
     this.mapRing.setPosition(here.x, here.y);
     this.mapHereTag.setPosition(here.x, here.y - 40);
 
-    this.mapSub.setText('整座城都开着，顺着街走就行');
-    this.mapHint.setText('点一个街区，看看怎么走');
+    if (this.mapBus) {
+      const money = street && street.run ? street.run.money : 0;
+      this.mapSub.setText(`公交站 · 一程 ${BUS_FARE} 元 · 兜里 ${money} 元`);
+      this.mapHint.setText('点一个街区，坐车过去');
+    } else {
+      this.mapSub.setText('整座城都开着，顺着街走就行');
+      this.mapHint.setText('点一个街区，看看怎么走');
+    }
   }
 
   /// A gentle curve between two stops, drawn as even dashes.
@@ -5921,6 +5932,7 @@ export class HudScene extends Phaser.Scene {
     )
       return;
 
+    this.mapBus = false;
     this.mapOpen = true;
     this.showPanel(this.mapLayer);
     this.releaseStick();
@@ -5928,10 +5940,25 @@ export class HudScene extends Phaser.Scene {
     haptic('ui');
   }
 
+  /// The bus stop opens the same map, but in a travelling mode: tap a stop and
+  /// pay the fare.
+  openBus(fromId) {
+    if (this.mapOpen) return;
+
+    this.openMap();
+    if (!this.mapOpen) return;
+
+    this.busFrom =
+      fromId || (this.street && this.street.district ? this.street.district.id : null);
+    this.mapBus = true;
+    this.refreshMap();
+  }
+
   closeMap() {
     if (this.time.now < this.uiSettleAt) return;
     if (!this.mapOpen) return;
     this.mapOpen = false;
+    this.mapBus = false;
     this.hidePanel(this.mapLayer);
     haptic('ui');
   }
@@ -5952,6 +5979,34 @@ export class HudScene extends Phaser.Scene {
       this.mapHint.setText(
         need ? `${DISTRICTS[id].name}还锁着 · 先去${DISTRICTS[need].name}` : `${DISTRICTS[id].name}还锁着`
       );
+      return;
+    }
+
+    // At a bus stop the map is a ticket counter: tap a stop and ride.
+    if (this.mapBus) {
+      const run = street.run;
+      if (!run) return;
+
+      if (id === this.busFrom) {
+        haptic('refuse');
+        this.mapHint.setText('你就站在这一站');
+        return;
+      }
+
+      if ((run.money || 0) < BUS_FARE) {
+        haptic('refuse');
+        this.mapHint.setText(`兜里不够 ${BUS_FARE} 元，上不了车`);
+        return;
+      }
+
+      run.money -= BUS_FARE;
+      this.mapOpen = false;
+      this.mapBus = false;
+      this.hidePanel(this.mapLayer);
+
+      playSfx('bell');
+      haptic('buy');
+      street.busTravel(id);
       return;
     }
 

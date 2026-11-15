@@ -97,6 +97,7 @@ export function buildWorldArt(scene) {
   // The yard behind the night market, and the buses rusting at the depot.
   canvasTexture(scene, 'stool', 22, 16, drawStool);
   canvasTexture(scene, 'buswreck', 96, 250, drawBusWreck);
+  canvasTexture(scene, 'busstop', 30, 68, drawBusStop);
 
   // The street-food carts, one per block, each with its own hanging sign.
   for (const cart of STREET_CARTS) {
@@ -2548,4 +2549,55 @@ function drawBusWreck(ctx, w, h) {
   ctx.fillRect(x - 2, h * 0.68, 8, h * 0.12);
   ctx.fillRect(x + bw - 6, h * 0.66, 8, h * 0.12);
   ctx.fillRect(x - 2, h * 0.86, 8, h * 0.1);
+}
+
+
+/// A bus stop: a post, a round sign with a little bus on it, and the timetable
+/// bolted underneath.
+function drawBusStop(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Shadow.
+  ctx.fillStyle = 'rgba(10,9,7,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.5, h - 2, w * 0.4, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // The post.
+  ctx.fillStyle = '#4a5058';
+  ctx.fillRect(w * 0.5 - 2, h * 0.22, 4, h * 0.78);
+
+  // The sign.
+  ctx.fillStyle = '#2c3a4a';
+  ctx.beginPath();
+  ctx.arc(w * 0.5, h * 0.2, w * 0.36, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#d8c8a8';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(w * 0.5, h * 0.2, w * 0.3, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // A little bus, in profile.
+  ctx.fillStyle = '#e8dcc2';
+  ctx.fillRect(w * 0.32, h * 0.15, w * 0.36, h * 0.08);
+  ctx.fillStyle = '#2c3a4a';
+  ctx.fillRect(w * 0.36, h * 0.17, w * 0.08, h * 0.03);
+  ctx.fillRect(w * 0.48, h * 0.17, w * 0.08, h * 0.03);
+  ctx.fillStyle = '#e8dcc2';
+  ctx.beginPath();
+  ctx.arc(w * 0.4, h * 0.24, 1.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(w * 0.62, h * 0.24, 1.6, 0, Math.PI * 2);
+  ctx.fill();
+
+  // The timetable plate.
+  ctx.fillStyle = '#20242a';
+  ctx.fillRect(w * 0.36, h * 0.44, w * 0.28, h * 0.22);
+  ctx.fillStyle = 'rgba(216,200,168,0.6)';
+  for (let i = 0; i < 4; i++) {
+    ctx.fillRect(w * 0.39, h * 0.47 + i * h * 0.045, w * 0.22, 1.5);
+  }
 }
