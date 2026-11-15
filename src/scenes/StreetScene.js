@@ -12,6 +12,7 @@ import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
 import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
 import { RECIPES, recipeById, amountOf, spendMaterial } from '../craft.js';
 import { makeGoalsForDay } from '../goals.js';
+import { saveGame, loadGame, clearGame } from '../save.js';
 import {
   begGiveLine,
   begRefuseLine,
@@ -236,6 +237,17 @@ export class StreetScene extends Phaser.Scene {
 
   create() {
     createGameArt(this);
+
+    // A save on the device picks the run back up where it was left. A death
+    // restart or a travel passes its own run and district, and skips this.
+    if (!this.carriedRun && !this.pendingDistrict) {
+      const saved = loadGame();
+      if (saved) {
+        this.pendingDistrict = saved.district || this.pendingDistrict;
+        this.carriedRun = saved.run;
+        if (saved.homePlaced) this.registry.set('homePlaced', saved.homePlaced);
+      }
+    }
 
     this.district =
       DISTRICTS[this.pendingDistrict] ||
@@ -1693,6 +1705,61 @@ export class StreetScene extends Phaser.Scene {
     this.scene.restart({ district: this.district.id, spawn: 'bottom' });
   }
 
+  /// Writes the run to the device's one save slot.
+  saveNow() {
+    if (!this.run || this.run.over) return false;
+
+    return saveGame({
+      district: this.district ? this.district.id : START_DISTRICT,
+      run: this.run,
+      homePlaced: this.homePlaced
+    });
+  }
+
+  /// Reloads the saved run into a fresh street.
+  loadSaved() {
+    const saved = loadGame();
+    if (!saved) return false;
+
+    if (saved.homePlaced) this.registry.set('homePlaced', saved.homePlaced);
+
+    this.scene.restart({
+      district: saved.district || this.district.id,
+      run: saved.run,
+      spawn: 'bottom'
+    });
+
+    return true;
+  }
+
+  clearSaved() {
+    clearGame();
+  }
+
+  /// What the tester panel hands out: money, a bag of junk, a full belly or a
+  /// few hours on the clock.
+  debugGive(kind) {
+    if (!this.run || this.run.over) return;
+
+    if (kind === 'money') {
+      this.run.money += 100;
+      this.floatText(this.player.x, this.player.y - 46, '+100 元', UI.gold);
+    } else if (kind === 'materials') {
+      for (const id of JUNK_ORDER) this.run.items[id] = (this.run.items[id] || 0) + 3;
+      this.refreshBagCount();
+      this.floatText(this.player.x, this.player.y - 46, '废品各 +3', '#a8d98a');
+    } else if (kind === 'heal') {
+      this.run.hunger = HUNGER_MAX;
+      this.run.energy = ENERGY_MAX;
+      this.floatText(this.player.x, this.player.y - 46, '精力饱食回满', '#a8d98a');
+    } else if (kind === 'time') {
+      this.advanceTime(180);
+      this.floatText(this.player.x, this.player.y - 46, '时间 +3 小时', UI.creamDim);
+    }
+
+    haptic('buy');
+  }
+
   // ---------------------------------------------------------------- crafting
 
   /// True when the recipe is known and the bag holds everything it needs.
@@ -1880,6 +1947,7 @@ export class StreetScene extends Phaser.Scene {
 
       // Walking into a district is what unlocks the ones hanging off it.
       this.registerVisit();
+      this.saveNow();
     }
 
     this.edgeHint = '';
@@ -2778,6 +2846,7 @@ export class StreetScene extends Phaser.Scene {
     // A new morning, so a new list from Old Zhou.
     this.ensureGoals();
     this.time.delayedCall(600, () => this.announceGoals());
+    this.saveNow();
 
     return { ...rest, summary, day: this.run.day };
   }

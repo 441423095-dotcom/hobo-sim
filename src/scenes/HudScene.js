@@ -14,6 +14,7 @@ import { DISTRICTS, DISTRICT_ORDER, QUEST_TARGET } from '../districts.js';
 import { STREET_ORDER, CITY_COLS, CITY_ROWS, cellOf, neighbourOf } from '../streets.js';
 import { SHOPS, stockFor } from '../shops.js';
 import { FURNITURE, FURNITURE_RECIPES, HOME_SLOTS, furnitureById } from '../home.js';
+import { savedInfo } from '../save.js';
 import { COFFEE_PRICE, COFFEE_ENERGY, KICK_WANTED } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS } from '../gamble.js';
 import { RECIPES, amountOf, materialLabel } from '../craft.js';
@@ -91,6 +92,7 @@ export class HudScene extends Phaser.Scene {
       this.mapOpen = false;
     this.stealChoiceOpen = false;
     this.peddleOpen = false;
+    this.testerOpen = false;
     this.panelOpen = false;
     this.inputLockUntil = 0;
     this.uiSettleAt = 0;
@@ -135,6 +137,7 @@ export class HudScene extends Phaser.Scene {
     this.buildQte();
     this.buildStealChoice();
     this.buildPeddle();
+    this.buildTester();
     this.buildOverlay();
 
     // The panels start closed: a hidden container can still answer taps, so
@@ -150,6 +153,7 @@ export class HudScene extends Phaser.Scene {
     this.setLayerInput(this.overLayer, false);
     this.setLayerInput(this.stealChoiceLayer, false);
     this.setLayerInput(this.peddleLayer, false);
+    this.setLayerInput(this.testerLayer, false);
 
     // Closing is the corner button's job now: the little crosses in the panel
     // corners are gone, so there is nothing to catch by accident.
@@ -344,6 +348,19 @@ export class HudScene extends Phaser.Scene {
       })
       .setOrigin(0, 0.5)
       .setDepth(DEPTH.hud);
+
+    // The clock chip is also the tester's door: a tap opens the little panel of
+    // saves and hand-outs.
+    this.clockBtn = this.add
+      .rectangle(12, 33, 192, 34, 0x000000, 0)
+      .setOrigin(0, 0.5)
+      .setDepth(DEPTH.hud + 2)
+      .setInteractive();
+
+    this.clockBtn.on('pointerdown', () => {
+      this.uiSettleAt = this.time.now + 280;
+      this.openTester();
+    });
 
     this.wantedText = this.add
       .text(0, 0, '', {
@@ -792,7 +809,8 @@ export class HudScene extends Phaser.Scene {
       this.slotOpen ||
       this.qte ||
       this.stealChoiceOpen ||
-      this.peddleOpen
+      this.peddleOpen ||
+      this.testerOpen
     )
       return;
 
@@ -1125,8 +1143,12 @@ export class HudScene extends Phaser.Scene {
     this.peddleOpen = true;
     this.peddleLayer.setVisible(true);
     this.setLayerInput(this.peddleLayer, true);
+    // A thumb lifting from the row it just tapped must not close the panel
+    // before the first choice can be made.
+    this.uiSettleAt = this.time.now + 360;
     this.releaseStick();
     this.peddleSel = null;
+    if (this.peddleSellBtn.input) this.peddleSellBtn.input.enabled = true;
     this.layoutPeddle();
     this.refreshPeddle();
     haptic('ui');
@@ -1181,8 +1203,190 @@ export class HudScene extends Phaser.Scene {
 
     haptic(result === 'ok' ? 'sell' : 'refuse');
 
-    this.uiSettleAt = 0;
-    this.closePeddle();
+    // Let the result sit for a moment instead of snapping the panel shut.
+    this.peddleSub.setText(
+      result === 'ok' ? `卖掉一件 · +${this.peddlePrice} 元` : '他没要，还骂了一句'
+    );
+    this.peddleRateText.setText('');
+
+    if (this.peddleSellBtn.input) this.peddleSellBtn.input.enabled = false;
+
+    this.time.delayedCall(520, () => {
+      if (this.peddleSellBtn.input) this.peddleSellBtn.input.enabled = true;
+      this.uiSettleAt = 0;
+      this.closePeddle();
+    });
+  }
+
+  // ----------------------------------------------------------- tester panel
+
+  /// A little panel for whoever is testing the game: one save slot on the device
+  /// and a few hand-outs for getting to the part you want to look at.
+  buildTester() {
+    this.testerLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 1).setVisible(false);
+
+    this.testerBackdrop = this.add
+      .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.testerBackdrop.on('pointerup', () => this.closeTester());
+
+    this.testerGfx = this.add.graphics();
+
+    this.testerTitle = this.add
+      .text(0, 0, '测试面板', {
+        fontFamily: FONT,
+        fontSize: '19px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0, 0);
+
+    this.testerSub = this.add
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
+      .setOrigin(0, 0);
+
+    this.testerCloseBtn = this.add
+      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .setStrokeStyle(2, UI.amber, 0.8)
+      .setInteractive();
+    this.testerCloseIcon = this.add.image(0, 0, 'icon-x');
+    this.testerCloseBtn.on('pointerup', () => this.closeTester());
+
+    this.testerLayer.add([
+      this.testerBackdrop,
+      this.testerGfx,
+      this.testerTitle,
+      this.testerSub,
+      this.testerCloseBtn,
+      this.testerCloseIcon
+    ]);
+
+    const actions = [
+      { id: 'save', label: '保存进度' },
+      { id: 'load', label: '读取存档' },
+      { id: 'wipe', label: '删除存档' },
+      { id: 'money', label: '加 100 元' },
+      { id: 'materials', label: '废品各 +3' },
+      { id: 'heal', label: '精力饱食回满' },
+      { id: 'time', label: '时间 +3 小时' }
+    ];
+
+    this.testerRows = actions.map((action) => {
+      const bg = this.add
+        .rectangle(0, 0, 1, 1, UI.panelRow, 1)
+        .setOrigin(0, 0.5)
+        .setInteractive();
+      const text = this.add
+        .text(0, 0, action.label, { fontFamily: FONT, fontSize: '15px', color: UI.cream })
+        .setOrigin(0, 0.5);
+
+      bg.on('pointerdown', () => this.testerAction(action.id));
+
+      this.testerLayer.add([bg, text]);
+      return { bg, text, id: action.id };
+    });
+  }
+
+  layoutTester() {
+    const w = this.w;
+    const rowH = 44;
+    const pw = Math.min(w - 48, 320);
+    const ph = 76 + this.testerRows.length * (rowH + 6) + 16;
+    const px = (w - pw) / 2;
+    const py = Math.max(44, (this.playH - ph) / 2);
+
+    this.testerBackdrop.setScale(w, this.h).setPosition(0, 0);
+
+    const g = this.testerGfx;
+    g.clear();
+    g.fillStyle(UI.panel, 0.97);
+    g.fillRoundedRect(px, py, pw, ph, 16);
+    g.lineStyle(2, UI.amber, 0.6);
+    g.strokeRoundedRect(px, py, pw, ph, 16);
+
+    this.testerTitle.setPosition(px + 18, py + 14);
+    this.testerSub.setPosition(px + 18, py + 42);
+    this.testerCloseBtn.setPosition(px + pw - 26, py + 26);
+    this.testerCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+
+    const rowW = pw - 32;
+    const rowX = px + 16;
+
+    this.testerRows.forEach((row, i) => {
+      const ry = py + 76 + rowH / 2 + i * (rowH + 6);
+
+      row.bg.setScale(rowW, rowH).setPosition(rowX, ry);
+      row.text.setPosition(rowX + 14, ry);
+    });
+  }
+
+  openTester() {
+    if (this.testerOpen || this.overOpen || this.qte) return;
+
+    this.testerOpen = true;
+    this.testerLayer.setVisible(true);
+    this.setLayerInput(this.testerLayer, true);
+    this.releaseStick();
+    this.layoutTester();
+    this.refreshTester();
+    haptic('ui');
+  }
+
+  closeTester() {
+    if (this.time.now < this.uiSettleAt) return;
+    if (!this.testerOpen) return;
+
+    this.testerOpen = false;
+    this.testerLayer.setVisible(false);
+    this.setLayerInput(this.testerLayer, false);
+    haptic('ui');
+  }
+
+  refreshTester() {
+    const info = savedInfo();
+
+    this.testerSub.setText(
+      info ? `有存档 · 第 ${info.day} 天` : '还没有存档 · 走到帐篷睡一觉会自动存'
+    );
+  }
+
+  testerAction(id) {
+    const street = this.street;
+
+    if (id === 'save') {
+      const ok = !!(street && street.saveNow && street.saveNow());
+      haptic(ok ? 'buy' : 'refuse');
+      this.refreshTester();
+
+      if (ok) this.testerSub.setText(`已保存 · 第 ${street.run.day} 天`);
+      return;
+    }
+
+    if (id === 'load') {
+      const ok = !!(street && street.loadSaved && street.loadSaved());
+      haptic(ok ? 'buy' : 'refuse');
+
+      if (!ok) {
+        this.testerSub.setText('还没有存档');
+        return;
+      }
+
+      this.uiSettleAt = 0;
+      this.closeTester();
+      return;
+    }
+
+    if (id === 'wipe') {
+      if (street && street.clearSaved) street.clearSaved();
+      haptic('refuse');
+      this.refreshTester();
+      this.testerSub.setText('存档已删除');
+      return;
+    }
+
+    if (street && street.debugGive) street.debugGive(id);
+    this.refreshTester();
   }
 
   startQte(zone) {
@@ -1391,6 +1595,7 @@ export class HudScene extends Phaser.Scene {
     if (this.qte) this.layoutQte();
     if (this.stealChoiceOpen) this.layoutStealChoice();
     if (this.peddleOpen) this.layoutPeddle();
+    if (this.testerOpen) this.layoutTester();
     this.layoutOverlay();
   }
 
@@ -1739,7 +1944,8 @@ export class HudScene extends Phaser.Scene {
       this.slotOpen ||
       this.qte ||
       this.stealChoiceOpen ||
-      this.peddleOpen
+      this.peddleOpen ||
+      this.testerOpen
     )
       return;
     // Left half: a thumb summons the movement plate. Right half: a tap does
@@ -1850,7 +2056,8 @@ export class HudScene extends Phaser.Scene {
       this.slotOpen ||
       this.qte ||
       this.stealChoiceOpen ||
-      this.peddleOpen
+      this.peddleOpen ||
+      this.testerOpen
     )
       return;
 
@@ -1962,6 +2169,11 @@ export class HudScene extends Phaser.Scene {
 
     if (this.peddleOpen) {
       this.closePeddle();
+      return;
+    }
+
+    if (this.testerOpen) {
+      this.closeTester();
       return;
     }
 
@@ -3887,6 +4099,9 @@ export class HudScene extends Phaser.Scene {
     this.peddleOpen = false;
     this.peddleLayer.setVisible(false);
     this.setLayerInput(this.peddleLayer, false);
+    this.testerOpen = false;
+    this.testerLayer.setVisible(false);
+    this.setLayerInput(this.testerLayer, false);
     this.releaseStick();
 
     const minutes = Math.floor(run.survived / 60);
@@ -3929,6 +4144,7 @@ export class HudScene extends Phaser.Scene {
     this.closeSlot();
     this.closeMap();
     this.closePeddle();
+    this.closeTester();
 
     this.shown.money = null;
     this.shown.bag = null;
