@@ -2,7 +2,17 @@
 // grid of blocks (see streets.js): each district fills one block, and the blocks
 // that touch share their streets, so the whole thing is walkable at any angle.
 
-export const DISTRICT_ORDER = ['market', 'square', 'alley', 'park', 'camp', 'slum', 'commerce'];
+export const DISTRICT_ORDER = [
+  'market',
+  'square',
+  'alley',
+  'park',
+  'camp',
+  'slum',
+  'commerce',
+  'nightlot',
+  'depot'
+];
 
 // The city map marks home, the tent out at the edge of town.
 export const QUEST_TARGET = { district: 'camp', x: 168, y: 500, label: '你的雨棚' };
@@ -303,6 +313,86 @@ export const DISTRICTS = {
     slots: [],
     benches: [{ x: 300, y: 800 }],
     landmarks: [{ tex: 'neonsign', x: 516, y: 620, oy: 0, depth: 5600 }]
+  },
+
+  // The yard behind the night market: stalls and steaming pots after dark, and
+  // nothing but leaves, crates and stacked plastic stools by day.
+  nightlot: {
+    id: 'nightlot',
+    name: '夜市后广场',
+    icon: 'utensils',
+    blurb: '收摊 · 剩菜',
+    mapPos: { x: 0.24, y: 1.02 },
+    mapColour: 0x4a3d2a,
+    tint: 0x2e2412,
+    tintAlpha: 0.2,
+    shops: false,
+    unlockAfter: 'commerce',
+    cops: 1,
+    pedKinds: ['drunk', 'worker', 'oldlady', 'lady'],
+    pedMs: 2100,
+    junk: ['veg', 'cardboard', 'bottle'],
+    bins: [
+      { x: 140, y: 320 },
+      { x: 500, y: 760 },
+      { x: 158, y: 1180 }
+    ],
+    litter: [
+      { x: 250, y: 460, kind: 'veg' },
+      { x: 330, y: 980, kind: 'veg' },
+      { x: 470, y: 560, kind: 'bottle' },
+      { x: 200, y: 1320, kind: 'cardboard' }
+    ],
+    mats: [
+      { x: 190, y: 760 },
+      { x: 470, y: 1120 }
+    ],
+    vending: [{ x: 512, y: 420 }],
+    slots: [],
+    benches: [
+      { x: 300, y: 700, tex: 'stool' },
+      { x: 380, y: 1060, tex: 'stool' }
+    ],
+    landmarks: []
+  },
+
+  // The bus depot at the edge of town: three stripped buses on their stands,
+  // parts underneath them, and a gate hut with 老孙 in it.
+  depot: {
+    id: 'depot',
+    name: '废弃公交场站',
+    icon: 'bus',
+    blurb: '车厢 · 旧零件',
+    mapPos: { x: 0.76, y: 1.02 },
+    mapColour: 0x43484e,
+    tint: 0x20262c,
+    tintAlpha: 0.26,
+    shops: false,
+    unlockAfter: 'park',
+    cops: 0,
+    gangs: 0,
+    watch: 0.9,
+    pedKinds: ['worker', 'drunk', 'oldlady'],
+    pedMs: 2600,
+    junk: ['part', 'pipe', 'wire'],
+    bins: [
+      { x: 150, y: 300 },
+      { x: 500, y: 900 }
+    ],
+    litter: [
+      { x: 220, y: 520, kind: 'part' },
+      { x: 420, y: 780, kind: 'part' },
+      { x: 200, y: 1180, kind: 'pipe' },
+      { x: 470, y: 1250, kind: 'wire' }
+    ],
+    mats: [
+      { x: 470, y: 400 },
+      { x: 160, y: 980 }
+    ],
+    vending: [],
+    slots: [],
+    benches: [],
+    landmarks: []
   }
 };
 

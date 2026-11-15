@@ -21,7 +21,7 @@ export const CITY_ROWS = 3;
 //
 //   camp      market    square
 //   commerce  alley     park
-//             slum
+//   nightlot  slum      depot
 export const CITY = {
   camp: { col: 0, row: 0 },
   market: { col: 1, row: 0 },
@@ -29,7 +29,9 @@ export const CITY = {
   commerce: { col: 0, row: 1 },
   alley: { col: 1, row: 1 },
   park: { col: 2, row: 1 },
-  slum: { col: 1, row: 2 }
+  nightlot: { col: 0, row: 2 },
+  slum: { col: 1, row: 2 },
+  depot: { col: 2, row: 2 }
 };
 
 export const STREET_ORDER = Object.keys(CITY);

@@ -94,6 +94,10 @@ export function buildWorldArt(scene) {
   canvasTexture(scene, 'hedge', 96, 34, drawHedge);
   canvasTexture(scene, 'neonsign', 26, 96, drawNeonSign);
 
+  // The yard behind the night market, and the buses rusting at the depot.
+  canvasTexture(scene, 'stool', 22, 16, drawStool);
+  canvasTexture(scene, 'buswreck', 96, 250, drawBusWreck);
+
   // The street-food carts, one per block, each with its own hanging sign.
   for (const cart of STREET_CARTS) {
     canvasTexture(scene, `foodstall-${cart.name}`, 120, 88, (ctx, w, h) =>
@@ -234,7 +238,17 @@ function drawRoad(ctx, h, r) {
 // standing against the dark behind it, so the skyline is uneven the whole way
 // down the street and old buildings sit next to new ones.
 
-const FACADE_DISTRICTS = ['market', 'square', 'alley', 'park', 'camp', 'slum', 'commerce'];
+const FACADE_DISTRICTS = [
+  'market',
+  'square',
+  'alley',
+  'park',
+  'camp',
+  'slum',
+  'commerce',
+  'nightlot',
+  'depot'
+];
 
 const FACADES = {
   market: {
@@ -293,6 +307,22 @@ const FACADES = {
     windows: ['#1a2430', '#202a36'],
     lit: ['#9fd4e8', '#cfe8f4'],
     style: 'glass'
+  },
+  nightlot: {
+    back: '#120d08',
+    walls: ['#5a4632', '#66503a', '#4c3c2c', '#705a42'],
+    roof: '#312418',
+    windows: ['#241c14', '#2a2218'],
+    lit: ['#d8a44a', '#e8c07a'],
+    style: 'plaster'
+  },
+  depot: {
+    back: '#0c0e10',
+    walls: ['#4a4f52', '#555a5c', '#3e4346', '#606568'],
+    roof: '#2a2d2f',
+    windows: ['#1e2224', '#24282a'],
+    lit: ['#c8b06a', '#8a7a48'],
+    style: 'stone'
   }
 };
 
@@ -2431,4 +2461,91 @@ function drawStreetLamp(ctx, w, h) {
   ctx.beginPath();
   ctx.arc(w * 0.75, h * 0.22, 18, 0, Math.PI * 2);
   ctx.fill();
+}
+
+
+function drawStool(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Shadow.
+  ctx.fillStyle = 'rgba(10,9,7,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.5, h - 2, w * 0.42, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs.
+  ctx.fillStyle = '#7a2f24';
+  ctx.fillRect(w * 0.16, h * 0.45, 3, h * 0.5);
+  ctx.fillRect(w * 0.78, h * 0.45, 3, h * 0.5);
+
+  // The seat.
+  ctx.fillStyle = '#b8452f';
+  roundRectPath(ctx, w * 0.08, h * 0.2, w * 0.84, h * 0.3, 3);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(255,220,190,0.18)';
+  ctx.fillRect(w * 0.12, h * 0.24, w * 0.7, 2);
+}
+
+/// A city bus with its seats still in and everything else gone, up on blocks.
+function drawBusWreck(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Shadow, and the blocks the body stands on.
+  ctx.fillStyle = 'rgba(8,7,6,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.5, h - 3, w * 0.42, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#2c2a26';
+  ctx.fillRect(w * 0.18, h * 0.9, 12, h * 0.06);
+  ctx.fillRect(w * 0.7, h * 0.9, 12, h * 0.06);
+
+  const x = w * 0.12;
+  const bw = w * 0.76;
+
+  // The body, long and boxy, in the faded paint of a city bus.
+  ctx.fillStyle = '#5a6658';
+  roundRectPath(ctx, x, h * 0.06, bw, h * 0.86, 10);
+  ctx.fill();
+
+  // A cream band along the side, worn to nothing in places.
+  ctx.fillStyle = 'rgba(214,206,178,0.4)';
+  ctx.fillRect(x + 2, h * 0.32, bw - 4, h * 0.06);
+
+  // Roof.
+  ctx.fillStyle = '#454f44';
+  roundRectPath(ctx, x + 4, h * 0.08, bw - 8, h * 0.16, 8);
+  ctx.fill();
+
+  // Windows: some still glass, some punched out.
+  for (let i = 0; i < 4; i++) {
+    const py = h * 0.13 + i * h * 0.16;
+    const broken = i === 1 || i === 3;
+
+    ctx.fillStyle = broken ? '#0d0f0e' : 'rgba(120,150,150,0.35)';
+    roundRectPath(ctx, x + 6, py, bw - 12, h * 0.11, 4);
+    ctx.fill();
+
+    if (!broken) {
+      ctx.fillStyle = 'rgba(220,240,236,0.16)';
+      ctx.fillRect(x + 8, py + 3, (bw - 16) * 0.4, h * 0.02);
+    }
+  }
+
+  // The door, hanging open.
+  ctx.fillStyle = '#20241f';
+  ctx.fillRect(x + bw - 16, h * 0.46, 12, h * 0.3);
+
+  // Rust bleeding down the panels.
+  for (let i = 0; i < 9; i++) {
+    ctx.fillStyle = 'rgba(120,64,32,0.32)';
+    ctx.fillRect(x + 6 + ((i * 37) % (bw - 16)), h * 0.5 + ((i * 23) % (h * 0.34)), 3, 10);
+  }
+
+  // Wheels, one of them gone.
+  ctx.fillStyle = '#141514';
+  ctx.fillRect(x - 2, h * 0.68, 8, h * 0.12);
+  ctx.fillRect(x + bw - 6, h * 0.66, 8, h * 0.12);
+  ctx.fillRect(x - 2, h * 0.86, 8, h * 0.1);
 }

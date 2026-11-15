@@ -530,6 +530,8 @@ export class StreetScene extends Phaser.Scene {
     this.buildVending();
     this.buildSlotMachines();
     this.buildBenches();
+    this.buildDepot();
+    this.buildNightLot();
     if (this.strips.some((strip) => strip.district.shops)) this.buildShops();
     this.buildGangCamps();
     this.buildAlleyCorners();
@@ -3439,18 +3441,230 @@ export class StreetScene extends Phaser.Scene {
       for (const spot of strip.district.benches || []) {
         const x = spot.x + strip.x0;
         const y = spot.y + strip.y0;
+        const tex = spot.tex || 'bench';
 
-        this.add.image(x, y, 'bench').setOrigin(0.5, 1).setDepth(y);
+        this.add.image(x, y, tex).setOrigin(0.5, 1).setDepth(y);
 
         this.addInteractable({
           x,
           y: y - 14,
           radius: 70,
-          label: '长椅·坐一会儿',
+          label: tex === 'bench' ? '长椅·坐一会儿' : '塑料凳·坐一会儿',
           use: () => this.sitOnBench({ ...spot, x, y })
         });
       }
     }
+  }
+
+  // -------------------------------------------------------------- the bus depot
+
+  /// The depot at the edge of town: three buses up on blocks with their seats
+  /// still in them, parts underneath, and 老孙 in the gate hut.
+  buildDepot() {
+    const strip = this.stripFor('depot');
+    if (!strip) return;
+
+    const ox = strip.x0;
+    const oy = strip.y0;
+
+    this.buses = [
+      { x: 150 + ox, y: 420 + oy },
+      { x: 480 + ox, y: 700 + oy },
+      { x: 170 + ox, y: 1090 + oy }
+    ].map((bus) => {
+      this.add.image(bus.x, bus.y, 'buswreck').setOrigin(0.5, 1).setDepth(bus.y);
+
+      this.addInteractable({
+        x: bus.x,
+        y: bus.y - 120,
+        radius: 74,
+        label: '钻进车厢打个盹',
+        use: () => this.napOnBus(bus)
+      });
+
+      this.addInteractable({
+        x: bus.x,
+        y: bus.y - 8,
+        radius: 58,
+        label: '车底下翻废铁',
+        use: () => this.scavengeBus(bus)
+      });
+
+      return { ...bus, searched: false };
+    });
+
+    // The gate hut, and the man who has watched this yard for years.
+    const kx = 470 + ox;
+    const ky = 250 + oy;
+
+    this.add.image(kx, ky, 'shack').setOrigin(0.5, 1).setDepth(ky);
+
+    this.addInteractable({
+      x: kx,
+      y: ky - 14,
+      radius: 76,
+      label: '和看场的老孙说话',
+      use: () => this.talkDepotKeeper()
+    });
+  }
+
+  /// A seat in a stripped bus is not the tent, but it is out of the wind for an
+  /// hour.
+  napOnBus(bus) {
+    const run = this.run;
+    if (run.over) return;
+
+    if (run.energy >= ENERGY_MAX - 2) {
+      this.floatText(this.player.x, this.player.y - 46, '还不困', UI.creamDim);
+      return;
+    }
+
+    run.energy = Math.min(ENERGY_MAX, run.energy + 40);
+    run.hunger = Math.max(0, run.hunger - 5);
+
+    this.advanceTime(60);
+
+    this.floatText(this.player.x, this.player.y - 46, '在车座上眯了一个钟头', UI.cream);
+    playSfx('sleep');
+    haptic('sleep');
+  }
+
+  /// What is left under a bus that has been up on blocks for years.
+  scavengeBus(bus) {
+    if (!bus || bus.searched) {
+      haptic('refuse');
+      this.floatText(this.player.x, this.player.y - 46, '这儿翻过了', UI.creamDim);
+      return;
+    }
+
+    bus.searched = true;
+
+    this.addToBag('part', bus.x, bus.y - 18);
+
+    if (Math.random() < 0.4) this.addToBag('part', bus.x + 10, bus.y - 18);
+  }
+
+  talkDepotKeeper() {
+    const hud = this.scene.get('Hud');
+    if (!hud || !hud.showDialogue) return;
+
+    hud.showDialogue(
+      'sun',
+      [
+        '这些车停了七八年。先是没人开，后来连拆都懒得拆。',
+        '车厢里没风，你困了就上去睡，别把椅子拆了。',
+        '车底下的废铁随便你捡，别钻进机器罩子，那玩意儿压下来要命。'
+      ],
+      null,
+      [{ label: '知道了' }]
+    );
+  }
+
+  // ---------------------------------------------------------- the night market
+
+  /// The yard behind the night market: stalls and their keepers once it is late,
+  /// leaves and stacked stools by day.
+  buildNightLot() {
+    const strip = this.stripFor('nightlot');
+    if (!strip) return;
+
+    const ox = strip.x0;
+    const oy = strip.y0;
+
+    this.nightStalls = [];
+
+    for (const spot of [
+      { x: 150, y: 470 },
+      { x: 460, y: 860 }
+    ]) {
+      const x = spot.x + ox;
+      const y = spot.y + oy;
+
+      this.nightStalls.push(this.add.image(x, y, 'stall').setOrigin(0.5, 1).setDepth(y));
+      this.nightStalls.push(this.add.image(x + 26, y + 14, 'ped-lady').setDepth(y + 15));
+    }
+
+    // 胖姐, who runs the stalls and is here before anyone and after everyone.
+    const px = 300 + ox;
+    const py = 700 + oy;
+
+    this.add.image(px, py, 'ped-lady').setDepth(py);
+
+    this.addInteractable({
+      x: px,
+      y: py - 12,
+      radius: 76,
+      label: '和收摊的胖姐说话',
+      use: () => this.talkNightLotKeeper()
+    });
+
+    // Stools left out between markets.
+    for (const stool of [
+      { x: 220, y: 760 },
+      { x: 400, y: 1020 },
+      { x: 330, y: 1200 }
+    ]) {
+      this.add
+        .image(stool.x + ox, stool.y + oy, 'stool')
+        .setOrigin(0.5, 1)
+        .setDepth(stool.y + oy);
+    }
+
+    this.updateNightLot();
+  }
+
+  /// The stalls only stand once the market opens in the evening.
+  updateNightLot() {
+    if (!this.nightStalls || !this.nightStalls.length) return;
+
+    const late = segmentOf(this.run.step) >= 2;
+
+    for (const image of this.nightStalls) image.setVisible(late);
+  }
+
+  talkNightLotKeeper() {
+    const hud = this.scene.get('Hud');
+    if (!hud || !hud.showDialogue) return;
+
+    const late = segmentOf(this.run.step) >= 2;
+
+    if (!late) {
+      hud.showDialogue(
+        'pang',
+        [
+          '白天这儿就剩菜叶和凳子，你看着空，夜里可热闹。',
+          '想吃热的，天黑再来，我给你留一勺汤底。'
+        ],
+        null,
+        [{ label: '知道了' }]
+      );
+      return;
+    }
+
+    hud.showDialogue(
+      'pang',
+      ['夜市快收了，还剩点热汤。', '三块钱一份，你要就给你盛，吃完把凳子摞回去。'],
+      null,
+      [{ label: '吃一份（3 元）', onPick: () => this.buyLeftovers() }, { label: '不吃了' }]
+    );
+  }
+
+  buyLeftovers() {
+    const hud = this.scene.get('Hud');
+
+    if (this.run.money < 3) {
+      haptic('refuse');
+      if (hud && hud.showToast) hud.showToast('胖姐：先把钱凑齐。');
+      return;
+    }
+
+    this.run.money -= 3;
+    this.run.hunger = Math.min(HUNGER_MAX, this.run.hunger + 22);
+    this.run.energy = Math.min(ENERGY_MAX, this.run.energy + 6);
+
+    this.floatText(this.player.x, this.player.y - 46, '一碗热汤剩菜', '#a8d98a');
+    playSfx('eat');
+    haptic('eat');
   }
 
   // ------------------------------------------------------------ the slot machine
@@ -4422,6 +4636,7 @@ export class StreetScene extends Phaser.Scene {
   updateSegment() {
     const segment = segmentOf(this.run.step);
     this.applyNight();
+    this.updateNightLot();
 
     if (segment === this.lastSegment) return;
     this.lastSegment = segment;

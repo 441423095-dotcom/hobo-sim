@@ -17,7 +17,9 @@ export const SPEAKERS = {
   vendor: { name: '摊主', portrait: 'ped-lady' },
   crow: { name: '老鸦', portrait: 'ped-gang' },
   tin: { name: '铁皮', portrait: 'ped-gang' },
-  bench: { name: '老刘', portrait: 'ped-oldlady' }
+  bench: { name: '老刘', portrait: 'ped-oldlady' },
+  sun: { name: '老孙', portrait: 'ped-drunk' },
+  pang: { name: '胖姐', portrait: 'ped-lady' }
 };
 
 function favorOf(run, id) {

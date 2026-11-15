@@ -128,6 +128,7 @@ export class HudScene extends Phaser.Scene {
       'factory',
       'list-checks',
       'umbrella',
+      'bus',
       'settings'
     ]);
 
