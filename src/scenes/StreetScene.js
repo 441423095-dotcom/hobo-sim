@@ -568,7 +568,7 @@ export class StreetScene extends Phaser.Scene {
       { district: 'camp', x: 486, y: 1150 }
     ];
 
-    this.braziers = [];
+    this.braziers = this.braziers || [];
 
     for (const spot of spots) {
       const strip = this.stripFor(spot.district);
@@ -668,7 +668,7 @@ export class StreetScene extends Phaser.Scene {
 
       if (this.time.now >= b.until) {
         b.lit = false;
-        b.fire.setVisible(false);
+        if (b.fire) b.fire.setVisible(false);
         continue;
       }
 
@@ -801,6 +801,11 @@ export class StreetScene extends Phaser.Scene {
       this.add.image(x + 34, y + 2, 'ped-drunk').setDepth(y + 2);
 
       if (this.lightSpots) this.lightSpots.push({ x, y: y - 40 });
+
+      // The gang's barrel burns all night, and anybody standing at it gets the
+      // shiver out of their bones.
+      this.braziers = this.braziers || [];
+      this.braziers.push({ x, y, lit: true, until: Number.MAX_SAFE_INTEGER, fire: null });
 
       this.addInteractable({
         x,
