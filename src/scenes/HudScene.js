@@ -967,7 +967,8 @@ export class HudScene extends Phaser.Scene {
       this.helpOpen ||
       this.winOpen ||
       this.dialogueOpen ||
-      this.loreOpen
+      this.loreOpen ||
+      this.optionsOpen
     )
       return;
 
@@ -3806,7 +3807,8 @@ export class HudScene extends Phaser.Scene {
       this.helpOpen ||
       this.winOpen ||
       this.dialogueOpen ||
-      this.loreOpen
+      this.loreOpen ||
+      this.optionsOpen
     )
       return;
     // Left half: a thumb summons the movement plate. Right half: a tap does
@@ -3925,7 +3927,8 @@ export class HudScene extends Phaser.Scene {
       this.helpOpen ||
       this.winOpen ||
       this.dialogueOpen ||
-      this.loreOpen
+      this.loreOpen ||
+      this.optionsOpen
     )
       return;
 
