@@ -151,6 +151,7 @@ export class HudScene extends Phaser.Scene {
     this.busFrom = null;
     this.stealChoiceOpen = false;
     this.mugOpen = false;
+    this.encounterOpen = false;
     this.peddleOpen = false;
     this.testerOpen = false;
     this.begOpen = false;
@@ -205,6 +206,7 @@ export class HudScene extends Phaser.Scene {
     this.buildQte();
     this.buildStealChoice();
     this.buildMug();
+    this.buildEncounter();
     this.buildPeddle();
     this.buildTester();
     this.buildOptions();
@@ -230,6 +232,7 @@ export class HudScene extends Phaser.Scene {
     this.setLayerInput(this.overLayer, false);
     this.setLayerInput(this.stealChoiceLayer, false);
     this.setLayerInput(this.mugLayer, false);
+    this.setLayerInput(this.encLayer, false);
     this.setLayerInput(this.peddleLayer, false);
     this.setLayerInput(this.testerLayer, false);
     this.setLayerInput(this.begLayer, false);
@@ -979,6 +982,7 @@ export class HudScene extends Phaser.Scene {
       this.qte ||
       this.stealChoiceOpen ||
       this.mugOpen ||
+      this.encounterOpen ||
       this.peddleOpen ||
       this.testerOpen ||
       this.begOpen ||
@@ -1176,6 +1180,168 @@ export class HudScene extends Phaser.Scene {
     if (this.time.now < this.uiSettleAt) return;
 
     this.pickMug('give');
+  }
+
+  // ----------------------------------------------------- things on the street
+
+  /// A short scene out of nowhere: a line of what is happening, and two or three
+  /// answers to it.
+  buildEncounter() {
+    this.encLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 2).setVisible(false);
+
+    this.encBackdrop = this.add
+      .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
+      .setOrigin(0, 0)
+      .setInteractive();
+
+    this.encGfx = this.add.graphics();
+
+    this.encTitle = this.add
+      .text(0, 0, '', {
+        fontFamily: FONT,
+        fontSize: '17px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.encBody = this.add
+      .text(0, 0, '', {
+        fontFamily: FONT,
+        fontSize: '13px',
+        color: UI.creamDim,
+        lineSpacing: 4
+      })
+      .setOrigin(0, 0);
+
+    this.encLayer.add([this.encBackdrop, this.encGfx, this.encTitle, this.encBody]);
+
+    this.encRows = [];
+
+    for (let i = 0; i < 3; i++) {
+      const bg = this.add
+        .rectangle(0, 0, 1, 1, UI.panelRow, 1)
+        .setOrigin(0, 0.5)
+        .setInteractive();
+      const label = this.add
+        .text(0, 0, '', {
+          fontFamily: FONT,
+          fontSize: '15px',
+          color: UI.cream,
+          fontStyle: 'bold'
+        })
+        .setOrigin(0, 0.5);
+      const info = this.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
+        .setOrigin(0, 0.5);
+
+      const row = { bg, label, info };
+      bg.on('pointerdown', () => this.pickEncounter(i));
+
+      this.encLayer.add([bg, label, info]);
+      this.encRows.push(row);
+    }
+  }
+
+  layoutEncounter() {
+    const w = this.w;
+    const pw = Math.min(w - 40, 340);
+    const px = (w - pw) / 2;
+    const rowH = 58;
+
+    const bodyH = Math.max(1, this.encBody.height);
+    const rowsTop = 12 + 24 + 10 + bodyH + 12;
+    const ph = rowsTop + rowH * this.encRows.length + 12;
+    const py = Math.max(52, this.playH * 0.3 - ph / 2);
+
+    this.encBackdrop.setScale(w, this.h).setPosition(0, 0);
+
+    const g = this.encGfx;
+    g.clear();
+    g.fillStyle(UI.panel, 0.97);
+    g.fillRoundedRect(px, py, pw, ph, 16);
+    g.lineStyle(2, UI.amber, 0.6);
+    g.strokeRoundedRect(px, py, pw, ph, 16);
+
+    this.encTitle.setPosition(w / 2, py + 24);
+    this.encBody.setPosition(px + 18, py + 44);
+
+    const rowW = pw - 24;
+    const rowX = px + 12;
+
+    this.encRows.forEach((row, i) => {
+      const ry = py + rowsTop + rowH * i + rowH / 2;
+
+      row.bg.setScale(rowW, rowH).setPosition(rowX, ry);
+      row.label.setPosition(rowX + 16, ry - 9);
+      row.info.setPosition(rowX + 16, ry + 11);
+    });
+  }
+
+  refreshEncounter() {
+    const def = this.encounterDef;
+    if (!def) return;
+
+    const w = this.w;
+    const innerW = Math.min(w - 40, 340) - 36;
+
+    this.encTitle.setText(def.title);
+    this.encBody.setText(foldText(def.body, innerW, 13));
+
+    this.encRows.forEach((row, i) => {
+      const opt = def.options[i];
+      const on = !!opt;
+
+      row.bg.setVisible(on);
+      row.label.setVisible(on);
+      row.info.setVisible(on);
+
+      if (!opt) return;
+
+      row.label.setText(opt.label);
+      row.info.setText(foldLine(opt.info || '', innerW - 16, 12));
+      row.bg.setFillStyle(UI.panelRow, 1);
+    });
+  }
+
+  openEncounter(def) {
+    if (!def || this.encounterOpen || this.overOpen || this.qte) return;
+
+    this.encounterDef = def;
+    this.encounterOpen = true;
+    this.showPanel(this.encLayer);
+    this.releaseStick();
+    this.refreshEncounter();
+    this.layoutEncounter();
+
+    this.uiSettleAt = this.time.now + 300;
+    haptic('ui');
+  }
+
+  closeEncounter() {
+    if (!this.encounterOpen) return;
+
+    this.encounterOpen = false;
+    this.encounterDef = null;
+    this.hidePanel(this.encLayer);
+  }
+
+  pickEncounter(index) {
+    const def = this.encounterDef;
+    if (!this.encounterOpen || !def) return;
+    if (this.time.now < this.uiSettleAt) return;
+
+    const option = def.options[index];
+    if (!option) return;
+
+    this.closeEncounter();
+
+    this.inputLockUntil = Math.max(this.inputLockUntil, this.time.now + 180);
+    haptic('ui');
+
+    if (this.street && this.street.chooseEncounter) {
+      this.street.chooseEncounter(def.id, option.id);
+    }
   }
 
   // ------------------------------------------------------------ peddling
@@ -3555,6 +3721,10 @@ export class HudScene extends Phaser.Scene {
     if (this.qte) this.layoutQte();
     if (this.stealChoiceOpen) this.layoutStealChoice();
     if (this.mugOpen) this.layoutMug();
+    if (this.encounterOpen) {
+      this.refreshEncounter();
+      this.layoutEncounter();
+    }
     if (this.peddleOpen) this.layoutPeddle();
     if (this.testerOpen) this.layoutTester();
     if (this.begOpen) this.layoutBegChoice();
@@ -4029,6 +4199,7 @@ export class HudScene extends Phaser.Scene {
       this.qte ||
       this.stealChoiceOpen ||
       this.mugOpen ||
+      this.encounterOpen ||
       this.peddleOpen ||
       this.testerOpen ||
       this.begOpen ||
@@ -4150,6 +4321,7 @@ export class HudScene extends Phaser.Scene {
       this.qte ||
       this.stealChoiceOpen ||
       this.mugOpen ||
+      this.encounterOpen ||
       this.peddleOpen ||
       this.testerOpen ||
       this.begOpen ||
@@ -4241,6 +4413,7 @@ export class HudScene extends Phaser.Scene {
       this.slotOpen ||
       this.stealChoiceOpen ||
       this.mugOpen ||
+      this.encounterOpen ||
       this.optOpen ||
       this.optionsOpen
     );
@@ -6607,7 +6780,8 @@ export class HudScene extends Phaser.Scene {
       ['begOpen', this.begLayer],
       ['bagOpen', this.bagLayer],
       ['goalsOpen', this.goalsLayer],
-      ['mugOpen', this.mugLayer]
+      ['mugOpen', this.mugLayer],
+      ['encounterOpen', this.encLayer]
     ]) {
       this[pair[0]] = false;
       pair[1].setVisible(false);

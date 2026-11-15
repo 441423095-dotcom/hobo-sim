@@ -39,6 +39,7 @@ import {
   pickGangQuest
 } from '../gangs.js';
 import { SKILLS, addSkill, skillLevel, skillBonus, bookBonus } from '../skill.js';
+import { pickEncounter } from '../encounters.js';
 import {
   GANG_LINES,
   gangLineForGang,
@@ -516,6 +517,7 @@ export class StreetScene extends Phaser.Scene {
     this.mugCheckAt = 0;
     this.errandAt = 0;
     this.storyAt = 0;
+    this.encAt = this.time.now + 16000;
     this.snowFires = false;
     this.warnedWeather = null;
     this.awnings = [];
@@ -3732,6 +3734,211 @@ export class StreetScene extends Phaser.Scene {
     this.saveNow();
   }
 
+  // ------------------------------------------------- things on the street
+
+  /// Now and then something small and strange happens: somebody wants to talk,
+  /// a checkpoint, a camera. The card comes up and the beggar has to answer.
+  maybeEncounter() {
+    const run = this.run;
+    if (run.over || this.mug || this.searching || this.benchAsleep) return;
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.anyPanelOpen && hud.anyPanelOpen()) return;
+
+    if (this.time.now < this.encAt) return;
+    this.encAt = this.time.now + 26000 + Math.random() * 34000;
+
+    // Not every quiet stretch of street has something in it.
+    if (Math.random() > 0.55) return;
+
+    const def = pickEncounter({
+      district: this.district ? this.district.id : 'market',
+      segment: segmentOf(run.step),
+      wanted: run.wanted || 0
+    });
+
+    if (!def) return;
+    if (hud && hud.openEncounter) hud.openEncounter(def);
+  }
+
+  /// What the beggar did about it, and what it cost.
+  chooseEncounter(eventId, optionId) {
+    const run = this.run;
+    if (!run) return;
+
+    const say = (text) => {
+      const hud = this.scene.get('Hud');
+      if (hud && hud.showToast) hud.showToast(text);
+    };
+
+    if (eventId === 'drunk') {
+      if (optionId === 'listen') {
+        this.advanceTime(30);
+
+        if (Math.random() < 0.5) {
+          const gift = Phaser.Math.Between(1, 3);
+          run.money += gift;
+
+          this.floatText(this.player.x, this.player.y - 46, `他塞给你 ${gift} 元`, UI.gold);
+          say('他讲完一段，硬把钱塞给你：“拿着，买酒。”');
+        } else {
+          say('他讲到一半自己睡着了，你把他扶到墙根。');
+        }
+
+        this.addFavor('zhou', 1);
+        haptic('ui');
+        return;
+      }
+
+      if (optionId === 'walk') {
+        this.floatText(this.player.x, this.player.y - 46, '他不乐意地松了手', UI.creamDim);
+        say('他骂了两句“看不起人”，也没追。');
+        haptic('refuse');
+        return;
+      }
+
+      if (run.money < 4) {
+        haptic('refuse');
+        say('你兜里不够四块钱。');
+        return;
+      }
+
+      if (run.bag >= this.bagLimit()) {
+        haptic('refuse');
+        say('包满了，腾不出手。');
+        return;
+      }
+
+      run.money -= 4;
+
+      const giftId = (run.loot.lighter || 0) > 0 ? 'cigarettes' : 'lighter';
+      if (this.giveLoot(giftId)) say('他接过酒，把兜里的东西塞给你。');
+
+      playSfx('buy');
+      haptic('buy');
+      return;
+    }
+
+    if (eventId === 'cordon') {
+      if (optionId === 'cooperate') {
+        this.advanceTime(15);
+
+        if ((run.wanted || 0) > 20) {
+          const lost = this.confiscate(1);
+          run.wanted = Math.max(0, run.wanted - 10);
+          say(lost ? `他们翻了包，扣走了${lost}。` : '他们翻了翻，什么也没拿。');
+        } else {
+          say('他们看了眼就放你走，还嫌你挡道。');
+        }
+
+        haptic('ui');
+        return;
+      }
+
+      if (optionId === 'slip') {
+        if (Math.random() < 0.6) {
+          this.floatText(this.player.x, this.player.y - 46, '贴着墙根溜了过去', '#a8d98a');
+          say('你绕进巷子，回头时桌子还在那儿。');
+          haptic('unlock');
+        } else {
+          this.addWanted(6);
+          run.energy = Math.max(0, run.energy - 5);
+          say('有人喊了一声，你被记下了脸。');
+          haptic('refuse');
+        }
+        return;
+      }
+
+      if (run.money < 5) {
+        haptic('refuse');
+        say('你兜里不够五块钱。');
+        return;
+      }
+
+      run.money -= 5;
+      this.addWanted(-8);
+      say('钱递过去，他们摆摆手：“快走快走。”');
+      playSfx('buy');
+      haptic('buy');
+      return;
+    }
+
+    if (eventId === 'reporter') {
+      if (optionId === 'truth') {
+        run.money += 4;
+        this.floatText(this.player.x, this.player.y - 46, '+4 元', UI.gold);
+        say('他听完没说话，塞给你一份盒饭的钱。');
+        haptic('coin');
+        return;
+      }
+
+      if (optionId === 'sob') {
+        run.money += 9;
+        this.addWanted(6);
+        this.floatText(this.player.x, this.player.y - 46, '+9 元', UI.gold);
+        say('稿子登出来，钱是给了，可这条街也开始有人认你。');
+        haptic('coin');
+        return;
+      }
+
+      say('他道了歉，收相机走了。');
+      haptic('ui');
+      return;
+    }
+
+    if (eventId === 'dog') {
+      if (optionId === 'pet') {
+        if (Math.random() < 0.5) {
+          run.money += 2;
+          this.floatText(this.player.x, this.player.y - 46, '+2 元', UI.gold);
+          say('狗尾巴摇起来，小孩笑了，把两块钱塞给你。');
+          haptic('unlock');
+        } else {
+          run.energy = Math.max(0, run.energy - 6);
+          this.floatText(this.player.x, this.player.y - 46, '被咬了一口', '#f08a7a');
+          say('它一口咬在你手背上，小孩拉着狗跑了。');
+          haptic('caught');
+        }
+        return;
+      }
+
+      if (optionId === 'around') {
+        say('你贴着墙走过去，它叫得更凶，也没追。');
+        haptic('ui');
+        return;
+      }
+
+      run.energy = Math.max(0, run.energy - 2);
+
+      if (Math.random() < 0.35) {
+        run.money += 1;
+        this.floatText(this.player.x, this.player.y - 46, '+1 元', UI.gold);
+        say('你先呲了牙，狗缩了，小孩塞给你一块钱让你别叫。');
+        haptic('coin');
+      } else {
+        say('你和狗对峙了半天，谁也没赢。');
+        haptic('refuse');
+      }
+    }
+  }
+
+  /// A small thing handed over on the street: a lighter, a loose cigarette.
+  giveLoot(id) {
+    const item = LOOT_ITEMS[id];
+    if (!item) return false;
+
+    if (this.run.bag >= this.bagLimit()) {
+      const hud = this.scene.get('Hud');
+      if (hud && hud.showToast) hud.showToast('包满了，拿不了。');
+      return false;
+    }
+
+    this.run.loot[id] = (this.run.loot[id] || 0) + 1;
+    this.refreshBagCount();
+
+    return true;
+  }
+
   /// Now and then something small happens between the beggar and one of the
   /// people walking past: a coin dropped, a snack handed over, a face turned
   /// away. None of it is a fight; it is the street being alive.
@@ -6580,6 +6787,7 @@ export class StreetScene extends Phaser.Scene {
     this.updateSnowFires();
     this.warnWeather();
     this.maybePasserby();
+    this.maybeEncounter();
     this.updateNightDanger();
     this.updateBraziers(dt);
     this.checkKing();
