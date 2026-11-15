@@ -32,9 +32,9 @@ const ROW_HEIGHT = 56;
 // Control sizes are fixed rather than derived per frame: the band is tall
 // enough for them at its smallest, and leaving the circles alone keeps their
 // stroke widths consistent.
+const STICK_RADIUS = 62;
+const KNOB_RADIUS = 26;
 const STICK_THROW = 46;
-const BUTTON_RADIUS = 44;
-const STEAL_RADIUS = 36;
 
 const TRADE_ROW_WIDTH = 300;
 const TRADE_ROW_HEIGHT = 42;
@@ -164,53 +164,31 @@ export class HudScene extends Phaser.Scene {
   }
 
   buildControls() {
-    // Movement is a direct drag: the city is moved by dragging a thumb
-    // anywhere on the left half of the screen, and nothing is drawn at all.
+    // Movement is a drag from wherever the thumb lands on the left half. The
+    // plate is only drawn while a finger is down, and it pops in under the
+    // thumb so the press can be felt as well as seen.
     this.stickOrigin = null;
 
-    this.interactGlow = this.add
-      .circle(0, 0, BUTTON_RADIUS + 8, 0x000000, 0)
-      .setStrokeStyle(3, UI.amberBright, 0.85)
+    this.stickBase = this.add
+      .circle(0, 0, STICK_RADIUS, 0x241f18, 0.34)
+      .setStrokeStyle(2.5, UI.amber, 0.4)
       .setDepth(DEPTH.control)
-      .setAlpha(0.2)
       .setVisible(false);
 
-    this.interactBtn = this.add
-      .circle(0, 0, BUTTON_RADIUS, 0x3a3128, 0.92)
-      .setStrokeStyle(3, UI.amber, 0.85)
+    this.stickKnob = this.add
+      .circle(0, 0, KNOB_RADIUS, UI.amber, 0.6)
+      .setStrokeStyle(2, 0x201a13, 0.75)
       .setDepth(DEPTH.control + 1)
-      .setInteractive();
+      .setVisible(false);
 
-    this.interactIcon = this.add
-      .image(0, 0, 'icon-hand')
-      .setDepth(DEPTH.control + 2)
-      .setScale(44 / 96)
-      .setAlpha(0.5);
-
-    this.interactBtn.on('pointerdown', () => this.pressInteract());
-
-    this.stealBtn = this.add
-      .circle(0, 0, STEAL_RADIUS, 0x352b22, 0.92)
-      .setStrokeStyle(3, 0xb0563f, 0.75)
-      .setDepth(DEPTH.control + 1)
-      .setInteractive();
-
-    this.stealIcon = this.add
-      .image(0, 0, 'icon-hand-coins')
-      .setDepth(DEPTH.control + 2)
-      .setScale(34 / 96)
-      .setAlpha(0.3);
-
-    this.stealBtn.on('pointerdown', () => this.pressSteal());
-
-    this.tweens.add({
-      targets: this.interactGlow,
-      alpha: 0.85,
-      duration: 720,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
+    // A white frame round the screen, flashed when a tap on the right half
+    // lands on something.
+    this.edgeFlash = this.add
+      .rectangle(0, 0, 1, 1, 0xffffff, 0)
+      .setOrigin(0, 0)
+      .setStrokeStyle(3, 0xffffff, 0.85)
+      .setDepth(DEPTH.hud + 1)
+      .setVisible(false);
   }
 
   buildHud() {
@@ -1043,21 +1021,8 @@ export class HudScene extends Phaser.Scene {
   }
 
   layoutControls() {
-    const stickY = this.playH + this.bandH * 0.5 + 6;
-
-    // A resize drops the drag: the thumb that was holding it is no longer where
-    // it was.
     this.releaseStick();
-
-    const btnX = this.w - Math.max(BUTTON_RADIUS + 26, this.w * 0.2);
-
-    this.interactBtn.setPosition(btnX, stickY);
-    this.interactIcon.setPosition(btnX, stickY);
-    this.interactGlow.setPosition(btnX, stickY);
-
-    const stealX = btnX - (STEAL_RADIUS * 2 + 18);
-    this.stealBtn.setPosition(stealX, stickY);
-    this.stealIcon.setPosition(stealX, stickY);
+    if (this.edgeFlash) this.edgeFlash.setSize(this.w, this.h).setPosition(0, 0);
   }
 
   /// Panels live inside containers, and a hidden container's children can still
@@ -1197,33 +1162,46 @@ export class HudScene extends Phaser.Scene {
       this.stealChoiceOpen
     )
       return;
-    // Anywhere on the left half of the screen summons the stick, right under
-    // the thumb: nothing to reach for at the bottom edge.
-    if (pointer.x > this.w / 2) return;
+    // Left half: a thumb summons the movement plate. Right half: a tap does
+    // whatever is within reach.
+    if (pointer.x < this.w / 2) {
+      if (this.stickId !== null) return;
+      this.stickId = pointer.id;
+      this.grabStick(pointer);
+      return;
+    }
 
-    // A thumb on the steal or interact button is a press of that button, not
-    // a grab of the stick.
-    if (this.onActionButton(pointer)) return;
-
-    if (this.stickId !== null) return;
-
-    this.stickId = pointer.id;
-    this.grabStick(pointer);
+    this.tapInteract(pointer);
   }
 
-  /// Whether a touch landed on one of the two action buttons, which then
-  /// belong to those buttons rather than to the stick.
-  onActionButton(pointer) {
-    const hit = (btn, radius) =>
-      btn && Math.hypot(pointer.x - btn.x, pointer.y - btn.y) <= radius + 12;
-
-    return hit(this.stealBtn, STEAL_RADIUS) || hit(this.interactBtn, BUTTON_RADIUS);
-  }
-
-  /// Remembers where the thumb landed. Everything after that is a plain drag
-  /// from that point, with nothing drawn on the screen.
+  /// Puts the plate and the knob under the thumb and pops them in.
   grabStick(pointer) {
     this.stickOrigin = { x: pointer.x, y: pointer.y };
+
+    this.tweens.killTweensOf([this.stickBase, this.stickKnob]);
+
+    this.stickBase
+      .setPosition(pointer.x, pointer.y)
+      .setVisible(true)
+      .setAlpha(0.9)
+      .setScale(0.6);
+    this.stickKnob.setPosition(pointer.x, pointer.y).setVisible(true).setScale(0.6);
+
+    this.tweens.add({
+      targets: this.stickBase,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 170,
+      ease: 'Back.easeOut'
+    });
+
+    this.tweens.add({
+      targets: this.stickKnob,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 170,
+      ease: 'Back.easeOut'
+    });
 
     haptic('tick');
   }
@@ -1254,6 +1232,8 @@ export class HudScene extends Phaser.Scene {
       dy = (dy / len) * limit;
     }
 
+    this.stickKnob.setPosition(bx + dx, by + dy);
+
     const dead = 0.18;
     const nx = dx / limit;
     const ny = dy / limit;
@@ -1267,10 +1247,18 @@ export class HudScene extends Phaser.Scene {
     this.stickId = null;
     this.stickOrigin = null;
 
+    if (this.stickBase) {
+      this.tweens.killTweensOf([this.stickBase, this.stickKnob]);
+      this.stickBase.setVisible(false);
+      this.stickKnob.setVisible(false);
+    }
+
     if (this.street) this.street.setAxes(0, 0);
   }
 
-  pressSteal() {
+  /// A tap on the right half does whatever is within reach: the bin, the stall,
+  /// the tent door — or a wallet, if that is what is closest.
+  tapInteract(pointer) {
     if (
       this.overOpen ||
       this.shopOpen ||
@@ -1285,32 +1273,69 @@ export class HudScene extends Phaser.Scene {
     )
       return;
 
-    this.stealBtn.setFillStyle(0x4a3026, 0.95);
-    this.time.delayedCall(110, () => this.stealBtn.setFillStyle(0x352b22, 0.92));
+    if (!this.street) return;
 
-    this.openStealChoice();
+    // The little map button in the corner belongs to itself.
+    if (
+      this.mapBtn &&
+      Math.hypot(pointer.x - this.mapBtn.x, pointer.y - this.mapBtn.y) < 26
+    )
+      return;
+
+    const reachable =
+      this.street.nearest ||
+      this.street.benchSpot ||
+      (this.street.run && this.street.run.sitting);
+
+    if (!reachable && !this.street.stealTarget) {
+      haptic('refuse');
+      return;
+    }
+
+    this.tapFlash(pointer.x, pointer.y);
+
+    if (!this.street.nearest && this.street.stealTarget) {
+      this.openStealChoice();
+      return;
+    }
+
+    this.flashEdges();
+    haptic('ui');
+    this.street.tryInteract();
   }
 
-  pressInteract() {
-    if (
-      this.overOpen ||
-      this.shopOpen ||
-      this.tradeOpen ||
-      this.mapOpen ||
-      this.craftOpen ||
-      this.homeOpen ||
-      this.vendingOpen ||
-      this.slotOpen ||
-      this.qte ||
-      this.stealChoiceOpen
-    )
-      return;
+  /// A white ring where the tap landed.
+  tapFlash(x, y) {
+    const ring = this.add
+      .circle(x, y, 18, 0xffffff, 0.12)
+      .setStrokeStyle(2.5, 0xffffff, 0.9)
+      .setDepth(DEPTH.hud + 2);
 
-    haptic('ui');
-    this.interactBtn.setFillStyle(0x4a3d2c, 0.95);
-    this.time.delayedCall(110, () => this.interactBtn.setFillStyle(0x3a3128, 0.92));
+    this.tweens.add({
+      targets: ring,
+      scaleX: 2.2,
+      scaleY: 2.2,
+      alpha: 0,
+      duration: 320,
+      ease: 'Quad.easeOut',
+      onComplete: () => ring.destroy()
+    });
+  }
 
-    if (this.street) this.street.tryInteract();
+  /// A brief flash round the screen: the tap took effect.
+  flashEdges() {
+    if (!this.edgeFlash) return;
+
+    this.tweens.killTweensOf(this.edgeFlash);
+    this.edgeFlash.setAlpha(0.85).setVisible(true);
+
+    this.tweens.add({
+      targets: this.edgeFlash,
+      alpha: 0,
+      duration: 280,
+      ease: 'Quad.easeOut',
+      onComplete: () => this.edgeFlash.setVisible(false)
+    });
   }
 
   // --------------------------------------------------------------------- shop
@@ -3102,11 +3127,7 @@ export class HudScene extends Phaser.Scene {
     }
 
     const can = !run.over && (!!street.nearest || run.sitting);
-    if (can !== this.shown.can) {
-      this.shown.can = can;
-      this.interactGlow.setVisible(can);
-      this.interactIcon.setAlpha(can ? 1 : 0.5);
-    }
+    if (can !== this.shown.can) this.shown.can = can;
 
     const districtName = street.district ? street.district.name : '';
     if (districtName !== this.shown.district) {
@@ -3131,28 +3152,6 @@ export class HudScene extends Phaser.Scene {
     if (edge !== this.shown.edge) {
       this.shown.edge = edge;
       this.edgeText.setText(edge).setVisible(edge.length > 0);
-    }
-
-    const seen = street.seenByPolice ? street.seenByPolice() : false;
-    const canSteal = street.canSteal ? street.canSteal() : false;
-    const stealState = seen ? 'seen' : canSteal ? 'ready' : 'idle';
-
-    if (stealState !== this.shown.stealState) {
-      this.shown.stealState = stealState;
-
-      if (stealState === 'seen') {
-        this.stealBtn.setFillStyle(0x5a2320, 0.95).setStrokeStyle(3, 0xd9563f, 0.95);
-        this.stealIcon.setTint(0xff9a8a).setAlpha(1);
-        this.stealBtn.setAlpha(1);
-      } else if (stealState === 'ready') {
-        this.stealBtn.setFillStyle(0x352b22, 0.92).setStrokeStyle(3, 0xb0563f, 0.75);
-        this.stealIcon.clearTint().setAlpha(1);
-        this.stealBtn.setAlpha(1);
-      } else {
-        this.stealBtn.setFillStyle(0x352b22, 0.92).setStrokeStyle(3, 0xb0563f, 0.75);
-        this.stealIcon.clearTint().setAlpha(0.3);
-        this.stealBtn.setAlpha(0.55);
-      }
     }
 
     if (this.tradeOpen) {

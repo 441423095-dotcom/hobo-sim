@@ -564,6 +564,7 @@ export class StreetScene extends Phaser.Scene {
           x,
           y,
           label: '翻垃圾桶',
+          flash: () => this.flashSprite(bin),
           enabled: () => bin.getData('charges') > 0,
           use: () => this.searchBin(bin)
         });
@@ -594,6 +595,7 @@ export class StreetScene extends Phaser.Scene {
           x,
           y,
           label: `捡起${kind.name}·${kind.place}`,
+          flash: () => this.flashSprite(sprite),
           use: () => this.pickUpLitter(sprite, def, { ...spot, x, y })
         };
         this.addInteractable(def);
@@ -830,12 +832,12 @@ export class StreetScene extends Phaser.Scene {
     if (this.stealTarget) {
       if (this.run.energy <= 0) return '累得手都在抖，先歇会儿';
       if (this.time.now < this.stealReadyAt) return '刚动过手，先别急';
-      return `偷钱袋（${this.stealTarget.purse} 元） · 轻推摇杆靠近`;
+      return `偷钱袋（${this.stealTarget.purse} 元） · 轻拖靠近`;
     }
 
     if (this.atExit) return '街区出口 · 打开城市地图';
 
-    return '沿路走走，轻轻推摇杆可以潜行';
+    return '沿路走走，轻拖可以潜行';
   }
 
   tryInteract() {
@@ -858,7 +860,19 @@ export class StreetScene extends Phaser.Scene {
       return;
     }
 
+    if (this.nearest.flash) this.nearest.flash();
     this.nearest.use();
+  }
+
+  /// A quick white blink on whatever the player just used.
+  flashSprite(sprite) {
+    if (!sprite || !sprite.setTintFill) return;
+
+    sprite.setTintFill(0xffffff);
+
+    this.time.delayedCall(80, () => {
+      if (sprite.active) sprite.clearTint();
+    });
   }
 
   canSteal() {
