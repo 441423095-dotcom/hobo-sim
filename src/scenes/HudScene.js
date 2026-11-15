@@ -5,6 +5,7 @@
 
 import { registerIcons } from '../icons.js';
 import { haptic } from '../haptics.js';
+import { playSfx } from '../audio.js';
 import { layoutFor } from '../layout.js';
 import { FOODS } from '../food.js';
 import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
@@ -70,7 +71,8 @@ export class HudScene extends Phaser.Scene {
       'trees',
       'tent',
       'building-2',
-      'factory'
+      'factory',
+      'list-checks'
     ]);
 
     this.street = this.scene.get('Street');
@@ -113,7 +115,8 @@ export class HudScene extends Phaser.Scene {
       clock: null,
       wanted: -1,
       slotMoney: null,
-      edge: null
+      edge: null,
+      goals: null
     };
 
     this.buildBand();
@@ -358,6 +361,56 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.hud)
       .setVisible(false);
+
+    // Old Zhou's list for the day: a small card under the chips with a row per
+    // job and a bar for the one in hand.
+    this.goalGfx = this.add.graphics().setDepth(DEPTH.hud - 1);
+
+    this.goalIcon = this.add
+      .image(0, 0, 'icon-list-checks')
+      .setScale(15 / 96)
+      .setDepth(DEPTH.hud);
+
+    this.goalTitle = this.add
+      .text(0, 0, '', {
+        fontFamily: FONT,
+        fontSize: '13px',
+        color: UI.gold,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(DEPTH.hud);
+
+    this.goalCount = this.add
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
+      .setOrigin(1, 0.5)
+      .setDepth(DEPTH.hud);
+
+    this.goalTrack = this.add
+      .rectangle(0, 0, 100, 4, 0x14110d, 0.9)
+      .setOrigin(0, 0.5)
+      .setDepth(DEPTH.hud);
+
+    this.goalFill = this.add
+      .rectangle(0, 0, 100, 4, UI.amberBright, 1)
+      .setOrigin(0, 0.5)
+      .setDepth(DEPTH.hud);
+
+    this.goalRows = [];
+    for (let i = 0; i < 3; i++) {
+      const row = this.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: UI.cream })
+        .setOrigin(0, 0.5)
+        .setDepth(DEPTH.hud)
+        .setVisible(false);
+
+      this.goalRows.push(row);
+    }
+
+    this.goalRowCount = 0;
+    this.goalBottom = 0;
+    this.goalBarW = 0;
+    this.goalPanel = { x: 12, y: 176, w: 300, h: 0 };
   }
 
   /// One panel serves every shop: the owner and the stock change, the shape
@@ -1045,6 +1098,8 @@ export class HudScene extends Phaser.Scene {
     this.energyTrack.setPosition(barX, 148).setScale(this.barScale, 1);
     this.energyFill.setPosition(barX, 148).setScale(this.barScale, 1);
 
+    this.layoutGoals();
+
     this.hintText.setPosition(w / 2, playH - 16);
 
     this.mapBtn.setPosition(w - 34, 33);
@@ -1052,8 +1107,124 @@ export class HudScene extends Phaser.Scene {
     this.districtText.setPosition(w / 2, 75);
     this.clockText.setPosition(24, 33);
     this.wantedText.setPosition(w - 34, 104);
-    this.edgeText.setPosition(w / 2, 178);
-    this.toastText.setPosition(w / 2, playH * 0.28);
+
+    // The list takes the space under the chips, so the hints that float in the
+    // middle of the screen move below it.
+    this.layoutFloaters(w, playH);
+  }
+
+  /// Hints that float over the street sit below Old Zhou's card, so the day's
+  /// list never covers them.
+  layoutFloaters(w, playH) {
+    const below = this.goalBottom + 18;
+
+    this.edgeText.setPosition(w / 2, Math.max(178, below));
+    this.toastText.setWordWrapWidth(Math.max(160, w - 48));
+    this.toastText.setPosition(w / 2, Math.max(playH * 0.28, below + 36));
+  }
+
+  /// The goal card: a row per job (up to three), with the progress on it and a
+  /// bar for the one in hand.
+  layoutGoals() {
+    const x = 12;
+    const y = 176;
+    const w = Math.min(this.w - 24, 300);
+    const rows = this.goalRowCount;
+    const h = rows > 0 ? 36 + rows * 20 + 12 : 0;
+
+    this.goalPanel = { x, y, w, h };
+    this.goalBottom = h > 0 ? y + h : 0;
+
+    const g = this.goalGfx;
+    g.clear();
+
+    if (!rows) {
+      this.goalIcon.setVisible(false);
+      this.goalTitle.setVisible(false);
+      this.goalCount.setVisible(false);
+      this.goalTrack.setVisible(false);
+      this.goalFill.setVisible(false);
+      this.goalRows.forEach((row) => row.setVisible(false));
+      return;
+    }
+
+    g.fillStyle(0x1a1611, 0.84);
+    g.fillRoundedRect(x, y, w, h, 10);
+    g.lineStyle(1, UI.amber, 0.3);
+    g.strokeRoundedRect(x, y, w, h, 10);
+
+    this.goalIcon.setVisible(true).setPosition(x + 18, y + 14).setScale(15 / 96);
+    this.goalTitle.setVisible(true).setPosition(x + 30, y + 14);
+    this.goalCount.setVisible(true).setPosition(x + w - 12, y + 14);
+
+    this.goalRows.forEach((row, i) => {
+      row.setPosition(x + 16, y + 36 + i * 20);
+    });
+
+    const barW = w - 24;
+    this.goalBarW = barW;
+    this.goalTrack.setVisible(true).setPosition(x + 12, y + h - 10).setScale(barW / 100, 1);
+    this.goalFill.setPosition(x + 12, y + h - 10);
+  }
+
+  goalsSignature(run) {
+    if (!run || !run.goals || run.goals.day !== run.day) {
+      return `none#${run ? run.day : 0}`;
+    }
+
+    return `${run.day}|${run.goals.list
+      .map((goal) => `${goal.kind}${goal.progress}/${goal.need}${goal.done ? 'd' : ''}`)
+      .join(',')}`;
+  }
+
+  refreshGoals() {
+    const run = this.street && this.street.run ? this.street.run : null;
+    const goals = run && run.goals && run.goals.day === run.day ? run.goals.list : [];
+
+    this.shown.goals = this.goalsSignature(run);
+
+    if (!goals.length) {
+      this.goalRowCount = 0;
+      this.layoutGoals();
+      return;
+    }
+
+    const doneCount = goals.filter((goal) => goal.done).length;
+    const first = goals.findIndex((goal) => !goal.done);
+    const start =
+      first < 0
+        ? Math.max(0, goals.length - 3)
+        : Math.max(0, Math.min(first, goals.length - 3));
+    const shown = goals.slice(start, start + 3);
+    const active = first >= 0 ? goals[first] : null;
+
+    this.goalRowCount = shown.length;
+    this.goalTitle.setText(`老周的目标 · 第 ${run.day} 天`);
+    this.goalCount.setText(`${doneCount}/${goals.length}`);
+
+    this.goalRows.forEach((row, i) => {
+      const goal = shown[i];
+
+      if (!goal) {
+        row.setVisible(false);
+        return;
+      }
+
+      row
+        .setVisible(true)
+        .setText(`${goal.done ? '✓' : '·'} ${goal.label}  ${goal.progress}/${goal.need}`)
+        .setColor(goal.done ? '#8fb27a' : goal === active ? UI.cream : '#a89a86');
+    });
+
+    this.layoutGoals();
+
+    const barW = this.goalBarW || 0;
+    const frac = active ? Math.max(0.03, active.progress / active.need) : 1;
+
+    this.goalFill.setVisible(true).setScale(Math.max(0.02, (barW * frac) / 100), 1);
+    this.goalFill.fillColor = active ? UI.amberBright : UI.good;
+
+    if (this.w) this.layoutFloaters(this.w, this.playH);
   }
 
   layoutControls() {
@@ -3096,6 +3267,7 @@ export class HudScene extends Phaser.Scene {
       return;
     }
 
+    playSfx('sell');
     haptic('sell');
     this.refreshTrade();
   }
@@ -3109,6 +3281,7 @@ export class HudScene extends Phaser.Scene {
       return;
     }
 
+    playSfx('sell');
     haptic('sell');
     this.refreshTrade();
   }
@@ -3122,6 +3295,7 @@ export class HudScene extends Phaser.Scene {
       return;
     }
 
+    playSfx('sell');
     haptic('sell');
     this.refreshTrade();
   }
@@ -3161,6 +3335,7 @@ export class HudScene extends Phaser.Scene {
       return;
     }
 
+    playSfx('sell');
     haptic('sell');
     this.refreshTrade();
   }
@@ -3225,6 +3400,7 @@ export class HudScene extends Phaser.Scene {
       return;
     }
 
+    playSfx('buy');
     haptic('buy');
     this.shown.storeSig = null;
     this.refreshStore();
@@ -3280,6 +3456,10 @@ export class HudScene extends Phaser.Scene {
 
     this.overLayer.setVisible(true);
     this.setLayerInput(this.overLayer, true);
+
+    // The card is the only thing left on screen, so its one button has to work
+    // whatever else was open when the beggar went down.
+    if (this.restartBtn.input) this.restartBtn.input.enabled = true;
   }
 
   hideOverlay() {
@@ -3310,6 +3490,12 @@ export class HudScene extends Phaser.Scene {
     this.shown.craftSig = null;
     this.shown.storeSig = null;
     this.shown.homeSig = null;
+    this.shown.goals = null;
+
+    // The tap that restarts the run must not carry on into the street once it
+    // is running again.
+    this.uiSettleAt = this.time.now + 320;
+    this.inputLockUntil = this.time.now + 320;
 
     if (this.street) this.street.restartRun();
   }
@@ -3392,6 +3578,12 @@ export class HudScene extends Phaser.Scene {
       this.wantedText.setText(`通缉 ${wanted}%`).setVisible(wanted > 0);
     }
 
+    const goalSig = this.goalsSignature(run);
+    if (goalSig !== this.shown.goals) {
+      this.shown.goals = goalSig;
+      this.refreshGoals();
+    }
+
     const edge = street.getEdgeHint ? street.getEdgeHint() : '';
     if (edge !== this.shown.edge) {
       this.shown.edge = edge;
@@ -3399,7 +3591,7 @@ export class HudScene extends Phaser.Scene {
     }
 
     if (this.actionBtn) {
-      const show = !this.qte;
+      const show = !this.qte && !this.overOpen;
       if (this.actionBtn.visible !== show) {
         this.actionBtn.setVisible(show);
         this.actionIcon.setVisible(show);

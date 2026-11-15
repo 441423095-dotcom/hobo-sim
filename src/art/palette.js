@@ -51,6 +51,19 @@ export const PAL_DRUNK = {
   B: '#1d1c19'
 };
 
+// Old Zhou, who waits by the tent: white hair, a faded coat that has seen a
+// dozen winters, and boots worn through at the toe.
+export const PAL_OLD = {
+  k: '#171310',
+  h: '#d5d0c4',
+  s: '#c9a382',
+  S: '#a87f5e',
+  c: '#6a5a3e',
+  d: '#4e4230',
+  p: '#3b3830',
+  B: '#1b1814'
+};
+
 // The moneyed crowd of the commercial district: a camel overcoat and shoes
 // that have never touched a puddle.
 export const PAL_RICH = {

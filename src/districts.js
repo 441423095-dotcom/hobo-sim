@@ -92,7 +92,10 @@ export const DISTRICTS = {
     vending: [{ x: 510, y: 380 }],
     slots: [],
     benches: [],
-    landmarks: [{ tex: 'stationclock', x: 150, y: 262 }]
+    landmarks: [
+      { tex: 'stationclock', x: 150, y: 262 },
+      { tex: 'stationcanopy', x: 190, y: 150, oy: 0, depth: 5600 }
+    ]
   },
 
   alley: {
@@ -192,7 +195,9 @@ export const DISTRICTS = {
       { tex: 'tree', x: 512, y: 680 },
       { tex: 'tree', x: 506, y: 1100 },
       { tex: 'tree', x: 250, y: 520 },
-      { tex: 'tree', x: 420, y: 900 }
+      { tex: 'tree', x: 420, y: 900 },
+      { tex: 'hedge', x: 208, y: 1088 },
+      { tex: 'hedge', x: 458, y: 540 }
     ]
   },
 
@@ -323,7 +328,7 @@ export const DISTRICTS = {
     ],
     slots: [],
     benches: [{ x: 300, y: 800 }],
-    landmarks: []
+    landmarks: [{ tex: 'neonsign', x: 516, y: 620, oy: 0, depth: 5600 }]
   }
 };
 

@@ -6,10 +6,12 @@
 import { createGameArt } from '../art/index.js';
 import { layoutFor } from '../layout.js';
 import { haptic } from '../haptics.js';
+import { initAudio, playSfx, setDistrictMood, updateAudio } from '../audio.js';
 import { FOODS } from '../food.js';
 import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
 import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
 import { RECIPES, recipeById, amountOf, spendMaterial } from '../craft.js';
+import { makeGoalsForDay } from '../goals.js';
 import { SHOPS, OUTFITS } from '../shops.js';
 import { FURNITURE, HOME_SCENE_COMFORT } from '../home.js';
 import { DAY_LENGTH, darknessAt, minutesToClock, segmentOf, segmentName } from '../time.js';
@@ -103,19 +105,35 @@ const ALLEYS = [
 const ALLEY_H = 78;
 
 // What each district puts on its street: crossings and traffic lights, a car or
-// two at the kerb, works hoarding and the odd awning.
+// two at the kerb and the odd awning. Nothing here may cover a bin, a begging
+// mat, a door or a machine — buildStreetDetail asks before it places anything.
 const STREET_DECOR = {
-  camp: { crosswalks: [560], cars: [420], hoardings: [], awnings: [] },
-  market: { crosswalks: [520, 1040], cars: [360, 880], hoardings: [], awnings: [330] },
-  square: { crosswalks: [420, 1120], cars: [300], hoardings: [720], awnings: [520] },
-  commerce: { crosswalks: [600], cars: [420, 960], hoardings: [860], awnings: [300] },
-  alley: { crosswalks: [520], cars: [], hoardings: [], awnings: [] },
-  park: { crosswalks: [700], cars: [], hoardings: [], awnings: [] },
-  slum: { crosswalks: [860], cars: [300], hoardings: [], awnings: [] }
+  camp: { crosswalks: [560], cars: [420], awnings: [] },
+  market: { crosswalks: [520, 1040], cars: [360, 880], awnings: [330] },
+  square: { crosswalks: [420, 1120], cars: [300], awnings: [520] },
+  commerce: { crosswalks: [600], cars: [420, 960], awnings: [300] },
+  alley: { crosswalks: [520], cars: [], awnings: [] },
+  park: { crosswalks: [700], cars: [], awnings: [] },
+  slum: { crosswalks: [860], cars: [300], awnings: [] }
 };
 
 // How long the player can stand in the cold night before freezing.
 const NIGHT_GRACE = 30000;
+
+// The body complains before it gives out. Below this much food or breath the
+// heart starts to be heard, and the beggar says what it feels like; under the
+// critical line the lines get shorter and the beats get faster.
+const WARN_AT = 26;
+const CRIT_AT = 11;
+
+const HUNGRY_LINES = [
+  '肚子在叫……先找点吃的。',
+  '有点发虚，得垫一口了。',
+  '再不吃东西，腿要软了。'
+];
+const STARVING_LINES = ['眼前发黑了……', '真的要饿死在街上吗。', '胃里空得发疼。'];
+const TIRED_LINES = ['腿有点沉。', '走不动了，找个地方坐坐。', '眼皮一直往下掉。'];
+const SPENT_LINES = ['一点力气都没有了……', '再走下去真要倒了。', '手在抖，站不稳。'];
 
 // The ends of the street, where the city map opens and the player can leave.
 const EXIT_ZONES = {
@@ -194,7 +212,11 @@ export class StreetScene extends Phaser.Scene {
     const payload = data || {};
 
     this.pendingDistrict = payload.district || null;
-    this.carriedRun = payload.run || null;
+
+    // A run that already ended is never carried over: the end-of-run card
+    // restarts the street, and the dead run must not come back with it.
+    const carried = payload.run || null;
+    this.carriedRun = carried && !carried.over ? carried : null;
     this.spawnAt = payload.spawn === 'top' ? 'top' : 'bottom';
   }
 
@@ -240,7 +262,8 @@ export class StreetScene extends Phaser.Scene {
         elapsed: 0,
         survived: 0,
         over: false,
-        sitting: false
+        sitting: false,
+        goals: null
       };
     this.carriedRun = null;
     if (typeof this.run.elapsed !== 'number') this.run.elapsed = 0;
@@ -298,8 +321,13 @@ export class StreetScene extends Phaser.Scene {
     this.qtePed = null;
     this.sneaking = false;
     this.energyWarned = false;
+    this.heartT = 0;
+    this.warnStage = 0;
+    this.stepT = 0;
+    this.musicTension = 0.15;
     this.alertExplained = false;
     this.loadHome();
+    this.ensureGoals();
 
     // The city is a grid of blocks: each district fills one cell, and the
     // streets of touching cells run into each other.
@@ -391,6 +419,14 @@ export class StreetScene extends Phaser.Scene {
     this.registerVisit();
 
     if (!this.scene.isActive('Hud')) this.scene.launch('Hud');
+
+    // The street's own soundtrack. Browsers only allow audio once a thumb has
+    // touched the screen, so the desk is opened on the first tap.
+    setDistrictMood(this.district.id);
+    this.input.once('pointerdown', () => initAudio());
+
+    // Old Zhou says what the day's list is once the screen has settled.
+    this.time.delayedCall(700, () => this.announceGoals());
   }
 
   // ---------------------------------------------------------------- building
@@ -399,11 +435,11 @@ export class StreetScene extends Phaser.Scene {
     for (const strip of this.strips) {
       this.add.image(strip.x0, strip.y0, 'ground').setOrigin(0, 0).setDepth(-40);
       this.add
-        .image(strip.x0 + LEFT_BUILDINGS.x, strip.y0, 'bld-left')
+        .image(strip.x0 + LEFT_BUILDINGS.x, strip.y0, `bld-${strip.id}-left`)
         .setOrigin(0, 0)
         .setDepth(-30);
       this.add
-        .image(strip.x0 + RIGHT_BUILDINGS.x, strip.y0, 'bld-right')
+        .image(strip.x0 + RIGHT_BUILDINGS.x, strip.y0, `bld-${strip.id}-right`)
         .setOrigin(0, 0)
         .setDepth(-30);
 
@@ -810,8 +846,31 @@ export class StreetScene extends Phaser.Scene {
     }
   }
 
-  /// Street furniture: crossings and their lights, cars at the kerb, works
-  /// hoarding, awnings over the odd door.
+  /// True when something the player has to see or reach already stands inside
+  /// this rectangle: a begging mat, a bin, a machine, a bench, a tree. Street
+  /// furniture is only decoration, so it gives way.
+  spotBlocked(strip, x, y, w, h) {
+    const pad = 26;
+    const spots = [];
+
+    for (const s of strip.district.bins || []) spots.push([s.x, s.y]);
+    for (const s of strip.district.mats || []) spots.push([s.x, s.y]);
+    for (const s of strip.district.vending || []) spots.push([s.x, s.y - 24]);
+    for (const s of strip.district.slots || []) spots.push([s.x, s.y]);
+    for (const s of strip.district.benches || []) spots.push([s.x, s.y]);
+
+    for (const s of strip.district.landmarks || []) {
+      if (s.tex === 'tree' || s.tex === 'hedge') spots.push([s.x, s.y]);
+    }
+
+    return spots.some(
+      ([px, py]) => px > x - pad && px < x + w + pad && py > y - pad && py < y + h + pad
+    );
+  }
+
+  /// Street furniture: crossings and their lights, cars at the kerb, awnings
+  /// over the odd door. Whatever would stand in front of something the player
+  /// can reach is left out — a bin or a mat must never be hidden.
   buildStreetDetail() {
     const add = (x, y, w, h) => {
       const rect = this.add.rectangle(x + w / 2, y + h / 2, w, h, 0x000000, 0);
@@ -842,20 +901,17 @@ export class StreetScene extends Phaser.Scene {
       }
 
       (decor.cars || []).forEach((cy, i) => {
-        const cx = i % 2 === 0 ? x0 + ROAD.x + 8 : x0 + ROAD.x + ROAD.width - 62;
+        const cx = i % 2 === 0 ? ROAD.x + 8 : ROAD.x + ROAD.width - 62;
 
-        this.add.image(cx, y0 + cy, 'parkedcar').setOrigin(0, 0).setDepth(y0 + cy + 96);
-        add(cx + 4, y0 + cy + 4, 46, 88);
+        if (this.spotBlocked(strip, cx, cy, 54, 96)) return;
+
+        this.add.image(x0 + cx, y0 + cy, 'parkedcar').setOrigin(0, 0).setDepth(y0 + cy + 96);
+        add(x0 + cx + 4, y0 + cy + 4, 46, 88);
       });
 
-      for (const hy of decor.hoardings || []) {
-        const hx = x0 + LEFT_PAVEMENT.x + 8;
-
-        this.add.image(hx, y0 + hy, 'hoarding').setOrigin(0, 0).setDepth(y0 + hy + 46);
-        add(hx, y0 + hy + 4, 200, 38);
-      }
-
       for (const ay of decor.awnings || []) {
+        if (this.spotBlocked(strip, 392, ay, 120, 26)) continue;
+
         this.add.image(x0 + 392, y0 + ay, 'awning').setOrigin(0, 0).setDepth(y0 + ay);
       }
     }
@@ -1354,12 +1410,15 @@ export class StreetScene extends Phaser.Scene {
       this.run.stolenIncome += amount;
     }
 
+    this.progressGoal('steal', 1);
+
     if (lootId) {
       ped.lootTaken = true;
       this.addLoot(lootId, ped.sprite.x, ped.sprite.y - 10);
     }
 
     this.advanceTime(20);
+    playSfx('steal');
     haptic('steal');
     this.floatText(ped.sprite.x, ped.sprite.y - 34, '香水一散，他眼神就软了', '#c9a8e6');
     return true;
@@ -1396,6 +1455,8 @@ export class StreetScene extends Phaser.Scene {
       }
 
       if (perfect) this.stayQuiet(ped);
+      this.progressGoal('steal', 1);
+      playSfx('steal');
       haptic('steal');
       return;
     }
@@ -1429,6 +1490,8 @@ export class StreetScene extends Phaser.Scene {
       if (perfect) this.stayQuiet(ped);
       else this.caughtInTheAct();
 
+      this.progressGoal('steal', 1);
+      playSfx('steal');
       haptic('steal');
       return;
     }
@@ -1442,6 +1505,7 @@ export class StreetScene extends Phaser.Scene {
       this.addWanted(STEAL_ITEM_FAIL_WANTED);
 
       this.floatText(ped.sprite.x, ped.sprite.y - 34, '被抓住了手腕！', '#f0b0a0');
+      playSfx('caught');
       haptic('caught');
 
       for (const other of this.peds) {
@@ -1460,6 +1524,7 @@ export class StreetScene extends Phaser.Scene {
     this.run.energy = Math.max(0, this.run.energy - STEAL_FAIL_ENERGY);
 
     this.floatText(ped.sprite.x, ped.sprite.y - 34, '干什么！', '#f0b0a0');
+    playSfx('stealFail');
     haptic('stealFail');
 
     for (const other of this.peds) {
@@ -1495,6 +1560,7 @@ export class StreetScene extends Phaser.Scene {
     this.run.money -= food.price;
     this.run.hunger = Math.min(HUNGER_MAX, this.run.hunger + food.restore);
     this.run.energy = Math.min(ENERGY_MAX, this.run.energy + (food.energy || 0));
+    playSfx('eat');
     haptic('buy');
     this.floatText(this.player.x, this.player.y - 46, `${food.name} +${food.restore}`, '#a8d98a');
     return true;
@@ -1508,6 +1574,7 @@ export class StreetScene extends Phaser.Scene {
     this.run.items[id] -= 1;
     this.run.money += price;
     this.run.soldIncome += price;
+    this.progressGoal('sell', price);
     this.refreshBagCount();
     this.floatText(this.player.x, this.player.y - 46, `+${price} 元`, UI.gold);
     return true;
@@ -1520,6 +1587,7 @@ export class StreetScene extends Phaser.Scene {
 
     this.run.loot[id] = (this.run.loot[id] || 0) + 1;
     this.refreshBagCount();
+    playSfx('pickup');
     haptic('pickup');
     this.floatText(x, y, `顺手：${item.name}`, '#e8dcc2');
   }
@@ -1532,6 +1600,7 @@ export class StreetScene extends Phaser.Scene {
     this.run.loot[id] -= 1;
     this.run.money += price;
     this.run.soldIncome += price;
+    this.progressGoal('sell', price);
     this.refreshBagCount();
     this.floatText(this.player.x, this.player.y - 46, `+${price} 元`, UI.gold);
     return true;
@@ -1568,6 +1637,7 @@ export class StreetScene extends Phaser.Scene {
     if (total > 0) {
       this.run.money += total;
       this.run.soldIncome += total;
+      this.progressGoal('sell', total);
       this.refreshBagCount();
       this.floatText(this.player.x, this.player.y - 46, `+${total} 元`, UI.gold);
     }
@@ -1583,13 +1653,17 @@ export class StreetScene extends Phaser.Scene {
 
     this.run.money -= tool.price;
     this.run.tools[id] = true;
+    playSfx('buy');
     haptic('buy');
     this.floatText(this.player.x, this.player.y - 46, `买下${tool.name}`, '#a8d98a');
     return true;
   }
 
+  /// Called by the end-of-run card. The street is rebuilt with a fresh run: the
+  /// payload from the last travel is deliberately not passed on, because it
+  /// still points at the run that just ended.
   restartRun() {
-    this.scene.restart();
+    this.scene.restart({ district: this.district.id, spawn: 'bottom' });
   }
 
   // ---------------------------------------------------------------- crafting
@@ -1631,6 +1705,7 @@ export class StreetScene extends Phaser.Scene {
     this.run.goods[id] -= 1;
     this.run.money += rec.value;
     this.run.soldIncome += rec.value;
+    this.progressGoal('sell', rec.value);
     this.floatText(this.player.x, this.player.y - 46, `+${rec.value} 元`, UI.gold);
     return true;
   }
@@ -1812,6 +1887,7 @@ export class StreetScene extends Phaser.Scene {
 
     this.run.items[id] += 1;
     this.refreshBagCount();
+    playSfx('pickup');
     haptic('pickup');
     this.floatText(x, y, `+${item.name}·${item.place}`, '#e8dcc2');
   }
@@ -2016,6 +2092,7 @@ export class StreetScene extends Phaser.Scene {
     this.axes.x = 0;
     this.axes.y = 0;
     if (this.player.body) this.player.body.setVelocity(0, 0);
+    playSfx('dig');
     haptic('dig');
   }
 
@@ -2028,6 +2105,7 @@ export class StreetScene extends Phaser.Scene {
 
     bin.setData('charges', charges - 1);
     this.advanceTime(25);
+    this.progressGoal('bins', 1);
 
     this.tweens.add({
       targets: bin,
@@ -2048,6 +2126,7 @@ export class StreetScene extends Phaser.Scene {
       this.floatText(bin.x, bin.y - 36, `找到图纸：${rec.name}`, UI.gold);
       const hud = this.scene.get('Hud');
       if (hud && hud.showToast) hud.showToast(`找到图纸：${rec.name}`);
+      playSfx('coin');
       haptic('coin');
       return;
     }
@@ -2057,6 +2136,7 @@ export class StreetScene extends Phaser.Scene {
     if (roll < 0.2) {
       this.run.energy = Math.min(ENERGY_MAX, this.run.energy + 18);
       this.floatText(bin.x, bin.y - 36, '半块面包 +精力', '#a8d98a');
+      playSfx('pickup');
       haptic('pickup');
       return;
     }
@@ -2066,6 +2146,7 @@ export class StreetScene extends Phaser.Scene {
       this.run.money += amount;
       this.run.scavengeIncome += amount;
       this.floatText(bin.x, bin.y - 36, `翻到 ${amount} 元`, UI.gold);
+      playSfx('coin');
       haptic('coin');
       return;
     }
@@ -2085,6 +2166,7 @@ export class StreetScene extends Phaser.Scene {
     this.searchBarGfx.clear();
     this.addWanted(SEEN_WANTED);
     this.floatText(this.player.x, this.player.y - 46, '警察看过来了！', '#f0a08a');
+    playSfx('refuse');
     haptic('refuse');
   }
 
@@ -2181,6 +2263,162 @@ export class StreetScene extends Phaser.Scene {
       label: '工作台·合成',
       use: () => this.openCraft()
     });
+
+    // Old Zhou sits by the tent and hands out the day's work. He stays there at
+    // any hour, keeping his eye on the fire pit.
+    const zhouX = strip.x0 + 402;
+    const zhouY = 612 + oy;
+
+    this.add.image(zhouX, zhouY, 'oldzhou').setOrigin(0.5, 1).setDepth(zhouY);
+
+    this.add
+      .text(zhouX, zhouY - 54, '老周', {
+        fontFamily: FONT,
+        fontSize: '14px',
+        color: '#e8dcc2',
+        stroke: '#100d09',
+        strokeThickness: 3
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(zhouY + 1);
+
+    this.addInteractable({
+      x: zhouX,
+      y: zhouY - 12,
+      radius: 76,
+      label: '和老周说话',
+      use: () => this.talkOldZhou()
+    });
+  }
+
+  // ----------------------------------------------------------------- old Zhou
+
+  /// Today's jobs, made fresh at the start of a day if the street has not got
+  /// them yet. The list lives on the run, so travelling keeps it.
+  ensureGoals() {
+    const run = this.run;
+    if (run.goals && run.goals.day === run.day) return run.goals.list;
+
+    run.goals = { day: run.day, list: makeGoalsForDay(run.day), announced: false };
+    return run.goals.list;
+  }
+
+  todayGoals() {
+    const run = this.run;
+    const goals = run && run.goals;
+    if (!goals || goals.day !== run.day) return [];
+
+    return goals.list;
+  }
+
+  goalsIntro() {
+    return this.run.day <= 1
+      ? '老周：先跟我学，把这几件事办了。'
+      : '老周：今天的活写在纸上了，办完有赏。';
+  }
+
+  /// Counts an action towards whatever today's list asks for, and pays the
+  /// reward the moment a job is done.
+  progressGoal(kind, amount = 1) {
+    const goals = this.todayGoals();
+    if (!goals.length || amount <= 0) return;
+
+    for (const goal of goals) {
+      if (goal.done || goal.kind !== kind) continue;
+
+      goal.progress = Math.min(goal.need, goal.progress + amount);
+
+      if (goal.progress >= goal.need) this.finishGoal(goal);
+    }
+  }
+
+  finishGoal(goal) {
+    if (goal.done) return;
+
+    goal.done = true;
+    goal.progress = goal.need;
+
+    const reward = goal.reward || {};
+
+    if (reward.money) this.run.money += reward.money;
+
+    for (const id of Object.keys(reward.items || {})) {
+      this.run.items[id] = (this.run.items[id] || 0) + reward.items[id];
+    }
+    this.refreshBagCount();
+
+    const parts = [];
+    if (reward.money) parts.push(`${reward.money} 元`);
+    for (const id of Object.keys(reward.items || {})) {
+      const junk = JUNK_ITEMS[id];
+      parts.push(`${junk ? junk.name : id}×${reward.items[id]}`);
+    }
+
+    this.floatText(
+      this.player.x,
+      this.player.y - 54,
+      parts.length ? `办成了 +${parts.join('、')}` : '办成了',
+      '#a8d98a'
+    );
+
+    playSfx('coin');
+    haptic('unlock');
+
+    const hud = this.scene.get('Hud');
+    if (!hud || !hud.showToast) return;
+
+    const next = this.todayGoals().find((entry) => !entry.done);
+
+    if (!next) {
+      hud.showToast('老周：今天的活你全办完了，早点歇着吧。');
+    } else if (this.run.day <= 1 && next.tip) {
+      hud.showToast(`老周：好。接着来——${next.label}。${next.tip}`);
+    } else {
+      hud.showToast(`老周：记下了。下一件：${next.label}`);
+    }
+  }
+
+  /// Old Zhou says where the day stands, and what is still on the list.
+  announceGoals() {
+    const hud = this.scene.get('Hud');
+    if (!hud || !hud.showToast) return;
+
+    // Once per morning: wandering between districts must not repeat him.
+    const state = this.run.goals;
+    if (!state || state.announced) return;
+    state.announced = true;
+
+    const goals = this.todayGoals();
+    const active = goals.find((goal) => !goal.done);
+
+    if (!active) {
+      hud.showToast('老周：今天的活你全办完了，早点歇着吧。');
+      return;
+    }
+
+    if (this.run.day <= 1 && active.tip) {
+      hud.showToast(`老周：${active.label}。${active.tip}`);
+      return;
+    }
+
+    hud.showToast(`${this.goalsIntro()}「${active.label}」`);
+  }
+
+  /// Tapping the old man repeats the list, with how far each job has got.
+  talkOldZhou() {
+    haptic('ui');
+
+    const goals = this.todayGoals();
+    if (!goals.length) return;
+
+    const lines = goals.map((goal) =>
+      goal.done ? `${goal.label}·已办` : `${goal.label}·${goal.progress}/${goal.need}`
+    );
+
+    this.floatText(this.player.x, this.player.y - 48, '和老周说了两句', UI.creamDim);
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast) hud.showToast(`老周：今天的事——${lines.join('；')}`);
   }
 
   loadHome() {
@@ -2282,6 +2520,9 @@ export class StreetScene extends Phaser.Scene {
   sleepAtHome() {
     const rest = this.sleepPreview();
 
+    // The tent is on most lists: getting in before the cold counts as done.
+    this.progressGoal('home', 1);
+
     this.run.energy = Math.min(ENERGY_MAX, this.run.energy + rest.energy);
     this.run.hunger = Math.max(0, Math.min(HUNGER_MAX, this.run.hunger + rest.hunger));
     this.run.sitting = false;
@@ -2319,6 +2560,10 @@ export class StreetScene extends Phaser.Scene {
       haptic('sleep');
       this.floatText(this.player.x, this.player.y - 46, '睡了一觉', '#a8d98a');
     }
+
+    // A new morning, so a new list from Old Zhou.
+    this.ensureGoals();
+    this.time.delayedCall(600, () => this.announceGoals());
 
     return { ...rest, summary, day: this.run.day };
   }
@@ -2372,7 +2617,12 @@ export class StreetScene extends Phaser.Scene {
         // Keep the lamp clear of the crossing and its lights.
         if (crossings.some((cy) => Math.abs(cy - localY) < 130)) return;
 
-        const x = strip.x0 + (i % 2 === 0 ? 266 : 374);
+        const localX = i % 2 === 0 ? 266 : 374;
+
+        // And clear of anything the player has to reach down at.
+        if (this.spotBlocked(strip, localX - 11, localY - 88, 22, 88)) return;
+
+        const x = strip.x0 + localX;
         const y = strip.y0 + localY;
 
         this.add.image(x, y, 'streetlamp').setOrigin(0.5, 1).setDepth(y);
@@ -2426,6 +2676,7 @@ export class StreetScene extends Phaser.Scene {
       sold: run.soldIncome
     };
 
+    playSfx('collapse');
     haptic('collapse');
 
     const hud = this.scene.get('Hud');
@@ -2612,6 +2863,7 @@ export class StreetScene extends Phaser.Scene {
     cop.mark.setVisible(true);
 
     this.floatText(this.player.x, this.player.y - 52, '有人报警了！', '#f0a08a');
+    playSfx('alarm');
     haptic('alarm');
     return true;
   }
@@ -2716,6 +2968,7 @@ export class StreetScene extends Phaser.Scene {
       this.floatText(this.player.x, this.player.y - 46, '被训了一顿', '#f08a7a');
     }
 
+    playSfx('caught');
     haptic('caught');
   }
 
@@ -2735,6 +2988,7 @@ export class StreetScene extends Phaser.Scene {
     this.prompt.setVisible(false);
     this.stopChases();
 
+    playSfx('collapse');
     haptic('collapse');
   }
 
@@ -2759,7 +3013,9 @@ export class StreetScene extends Phaser.Scene {
         this.run.money += amount;
         this.run.beggingIncome += amount;
         this.advanceTime(15);
+        this.progressGoal('beg', amount);
         this.floatText(tx, ty - 26, `+${amount} 元`, UI.gold);
+        playSfx('coin');
         haptic('coin');
       }
     });
@@ -3177,9 +3433,90 @@ export class StreetScene extends Phaser.Scene {
 
   // -------------------------------------------------------------------- frame
 
+  /// The body complains before it gives out: a heartbeat that tightens as food
+  /// and breath run out, and a line said under the breath each time the beggar
+  /// slips a stage further down. Both go quiet again once there is something in
+  /// the stomach.
+  updateWarnings(dt) {
+    const run = this.run;
+
+    if (run.over) {
+      this.heartT = 0;
+      return;
+    }
+
+    const worst = Math.min(run.hunger, run.energy);
+    const level = worst >= WARN_AT ? 0 : Phaser.Math.Clamp(1 - worst / WARN_AT, 0, 1);
+
+    if (level <= 0) {
+      this.heartT = 0;
+      this.warnStage = 0;
+      return;
+    }
+
+    this.heartT -= dt;
+    if (this.heartT <= 0) {
+      this.heartT = 1.05 + (0.46 - 1.05) * level;
+      playSfx('heart', { level });
+    }
+
+    const stage = worst <= CRIT_AT ? 2 : 1;
+    if (stage <= this.warnStage) return;
+
+    this.warnStage = stage;
+
+    const hungry = run.hunger <= run.energy;
+    const pool = hungry
+      ? stage === 2
+        ? STARVING_LINES
+        : HUNGRY_LINES
+      : stage === 2
+        ? SPENT_LINES
+        : TIRED_LINES;
+
+    this.sayLine(pool[Math.floor(Math.random() * pool.length)]);
+  }
+
+  /// Something the beggar mutters, rising from their head and fading out.
+  sayLine(text) {
+    playSfx('voice');
+
+    const label = this.add
+      .text(this.player.x, this.player.y - 58, `“${text}”`, {
+        fontFamily: FONT,
+        fontSize: '17px',
+        color: '#e8dcc2',
+        stroke: '#100d09',
+        strokeThickness: 4,
+        align: 'center',
+        wordWrap: { width: 240 }
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(7000);
+
+    this.tweens.add({
+      targets: label,
+      y: label.y - 26,
+      alpha: 0,
+      duration: 2600,
+      ease: 'Quad.easeOut',
+      onComplete: () => label.destroy()
+    });
+  }
+
   update(time, delta) {
     const dt = Math.min(delta, 60) / 1000;
     const run = this.run;
+
+    // The music is told where the beggar is and how much trouble they are in:
+    // digging and a spotted officer tighten it, a chase takes it all the way up.
+    let mood = 0.15;
+    if (this.cops.some((cop) => cop.chasing)) mood = 1;
+    else if (this.seenByPolice()) mood = 0.75;
+    else if (this.searching) mood = 0.55;
+
+    this.musicTension += (mood - this.musicTension) * Math.min(1, dt * 1.8);
+    updateAudio(dt, { tension: this.musicTension, night: darknessAt(run.step) });
 
     if (!run.over) {
       run.hunger = Math.max(0, run.hunger - HUNGER_DRAIN * dt);
@@ -3204,6 +3541,7 @@ export class StreetScene extends Phaser.Scene {
       if (!this.benchAsleep && this.benchTime > 9) {
         this.benchAsleep = true;
         this.floatText(this.player.x, this.player.y - 42, '你睡着了……', UI.creamDim);
+        playSfx('sleep');
         haptic('sleep');
       }
 
@@ -3266,15 +3604,25 @@ export class StreetScene extends Phaser.Scene {
       this.walkT += dt * (this.sneaking ? 6 : 12);
 
       if (!this.sneaking) run.energy = Math.max(0, run.energy - RUN_DRAIN * dt);
+
+      // A heel on the pavement, once a stride.
+      this.stepT -= dt;
+      if (this.stepT <= 0) {
+        this.stepT = this.sneaking ? 0.62 : 0.38;
+        playSfx('foot', { freq: this.sneaking ? 620 : 900 });
+      }
     } else {
       if (this.player.body) this.player.body.setVelocity(0, 0);
       this.walkT = 0;
+      this.stepT = 0;
     }
 
     if (run.sitting && !run.over) {
       run.energy = Math.min(ENERGY_MAX, run.energy + SIT_RECOVER * dt);
     }
     if (run.energy > 0) this.energyWarned = false;
+
+    this.updateWarnings(dt);
 
     const bob = moving ? Math.sin(this.walkT) * 0.03 : 0;
     this.player.setScale(1, 1 + bob);
