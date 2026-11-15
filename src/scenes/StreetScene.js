@@ -155,6 +155,12 @@ const GANG_GRAB = 26;
 const GANG_COOLDOWN = 9000;
 const GANG_ENERGY = 12;
 
+// A robbery out of the dark: the chance rises with the hour, the district and
+// standing in a narrow cut between two blocks rather than out on the pavement.
+const MUG_BASE = { alley: 0.22, slum: 0.2, other: 0.07 };
+const MUG_CHECK_MIN = 12000;
+const MUG_CHECK_RAND = 9000;
+
 // Narrow alleys cut through the buildings between two blocks. Most are open to
 // anyone; the one at the bottom of the street is fenced until somebody picks the
 // lock.
@@ -482,6 +488,8 @@ export class StreetScene extends Phaser.Scene {
     this.skyFlipAt = 0;
     this.passerbyAt = 0;
     this.mugAt = 0;
+    this.mug = null;
+    this.mugCheckAt = 0;
     this.errandAt = 0;
     this.storyAt = 0;
     this.snowFires = false;
@@ -3453,72 +3461,237 @@ export class StreetScene extends Phaser.Scene {
     }
   }
 
-  /// The gangs own the alleys after dark. Walk through the alley or the black
-  /// street in the evening and somebody may step out of a doorway — unless they
-  /// already know the beggar's face, or he is standing in the firelight.
+  /// The gangs own the alleys after dark. Walk through the back alley or the
+  /// black street in the evening and somebody may step out of a doorway — more
+  /// often in a narrow cut between two blocks than out on the open street, and
+  /// more often the deeper the night gets.
   updateNightDanger() {
     const run = this.run;
     if (run.over || !this.district) return;
-
-    const id = this.district.id;
-    const gang = id === 'alley' ? GANGS.crow : id === 'slum' ? GANGS.tin : null;
-    if (!gang) return;
-
-    const segment = segmentOf(run.step);
-    if (segment < 2) return;
+    if (this.mug && this.mug.active) return;
 
     // Never while a panel is open: being robbed while reading a shop list is
     // just unfair.
     const hudPanel = this.scene.get('Hud');
     if (hudPanel && hudPanel.anyPanelOpen && hudPanel.anyPanelOpen()) return;
 
-    if (this.time.now < this.mugAt) return;
-    this.mugAt = this.time.now + 9000 + Math.random() * 9000;
+    const segment = segmentOf(run.step);
+    if (segment < 2) return;
 
-    const standing = gangStanding(run, gang.id);
-    if (standing >= 40) return;
+    const id = this.district.id;
+    const gang = id === 'alley' ? GANGS.crow : id === 'slum' ? GANGS.tin : null;
 
-    // Standing in the firelight of their own camp: left alone.
-    const campStrip = this.stripFor(gang.district);
-    if (campStrip) {
-      const cx = campStrip.x0 + gang.spot.x;
-      const cy = campStrip.y0 + gang.spot.y;
-      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, cx, cy) < 190) return;
+    // The gangs leave their own people alone, and their camp fire is theirs.
+    if (gang) {
+      if (gangStanding(run, gang.id) >= 40) return;
+
+      const campStrip = this.stripFor(gang.district);
+      if (campStrip) {
+        const cx = campStrip.x0 + gang.spot.x;
+        const cy = campStrip.y0 + gang.spot.y;
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, cx, cy) < 190) return;
+      }
     }
 
-    const chance = (segment === 3 ? 0.4 : 0.22) * (1 - Math.min(0.7, standing / 60));
-    if (Math.random() > chance) return;
+    if (this.time.now < this.mugCheckAt) return;
+    this.mugCheckAt = this.time.now + MUG_CHECK_MIN + Math.random() * MUG_CHECK_RAND;
 
-    this.mugPlayer();
+    // The safe spell after a robbery, whichever way it ended.
+    if (this.time.now < this.mugAt) return;
+
+    const base = MUG_BASE[id] || MUG_BASE.other;
+    const depth = segment === 3 ? 1.8 : 0.55;
+    const narrow = this.inNarrowAlley() ? 2 : 1;
+    const standing = gangStanding(run, id);
+
+    let chance = base * depth * narrow * (1 - Math.min(0.75, standing / 60));
+
+    // Standing in a fire's warmth keeps the worst of the street away.
+    if (this.time.now < this.warmUntil) chance *= 0.3;
+
+    if (chance <= 0 || Math.random() > chance) return;
+
+    this.startMugging();
   }
 
-  mugPlayer() {
-    const run = this.run;
-    const lost = Math.floor(run.money * (0.2 + Math.random() * 0.2));
+  /// Is the beggar in one of the narrow cuts between two blocks, close to the
+  /// buildings on either side?
+  inNarrowAlley() {
+    const strip = this.currentStrip();
+    if (!strip) return false;
 
-    this.mugAt = this.time.now + 55000;
-    run.energy = Math.max(0, run.energy - 8);
-    this.cameras.main.shake(220, 0.006);
-    this.soilOutfit(0.1);
+    const localY = this.player.y - strip.y0;
+    const localX = this.player.x - strip.x0;
 
-    if (lost > 0) run.money -= lost;
+    if (localX > 150 && localX < STREET_WIDTH - 150) return false;
 
-    if (lost > 0) {
-      this.floatText(this.player.x, this.player.y - 52, `被抢走 ${lost} 元`, '#f08a7a');
-    } else {
-      this.floatText(this.player.x, this.player.y - 50, '身上没钱，被推了一把', '#f08a7a');
-    }
+    return ALLEYS.some((alley) => localY > alley.y && localY < alley.y + ALLEY_H);
+  }
+
+  /// Somebody steps out of the dark and the beggar has to decide, there and
+  /// then, what he is willing to lose.
+  startMugging() {
+    if (this.mug && this.mug.active) return;
+
+    this.mug = { active: true };
+
+    this.axes.x = 0;
+    this.axes.y = 0;
+    if (this.player.body) this.player.body.setVelocity(0, 0);
+
+    this.cameras.main.shake(160, 0.004);
+    playSfx('caught');
+    haptic('caught');
 
     const hud = this.scene.get('Hud');
-    if (hud && hud.showToast) {
-      hud.showToast(
-        lost > 0 ? '巷子里冲出两个人，把你按在墙上掏了兜' : '巷子里两个人翻了你的兜，什么也没翻到'
-      );
+    if (hud && hud.openMug) hud.openMug();
+    else this.mugChoose('give');
+  }
+
+  /// What each way out would cost, said plainly, for the card the player picks
+  /// from.
+  mugInfo() {
+    const run = this.run;
+    const give = Math.max(1, Math.floor((run.money || 0) * 0.3));
+
+    return {
+      give:
+        run.money > 0 ? `掏 ${give} 元左右，他们拿了钱就走` : '身上没钱，他们未必信你',
+      run: '耗 18 精力，跑不跑得掉看运气',
+      fight: '一次判定 · 赢了抢回几块，输了挨一顿'
+    };
+  }
+
+  mugChoose(choice) {
+    if (!this.mug || !this.mug.active) return;
+
+    this.mug = null;
+
+    if (choice === 'run') return this.mugRun();
+    if (choice === 'fight') return this.mugFight();
+
+    return this.mugPay();
+  }
+
+  mugPay() {
+    const run = this.run;
+    const lost = Math.max(1, Math.floor(run.money * (0.22 + Math.random() * 0.14)));
+
+    run.money = Math.max(0, run.money - lost);
+    run.energy = Math.max(0, run.energy - 4);
+    this.soilOutfit(0.06);
+
+    this.floatText(this.player.x, this.player.y - 52, `掏了 ${lost} 元`, '#f08a7a');
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast) hud.showToast('你把兜里的钱掏了大半，他们骂了句穷鬼，走了。');
+
+    playSfx('refuse');
+    haptic('refuse');
+
+    this.endMugging(50000);
+  }
+
+  mugRun() {
+    const run = this.run;
+
+    run.energy = Math.max(0, run.energy - 18);
+
+    const hud = this.scene.get('Hud');
+    const chance = run.energy > 25 ? 0.6 : 0.4;
+
+    if (Math.random() < chance) {
+      this.floatText(this.player.x, this.player.y - 52, '钻过窄巷甩掉了他们', '#a8d98a');
+      if (hud && hud.showToast) hud.showToast('你一低头钻进巷子，身后传来骂声和脚步声。');
+
+      playSfx('foot', { freq: 1000 });
+      haptic('unlock');
+
+      this.endMugging(30000);
+      return;
     }
+
+    const lost = Math.max(1, Math.floor(run.money * (0.25 + Math.random() * 0.2)));
+
+    run.money = Math.max(0, run.money - lost);
+    run.energy = Math.max(0, run.energy - 12);
+    this.soilOutfit(0.1);
+    this.cameras.main.shake(220, 0.006);
+
+    this.floatText(this.player.x, this.player.y - 52, `没跑掉 · 丢了 ${lost} 元`, '#f08a7a');
+    if (hud && hud.showToast) hud.showToast('没跑两步就被按住，兜被翻了个底朝天。');
+
+    playSfx('caught');
+    haptic('impact');
+
+    this.endMugging(45000);
+  }
+
+  mugFight() {
+    const hud = this.scene.get('Hud');
+
+    if (!hud || !hud.startQte) {
+      this.mugPay();
+      return;
+    }
+
+    hud.startQte({
+      zoneStart: 0.3,
+      zoneWidth: 0.3,
+      speed: 0.9,
+      title: '反抗',
+      tip: '滑块进绿区时出手，一下把他们吓退',
+      onResolve: (result) => this.resolveMugFight(result)
+    });
+  }
+
+  resolveMugFight(result) {
+    const run = this.run;
+    const hud = this.scene.get('Hud');
+
+    if (result === 'good' || result === 'perfect') {
+      const back = Phaser.Math.Between(2, 6);
+
+      run.money += back;
+      run.energy = Math.max(0, run.energy - 6);
+
+      this.floatText(this.player.x, this.player.y - 52, `抢回 ${back} 元`, UI.gold);
+      if (hud && hud.showToast) hud.showToast('你抡起胳膊，把最前头那个吓退了，他们骂着散了。');
+
+      playSfx('impact');
+      haptic('jackpot');
+
+      this.endMugging(90000);
+      return;
+    }
+
+    const lost = Math.max(1, Math.floor(run.money * (0.3 + Math.random() * 0.2)));
+
+    run.money = Math.max(0, run.money - lost);
+    run.energy = Math.max(0, run.energy - 30);
+    run.hunger = Math.max(0, run.hunger - 6);
+    this.soilOutfit(0.15);
+    this.cameras.main.shake(260, 0.007);
+
+    this.floatText(this.player.x, this.player.y - 52, `被打了一顿 · 掉了 ${lost} 元`, '#f08a7a');
+    if (hud && hud.showToast) hud.showToast('你一挥空，被按在墙上，钱和力气一起没了。');
 
     playSfx('caught');
     haptic('caught');
-    this.stealReadyAt = this.time.now + 4000;
+
+    this.endMugging(45000);
+  }
+
+  /// However it went, there is a stretch of street where nobody tries it again.
+  endMugging(safeMs) {
+    const safe = typeof safeMs === 'number' ? safeMs : 45000;
+
+    this.mug = null;
+    this.mugAt = this.time.now + safe;
+    this.mugCheckAt = this.mugAt;
+    this.stealReadyAt = this.time.now + 2000;
+
+    this.saveNow();
   }
 
   /// Now and then something small happens between the beggar and one of the

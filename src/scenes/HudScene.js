@@ -150,6 +150,7 @@ export class HudScene extends Phaser.Scene {
     this.mapBus = false;
     this.busFrom = null;
     this.stealChoiceOpen = false;
+    this.mugOpen = false;
     this.peddleOpen = false;
     this.testerOpen = false;
     this.begOpen = false;
@@ -203,6 +204,7 @@ export class HudScene extends Phaser.Scene {
     this.buildDrift();
     this.buildQte();
     this.buildStealChoice();
+    this.buildMug();
     this.buildPeddle();
     this.buildTester();
     this.buildOptions();
@@ -227,6 +229,7 @@ export class HudScene extends Phaser.Scene {
     this.setLayerInput(this.qteLayer, false);
     this.setLayerInput(this.overLayer, false);
     this.setLayerInput(this.stealChoiceLayer, false);
+    this.setLayerInput(this.mugLayer, false);
     this.setLayerInput(this.peddleLayer, false);
     this.setLayerInput(this.testerLayer, false);
     this.setLayerInput(this.begLayer, false);
@@ -975,6 +978,7 @@ export class HudScene extends Phaser.Scene {
       this.slotOpen ||
       this.qte ||
       this.stealChoiceOpen ||
+      this.mugOpen ||
       this.peddleOpen ||
       this.testerOpen ||
       this.begOpen ||
@@ -1034,6 +1038,144 @@ export class HudScene extends Phaser.Scene {
     }
 
     if (this.street) this.street.trySteal(mode);
+  }
+
+  // ---------------------------------------------------------------- a mugging
+
+  /// Three ways out of a back-alley robbery: hand over the money, run, or swing
+  /// at the first one and hope.
+  buildMug() {
+    this.mugLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 2).setVisible(false);
+
+    this.mugBackdrop = this.add
+      .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.mugBackdrop.on('pointerup', () => this.dimMug());
+
+    this.mugGfx = this.add.graphics();
+
+    this.mugTitle = this.add
+      .text(0, 0, '巷子里被人堵住了', {
+        fontFamily: FONT,
+        fontSize: '17px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.mugLayer.add([this.mugBackdrop, this.mugGfx, this.mugTitle]);
+
+    this.mugRows = [];
+
+    const modes = [
+      { id: 'give', icon: 'icon-coins', name: '把钱给他' },
+      { id: 'run', icon: 'icon-footprints', name: '转身就跑' },
+      { id: 'fight', icon: 'icon-hand', name: '反抗一下' }
+    ];
+
+    for (const mode of modes) {
+      const bg = this.add
+        .rectangle(0, 0, 1, 1, UI.panelRow, 1)
+        .setOrigin(0, 0.5)
+        .setInteractive();
+      const icon = this.add.image(0, 0, mode.icon);
+      const name = this.add
+        .text(0, 0, mode.name, {
+          fontFamily: FONT,
+          fontSize: '16px',
+          color: UI.cream,
+          fontStyle: 'bold'
+        })
+        .setOrigin(0, 0.5);
+      const info = this.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
+        .setOrigin(0, 0.5);
+
+      const row = { bg, icon, name, info, id: mode.id };
+      bg.on('pointerdown', () => this.pickMug(row.id));
+
+      this.mugLayer.add([bg, icon, name, info]);
+      this.mugRows.push(row);
+    }
+  }
+
+  layoutMug() {
+    const w = this.w;
+    const pw = Math.min(w - 48, 320);
+    const rowH = 58;
+    const ph = 62 + rowH * this.mugRows.length + 14;
+    const px = (w - pw) / 2;
+    const py = Math.max(56, this.playH * 0.34 - ph / 2);
+
+    this.mugBackdrop.setScale(w, this.h).setPosition(0, 0);
+
+    const g = this.mugGfx;
+    g.clear();
+    g.fillStyle(UI.panel, 0.97);
+    g.fillRoundedRect(px, py, pw, ph, 16);
+    g.lineStyle(2, '#a8563c', 0.85);
+    g.strokeRoundedRect(px, py, pw, ph, 16);
+
+    this.mugTitle.setPosition(w / 2, py + 24);
+
+    const rowW = pw - 24;
+    const rowX = px + 12;
+
+    this.mugRows.forEach((row, i) => {
+      const ry = py + 50 + rowH * i + rowH / 2 + 8;
+
+      row.bg.setScale(rowW, rowH).setPosition(rowX, ry);
+      row.icon.setPosition(rowX + 28, ry).setScale(0.28);
+      row.name.setPosition(rowX + 52, ry - 9);
+      row.info.setPosition(rowX + 52, ry + 11);
+    });
+  }
+
+  refreshMug() {
+    const info = this.street && this.street.mugInfo ? this.street.mugInfo() : {};
+
+    const data = [
+      info.give || '掏出大半的钱，他们放你走',
+      info.run || '耗一截精力，跑不跑得掉看运气',
+      info.fight || '一次判定 · 赢了抢回几块，输了挨打'
+    ];
+
+    this.mugRows.forEach((row, i) => {
+      row.info.setText(data[i]);
+    });
+  }
+
+  openMug() {
+    if (this.mugOpen || this.overOpen || this.qte) return;
+
+    this.mugOpen = true;
+    this.showPanel(this.mugLayer);
+    this.releaseStick();
+    this.layoutMug();
+    this.refreshMug();
+
+    this.uiSettleAt = this.time.now + 260;
+    haptic('caught');
+  }
+
+  pickMug(id) {
+    if (!this.mugOpen) return;
+    if (this.time.now < this.uiSettleAt) return;
+
+    this.mugOpen = false;
+    this.hidePanel(this.mugLayer);
+    this.inputLockUntil = this.time.now + 220;
+
+    if (this.street && this.street.mugChoose) this.street.mugChoose(id);
+  }
+
+  /// Tapping outside the card is the same as handing the money over.
+  dimMug() {
+    if (!this.mugOpen) return;
+    if (this.time.now < this.uiSettleAt) return;
+
+    this.pickMug('give');
   }
 
   // ------------------------------------------------------------ peddling
@@ -3212,13 +3354,16 @@ export class HudScene extends Phaser.Scene {
       perfectStart: zone.perfectStart || 0,
       perfectWidth: zone.perfectWidth || 0,
       speed: zone.speed,
-      timeLeft: 3.4
+      timeLeft: 3.4,
+      onResolve: zone.onResolve || null
     };
 
     const asItem = zone.mode === 'item';
-    this.qteTitle.setText(asItem ? '顺口袋' : '摸钱袋');
+    this.qteTitle.setText(zone.title || (asItem ? '顺口袋' : '摸钱袋'));
 
-    if (this.qte.perfectWidth > 0) {
+    if (zone.tip) {
+      this.qteTip.setText(zone.tip);
+    } else if (this.qte.perfectWidth > 0) {
       this.qteTip.setText('金色区：收益翻倍，且绝不惊动人');
     } else if (asItem) {
       this.qteTip.setText('绿区更宽，但被抓住手腕更麻烦');
@@ -3311,11 +3456,14 @@ export class HudScene extends Phaser.Scene {
       }
     }
 
+    const onResolve = q.onResolve || null;
+
     this.qte = null;
     this.qteLayer.setVisible(false);
     this.setLayerInput(this.qteLayer, false);
 
-    if (this.street && this.street.resolveSteal) this.street.resolveSteal(result);
+    if (onResolve) onResolve(result);
+    else if (this.street && this.street.resolveSteal) this.street.resolveSteal(result);
   }
 
   buildOverlay() {
@@ -3406,6 +3554,7 @@ export class HudScene extends Phaser.Scene {
     if (this.mapOpen) this.refreshMap();
     if (this.qte) this.layoutQte();
     if (this.stealChoiceOpen) this.layoutStealChoice();
+    if (this.mugOpen) this.layoutMug();
     if (this.peddleOpen) this.layoutPeddle();
     if (this.testerOpen) this.layoutTester();
     if (this.begOpen) this.layoutBegChoice();
@@ -3879,6 +4028,7 @@ export class HudScene extends Phaser.Scene {
       this.slotOpen ||
       this.qte ||
       this.stealChoiceOpen ||
+      this.mugOpen ||
       this.peddleOpen ||
       this.testerOpen ||
       this.begOpen ||
@@ -3999,6 +4149,7 @@ export class HudScene extends Phaser.Scene {
       this.slotOpen ||
       this.qte ||
       this.stealChoiceOpen ||
+      this.mugOpen ||
       this.peddleOpen ||
       this.testerOpen ||
       this.begOpen ||
@@ -4089,6 +4240,7 @@ export class HudScene extends Phaser.Scene {
       this.vendingOpen ||
       this.slotOpen ||
       this.stealChoiceOpen ||
+      this.mugOpen ||
       this.optOpen ||
       this.optionsOpen
     );
@@ -6423,7 +6575,8 @@ export class HudScene extends Phaser.Scene {
     for (const pair of [
       ['begOpen', this.begLayer],
       ['bagOpen', this.bagLayer],
-      ['goalsOpen', this.goalsLayer]
+      ['goalsOpen', this.goalsLayer],
+      ['mugOpen', this.mugLayer]
     ]) {
       this[pair[0]] = false;
       pair[1].setVisible(false);
