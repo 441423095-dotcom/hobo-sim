@@ -90,6 +90,13 @@ export function buildWorldArt(scene) {
   canvasTexture(scene, 'stationcanopy', 200, 92, drawStationCanopy);
   canvasTexture(scene, 'hedge', 96, 34, drawHedge);
   canvasTexture(scene, 'neonsign', 26, 96, drawNeonSign);
+
+  // The street-food carts, one per block, each with its own hanging sign.
+  for (const cart of STREET_CARTS) {
+    canvasTexture(scene, `foodstall-${cart.name}`, 120, 88, (ctx, w, h) =>
+      drawFoodStall(ctx, w, h, cart.name, cart.colour)
+    );
+  }
   canvasTexture(scene, 'vending', 44, 74, drawVending);
   canvasTexture(scene, 'slotmachine', 48, 64, drawSlotMachine);
   canvasTexture(scene, 'bench', 66, 34, drawBench);
@@ -1920,6 +1927,96 @@ function drawNeonSign(ctx, w, h) {
   ctx.fillStyle = glow;
   roundRectPath(ctx, 0, 10, w, h - 12, 6);
   ctx.fill();
+}
+
+// The food carts that stand at the kerb in the middle of every block. Each one
+// hangs its own sign, so the market street reads like a Chinese street and not
+// like a row of anonymous shopfronts.
+const STREET_CARTS = [
+  { name: '兰州拉面', colour: '#b8442f' },
+  { name: '沙县小吃', colour: '#3f6a3a' },
+  { name: '烧烤摊', colour: '#a05a2a' },
+  { name: '盒饭', colour: '#4a5a3a' },
+  { name: '麻辣烫', colour: '#9a2f2a' },
+  { name: '煎饼摊', colour: '#c08a2a' },
+  { name: '奶茶', colour: '#7a4a6a' }
+];
+
+/// A street-food cart: a glass cabinet, a striped canopy and a sign with the
+/// stall's name on it.
+function drawFoodStall(ctx, w, h, name, colour) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Shadow on the paving.
+  ctx.fillStyle = 'rgba(10,9,7,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(w / 2, h - 6, w / 2 - 6, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Canopy posts.
+  ctx.fillStyle = '#5a4432';
+  ctx.fillRect(6, 8, 4, 46);
+  ctx.fillRect(w - 22, 8, 4, 46);
+
+  // Striped canopy.
+  for (let i = 0; i * 12 < w - 16; i++) {
+    ctx.fillStyle = i % 2 ? '#efe3c8' : colour;
+    ctx.fillRect(6 + i * 12, 0, 12, 12);
+  }
+  ctx.fillStyle = 'rgba(12,10,8,0.3)';
+  ctx.fillRect(6, 12, w - 16, 3);
+
+  // The sign hanging under the canopy.
+  ctx.fillStyle = '#181310';
+  ctx.fillRect(w / 2 - 44, 18, 88, 20);
+  ctx.strokeStyle = 'rgba(242,196,106,0.6)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(w / 2 - 44, 18, 88, 20);
+
+  ctx.fillStyle = '#f7edd8';
+  ctx.font = 'bold 13px "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(name, w / 2, 29);
+
+  // Cart body.
+  ctx.fillStyle = '#6a655c';
+  roundRectPath(ctx, 10, 44, w - 32, 32, 5);
+  ctx.fill();
+
+  // The glass cabinet with the day's food in it.
+  ctx.fillStyle = '#2a3136';
+  roundRectPath(ctx, 14, 46, w - 52, 26, 4);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(200,230,240,0.22)';
+  ctx.fillRect(16, 48, w - 56, 8);
+
+  const bites = ['#d8b06a', '#c4553f', '#8fb27a', '#e8dcc2'];
+  for (let i = 0; i < 5; i++) {
+    ctx.fillStyle = bites[i % bites.length];
+    ctx.fillRect(18 + i * 9, 58, 6, 8);
+  }
+
+  // Counter and wheels.
+  ctx.fillStyle = '#4a453c';
+  ctx.fillRect(10, 74, w - 32, 4);
+  ctx.fillStyle = '#1a1a1c';
+  ctx.beginPath();
+  ctx.arc(30, 80, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(w - 46, 80, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Steam off the pot.
+  ctx.strokeStyle = 'rgba(240,240,230,0.28)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(w - 40 + i * 10, 44);
+    ctx.quadraticCurveTo(w - 46 + i * 10, 32, w - 38 + i * 10, 22);
+    ctx.stroke();
+  }
 }
 
 function drawStreetLamp(ctx, w, h) {

@@ -57,6 +57,106 @@ export const SHOPS = [
     doorX: 516,
     doorY: 180,
     radius: 76
+  },
+  // Street-food carts, parked at the kerb in the middle of each block. They are
+  // drawn in the street rather than on the building, so they sort with the world.
+  {
+    id: 'stall-market',
+    name: '兰州拉面',
+    owner: '拉面摊老板',
+    blurb: '一碗热汤面，站着就吃完了',
+    district: 'market',
+    tex: 'foodstall-兰州拉面',
+    x: 214,
+    y: 612,
+    doorX: 236,
+    doorY: 718,
+    radius: 80,
+    ground: true
+  },
+  {
+    id: 'stall-square',
+    name: '沙县小吃',
+    owner: '出站口的小店',
+    blurb: '蒸饺、拌面，赶车的人都在排',
+    district: 'square',
+    tex: 'foodstall-沙县小吃',
+    x: 214,
+    y: 812,
+    doorX: 236,
+    doorY: 918,
+    radius: 80,
+    ground: true
+  },
+  {
+    id: 'stall-alley',
+    name: '烧烤摊',
+    owner: '光膀子的师傅',
+    blurb: '炭火一旺，半条巷子都闻得到',
+    district: 'alley',
+    tex: 'foodstall-烧烤摊',
+    x: 214,
+    y: 912,
+    doorX: 236,
+    doorY: 1018,
+    radius: 80,
+    ground: true
+  },
+  {
+    id: 'stall-camp',
+    name: '盒饭',
+    owner: '骑三轮的大姐',
+    blurb: '十块钱一份，菜码随便加',
+    district: 'camp',
+    tex: 'foodstall-盒饭',
+    x: 214,
+    y: 932,
+    doorX: 236,
+    doorY: 1038,
+    radius: 80,
+    ground: true
+  },
+  {
+    id: 'stall-slum',
+    name: '麻辣烫',
+    owner: '黑街的老板娘',
+    blurb: '一锅汤底从早滚到晚',
+    district: 'slum',
+    tex: 'foodstall-麻辣烫',
+    x: 214,
+    y: 712,
+    doorX: 236,
+    doorY: 818,
+    radius: 80,
+    ground: true
+  },
+  {
+    id: 'stall-park',
+    name: '煎饼摊',
+    owner: '推车的老师傅',
+    blurb: '薄脆现炸，排队的人也肯等',
+    district: 'park',
+    tex: 'foodstall-煎饼摊',
+    x: 398,
+    y: 1032,
+    doorX: 418,
+    doorY: 1138,
+    radius: 80,
+    ground: true
+  },
+  {
+    id: 'stall-commerce',
+    name: '奶茶',
+    owner: '连锁店的小妹',
+    blurb: '一杯二十，加料另算',
+    district: 'commerce',
+    tex: 'foodstall-奶茶',
+    x: 398,
+    y: 812,
+    doorX: 418,
+    doorY: 918,
+    radius: 80,
+    ground: true
   }
 ];
 
@@ -124,6 +224,29 @@ export function stockFor(shopId, run) {
         desc: '做手工要用的材料',
         icon: JUNK_ITEMS[id].tex,
         price: id === 'can' ? 5 : 4,
+        owned: false
+      });
+    }
+
+    return items;
+  }
+
+  // The street-food carts sell the same cheap three things wherever they stand.
+  if (shopId.indexOf('stall-') === 0) {
+    const items = [];
+
+    for (const id of ['noodle', 'baozi', 'teaegg']) {
+      const f = FOODS.find((food) => food.id === id);
+      if (!f) continue;
+
+      items.push({
+        key: `food:${f.id}`,
+        kind: 'food',
+        refId: f.id,
+        name: f.name,
+        desc: `饱腹 +${f.restore} · 精力 +${f.energy}`,
+        icon: `icon-${f.icon}`,
+        price: f.price,
         owned: false
       });
     }

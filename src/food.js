@@ -28,5 +28,32 @@ export const FOODS = [
     energy: 8,
     icon: 'cup-soda',
     blurb: '灌个水饱'
+  },
+  {
+    id: 'noodle',
+    name: '牛肉面',
+    price: 6,
+    restore: 44,
+    energy: 24,
+    icon: 'utensils',
+    blurb: '路边摊上热腾腾的一大碗'
+  },
+  {
+    id: 'baozi',
+    name: '肉包',
+    price: 3,
+    restore: 24,
+    energy: 10,
+    icon: 'sandwich',
+    blurb: '刚出笼，烫手'
+  },
+  {
+    id: 'teaegg',
+    name: '茶蛋',
+    price: 2,
+    restore: 12,
+    energy: 6,
+    icon: 'cup-soda',
+    blurb: '在锅里煨了一整天'
   }
 ];

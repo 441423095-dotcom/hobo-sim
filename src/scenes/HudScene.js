@@ -374,7 +374,7 @@ export class HudScene extends Phaser.Scene {
     this.goalTitle = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '13px',
+        fontSize: '12px',
         color: UI.gold,
         fontStyle: 'bold'
       })
@@ -382,7 +382,7 @@ export class HudScene extends Phaser.Scene {
       .setDepth(DEPTH.hud);
 
     this.goalCount = this.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
       .setOrigin(1, 0.5)
       .setDepth(DEPTH.hud);
 
@@ -399,7 +399,7 @@ export class HudScene extends Phaser.Scene {
     this.goalRows = [];
     for (let i = 0; i < 3; i++) {
       const row = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: UI.cream })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '14px', color: UI.cream })
         .setOrigin(0, 0.5)
         .setDepth(DEPTH.hud)
         .setVisible(false);
@@ -1123,14 +1123,15 @@ export class HudScene extends Phaser.Scene {
     this.toastText.setPosition(w / 2, Math.max(playH * 0.28, below + 36));
   }
 
-  /// The goal card: a row per job (up to three), with the progress on it and a
-  /// bar for the one in hand.
+  /// The goal card: one line for the job in hand, with a thin bar under it. It
+  /// stays small on purpose — it sits over the street, and the street has to
+  /// stay readable, shops and all.
   layoutGoals() {
     const x = 12;
-    const y = 176;
-    const w = Math.min(this.w - 24, 300);
+    const y = 172;
+    const w = Math.min(this.w - 24, 236);
     const rows = this.goalRowCount;
-    const h = rows > 0 ? 36 + rows * 20 + 12 : 0;
+    const h = rows > 0 ? 54 : 0;
 
     this.goalPanel = { x, y, w, h };
     this.goalBottom = h > 0 ? y + h : 0;
@@ -1148,23 +1149,28 @@ export class HudScene extends Phaser.Scene {
       return;
     }
 
-    g.fillStyle(0x1a1611, 0.84);
+    g.fillStyle(0x1a1611, 0.8);
     g.fillRoundedRect(x, y, w, h, 10);
-    g.lineStyle(1, UI.amber, 0.3);
+    g.lineStyle(1, UI.amber, 0.28);
     g.strokeRoundedRect(x, y, w, h, 10);
 
-    this.goalIcon.setVisible(true).setPosition(x + 18, y + 14).setScale(15 / 96);
-    this.goalTitle.setVisible(true).setPosition(x + 30, y + 14);
-    this.goalCount.setVisible(true).setPosition(x + w - 12, y + 14);
+    this.goalIcon.setVisible(true).setPosition(x + 17, y + 15).setScale(14 / 96);
+    this.goalTitle.setVisible(true).setPosition(x + 28, y + 15);
+    this.goalCount.setVisible(true).setPosition(x + w - 10, y + 15);
 
     this.goalRows.forEach((row, i) => {
-      row.setPosition(x + 16, y + 36 + i * 20);
+      if (i >= rows) {
+        row.setVisible(false);
+        return;
+      }
+
+      row.setPosition(x + 14, y + 36);
     });
 
-    const barW = w - 24;
+    const barW = w - 22;
     this.goalBarW = barW;
-    this.goalTrack.setVisible(true).setPosition(x + 12, y + h - 10).setScale(barW / 100, 1);
-    this.goalFill.setPosition(x + 12, y + h - 10);
+    this.goalTrack.setVisible(true).setPosition(x + 11, y + h - 8).setScale(barW / 100, 1);
+    this.goalFill.setPosition(x + 11, y + h - 8);
   }
 
   goalsSignature(run) {
@@ -1190,39 +1196,31 @@ export class HudScene extends Phaser.Scene {
     }
 
     const doneCount = goals.filter((goal) => goal.done).length;
-    const first = goals.findIndex((goal) => !goal.done);
-    const start =
-      first < 0
-        ? Math.max(0, goals.length - 3)
-        : Math.max(0, Math.min(first, goals.length - 3));
-    const shown = goals.slice(start, start + 3);
-    const active = first >= 0 ? goals[first] : null;
+    const active = goals.find((goal) => !goal.done) || goals[goals.length - 1];
 
-    this.goalRowCount = shown.length;
-    this.goalTitle.setText(`老周的目标 · 第 ${run.day} 天`);
+    this.goalRowCount = 1;
+    this.goalTitle.setText(`老周 · 第 ${run.day} 天`);
     this.goalCount.setText(`${doneCount}/${goals.length}`);
 
     this.goalRows.forEach((row, i) => {
-      const goal = shown[i];
-
-      if (!goal) {
+      if (i > 0) {
         row.setVisible(false);
         return;
       }
 
       row
         .setVisible(true)
-        .setText(`${goal.done ? '✓' : '·'} ${goal.label}  ${goal.progress}/${goal.need}`)
-        .setColor(goal.done ? '#8fb27a' : goal === active ? UI.cream : '#a89a86');
+        .setText(`${active.label}  ${active.progress}/${active.need}`)
+        .setColor(active.done ? '#8fb27a' : UI.cream);
     });
 
     this.layoutGoals();
 
     const barW = this.goalBarW || 0;
-    const frac = active ? Math.max(0.03, active.progress / active.need) : 1;
+    const frac = active.done ? 1 : Math.max(0.03, active.progress / active.need);
 
     this.goalFill.setVisible(true).setScale(Math.max(0.02, (barW * frac) / 100), 1);
-    this.goalFill.fillColor = active ? UI.amberBright : UI.good;
+    this.goalFill.fillColor = active.done ? UI.good : UI.amberBright;
 
     if (this.w) this.layoutFloaters(this.w, this.playH);
   }
@@ -3023,7 +3021,9 @@ export class HudScene extends Phaser.Scene {
       const need = DISTRICTS[id].unlockAfter;
 
       block.status
-        .setText(current ? '我在这里' : locked ? (need ? `先去${DISTRICTS[need].name}` : '还没解锁') : '走过去就行')
+        .setText(
+          current ? '我在这里' : locked ? (need ? `先去${DISTRICTS[need].name}` : '还没解锁') : DISTRICTS[id].eat || '走过去就行'
+        )
         .setColor(current ? '#8fd07a' : locked ? '#5a554c' : UI.creamDim);
 
       block.lock.setVisible(locked).setTint(0x8a8070);
@@ -3034,7 +3034,7 @@ export class HudScene extends Phaser.Scene {
     this.mapRing.setPosition(here.x, here.y);
     this.mapHereTag.setPosition(here.x, here.y - 40);
 
-    this.mapSub.setText('去过一个街区，就会解开它后面的');
+    this.mapSub.setText('整座城都开着，顺着街走就行');
     this.mapHint.setText('点一个街区，看看怎么走');
   }
 

@@ -491,7 +491,7 @@ export class StreetScene extends Phaser.Scene {
         this.add
           .image(strip.x0 + RIGHT_BUILDINGS.x, strip.y0 + alley.y, 'alley')
           .setOrigin(0, 0)
-          .setDepth(-27);
+          .setDepth(-29);
       }
     }
 
@@ -1160,13 +1160,13 @@ export class StreetScene extends Phaser.Scene {
         this.add
           .image(shop.x + strip.x0, shop.y + strip.y0, shop.tex)
           .setOrigin(0, 0)
-          .setDepth(-28);
+          .setDepth(shop.ground ? shop.y + strip.y0 + 88 : -28);
 
         this.addInteractable({
           x: shop.doorX + strip.x0,
           y: shop.doorY + strip.y0,
           radius: shop.radius,
-          label: `进${shop.name}`,
+          label: shop.ground ? `${shop.name}·买点吃的` : `进${shop.name}`,
           use: () => this.openStore(shop.id)
         });
 
@@ -1718,12 +1718,15 @@ export class StreetScene extends Phaser.Scene {
   // -------------------------------------------------------------- the city
 
   unlockedList() {
+    // The whole city is open from the first day: walking it is the only gate.
+    const all = DISTRICT_ORDER.slice();
     const stored = this.registry.get('unlocked');
-    if (Array.isArray(stored)) return stored;
 
-    const initial = STARTING_UNLOCKED.slice();
-    this.registry.set('unlocked', initial);
-    return initial;
+    if (!Array.isArray(stored) || stored.length !== all.length) {
+      this.registry.set('unlocked', all);
+    }
+
+    return all;
   }
 
   /// Arriving in a district marks it visited, and a visit unlocks whatever the
@@ -2912,7 +2915,7 @@ export class StreetScene extends Phaser.Scene {
         cop.faceAngle = cop.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
 
         // Step around the junk stall's table instead of through it.
-        if (cop.stripId === 'market' && cop.sprite.y > 560 && cop.sprite.y < 680) {
+        if (cop.stripId === 'market' && cop.sprite.y > 1270 && cop.sprite.y < 1360) {
           cop.sprite.x = cop.laneX + 54;
         }
       }
