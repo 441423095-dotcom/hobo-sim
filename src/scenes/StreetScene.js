@@ -2350,7 +2350,7 @@ export class StreetScene extends Phaser.Scene {
 
     const hud = this.scene.get('Hud');
     if (hud && hud.showToast) hud.showToast(`天变了：${WEATHERS[city.weather].name}`);
-    playSfx('voice');
+    playSfx(city.weather === 'rain' ? 'thunder' : 'voice');
     haptic('ui');
   }
 
@@ -2401,6 +2401,7 @@ export class StreetScene extends Phaser.Scene {
       lines[Math.floor(Math.random() * lines.length)],
       UI.creamDim
     );
+    playSfx('voice');
   }
 
   debugTriggerEvent() {

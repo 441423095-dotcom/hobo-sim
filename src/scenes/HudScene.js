@@ -537,7 +537,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     this.storeCloseBtn = this.add
-      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .circle(0, 0, 22, 0x3a3128, 0.95)
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.storeCloseIcon = this.add.image(0, 0, 'icon-x');
@@ -547,11 +547,11 @@ export class HudScene extends Phaser.Scene {
     // sell, so the beggar never has to hunt for the pawn shop to empty his bag.
     const mkTab = (label) => {
       const bg = this.add
-        .rectangle(0, 0, 36, 24, UI.panelRow, 1)
-        .setStrokeStyle(1, UI.amber, 0.5)
+        .rectangle(0, 0, 64, 40, UI.panelRow, 1)
+        .setStrokeStyle(1.5, UI.amber, 0.5)
         .setInteractive();
       const text = this.add
-        .text(0, 0, label, { fontFamily: FONT, fontSize: '13px', color: UI.cream })
+        .text(0, 0, label, { fontFamily: FONT, fontSize: '16px', color: UI.cream })
         .setOrigin(0.5, 0.5)
         .setVisible(false);
 
@@ -670,7 +670,7 @@ export class HudScene extends Phaser.Scene {
         .setOrigin(1, 0.5);
 
       const useBtn = this.add
-        .rectangle(0, 0, 34, 24, 0x3a4a2c, 1)
+        .rectangle(0, 0, 56, 36, 0x3a4a2c, 1)
         .setStrokeStyle(1.5, UI.good, 0.85)
         .setInteractive()
         .setVisible(false);
@@ -706,7 +706,7 @@ export class HudScene extends Phaser.Scene {
     this.sellAllBtn.on('pointerdown', () => this.sellAll());
 
     this.tradeCloseBtn = this.add
-      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .circle(0, 0, 22, 0x3a3128, 0.95)
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.tradeCloseIcon = this.add.image(0, 0, 'icon-x');
@@ -1358,7 +1358,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     this.testerCloseBtn = this.add
-      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .circle(0, 0, 22, 0x3a3128, 0.95)
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.testerCloseIcon = this.add.image(0, 0, 'icon-x');
@@ -1412,7 +1412,7 @@ export class HudScene extends Phaser.Scene {
 
   layoutTester() {
     const w = this.w;
-    const rowH = 40;
+    const rowH = 46;
     const cols = 2;
     const rows = Math.ceil(this.testerRows.length / cols);
     const pw = Math.min(w - 40, 350);
@@ -1432,7 +1432,7 @@ export class HudScene extends Phaser.Scene {
     this.testerTitle.setPosition(px + 18, py + 14);
     this.testerSub.setPosition(px + 18, py + 42);
     this.testerCloseBtn.setPosition(px + pw - 26, py + 26);
-    this.testerCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+    this.testerCloseIcon.setPosition(px + pw - 26, py + 26).setScale(22 / 96);
 
     const gap = 8;
     const cellW = (pw - 32 - gap) / 2;
@@ -1775,7 +1775,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     this.bagCloseBtn = this.add
-      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .circle(0, 0, 22, 0x3a3128, 0.95)
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.bagCloseIcon = this.add.image(0, 0, 'icon-x');
@@ -1845,7 +1845,7 @@ export class HudScene extends Phaser.Scene {
     this.bagTitle.setPosition(px + 18, py + 12);
     this.bagSub.setPosition(px + 18, py + 38);
     this.bagCloseBtn.setPosition(px + pw - 26, py + 26);
-    this.bagCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+    this.bagCloseIcon.setPosition(px + pw - 26, py + 26).setScale(22 / 96);
     this.bagTip.setPosition(w / 2, py + ph - 14);
 
     const rowW = pw - 24;
@@ -2085,7 +2085,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     this.goalsCloseBtn = this.add
-      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .circle(0, 0, 22, 0x3a3128, 0.95)
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.goalsCloseIcon = this.add.image(0, 0, 'icon-x');
@@ -2136,7 +2136,7 @@ export class HudScene extends Phaser.Scene {
     this.goalsTitle.setPosition(px + 18, py + 12);
     this.goalsSub.setPosition(px + 18, py + 40);
     this.goalsCloseBtn.setPosition(px + pw - 26, py + 26);
-    this.goalsCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+    this.goalsCloseIcon.setPosition(px + pw - 26, py + 26).setScale(22 / 96);
 
     this.goalsRows.forEach((row, i) => {
       row.setPosition(px + 20, py + 100 + i * 24);
@@ -2394,7 +2394,7 @@ export class HudScene extends Phaser.Scene {
     this.dialogueBody.setWordWrapWidth(bodyW);
 
     const bodyH = Math.max(1, this.dialogueBody.height);
-    const ph = Math.max(168, 78 + bodyH + 50);
+    const ph = Math.max(184, 94 + bodyH + 50);
     const py = Math.max(24, this.playH - ph - 20);
 
     this.dialogueBackdrop.setScale(w, this.h).setPosition(0, 0);
@@ -2420,12 +2420,12 @@ export class HudScene extends Phaser.Scene {
     this.dialogueHint.setPosition(px + pw - 14, py + ph - 14);
 
     const choiceW = (pw - 132 - 10) / 2;
-    const choiceY = py + ph - 34;
+    const choiceY = py + ph - 36;
     this.dialogueChoiceW = choiceW;
 
-    this.dialogueChoiceA.setSize(choiceW, 32).setScale(1, 1).setPosition(px + 118, choiceY);
+    this.dialogueChoiceA.setSize(choiceW, 46).setScale(1, 1).setPosition(px + 118, choiceY);
     this.dialogueChoiceAText.setPosition(px + 118 + choiceW / 2, choiceY);
-    this.dialogueChoiceB.setSize(choiceW, 32).setScale(1, 1).setPosition(px + 128 + choiceW, choiceY);
+    this.dialogueChoiceB.setSize(choiceW, 46).setScale(1, 1).setPosition(px + 128 + choiceW, choiceY);
     this.dialogueChoiceBText.setPosition(px + 128 + choiceW + choiceW / 2, choiceY);
   }
 
@@ -2450,7 +2450,7 @@ export class HudScene extends Phaser.Scene {
         box.setInteractive();
         if (box.input) box.input.enabled = true;
         text.setText(option.label);
-        text.setFontSize(option.label.length > 6 ? 12 : 14);
+        text.setFontSize(option.label.length > 6 ? 13 : 15);
       } else if (box.input) {
         box.input.enabled = false;
       }
@@ -2571,7 +2571,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     this.loreCloseBtn = this.add
-      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .circle(0, 0, 22, 0x3a3128, 0.95)
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.loreCloseIcon = this.add.image(0, 0, 'icon-x');
@@ -2627,7 +2627,7 @@ export class HudScene extends Phaser.Scene {
     this.loreTitle.setPosition(px + 18, py + 12);
     this.loreSub.setPosition(px + 18, py + 40);
     this.loreCloseBtn.setPosition(px + pw - 26, py + 26);
-    this.loreCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+    this.loreCloseIcon.setPosition(px + pw - 26, py + 26).setScale(22 / 96);
 
     const rowW = pw - 28;
     const rowX = px + 14;
@@ -2837,6 +2837,7 @@ export class HudScene extends Phaser.Scene {
   showPanel(layer) {
     if (!layer) return;
 
+    playSfx('open');
     this.tweens.killTweensOf(layer);
     layer.setVisible(true).setAlpha(0.001).setScale(0.96);
 
@@ -2862,6 +2863,7 @@ export class HudScene extends Phaser.Scene {
   hidePanel(layer) {
     if (!layer) return;
 
+    playSfx('close');
     this.tweens.killTweensOf(layer);
     this.setLayerInput(layer, false);
 
@@ -3333,7 +3335,7 @@ export class HudScene extends Phaser.Scene {
     const count = Math.max(1, this.storeEntries.length);
     const rowH = ROW_HEIGHT;
     const gap = 8;
-    const headH = tabs ? 86 : 56;
+    const headH = tabs ? 104 : 56;
     const pw = Math.min(w - 32, ROW_WIDTH + 24);
     const ph = headH + count * (rowH + gap) + 20;
     const px = (w - pw) / 2;
@@ -3352,18 +3354,18 @@ export class HudScene extends Phaser.Scene {
     this.storeSub.setFontSize(12).setWordWrapWidth(pw - 100).setPosition(px + 18, py + 38);
 
     this.storeCloseBtn.setPosition(px + pw - 26, py + 26);
-    this.storeCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+    this.storeCloseIcon.setPosition(px + pw - 26, py + 26).setScale(22 / 96);
 
     this.storeTabBuy.bg
       .setVisible(tabs)
-      .setPosition(px + 40, py + 68)
+      .setPosition(px + 50, py + 80)
       .setFillStyle(this.storeMode === 'buy' ? 0x4a3a24 : UI.panelRowDim, 1);
-    this.storeTabBuy.text.setVisible(tabs).setPosition(px + 40, py + 68);
+    this.storeTabBuy.text.setVisible(tabs).setPosition(px + 50, py + 80);
     this.storeTabSell.bg
       .setVisible(tabs)
-      .setPosition(px + 84, py + 68)
+      .setPosition(px + 124, py + 80)
       .setFillStyle(this.storeMode === 'sell' ? 0x4a3a24 : UI.panelRowDim, 1);
-    this.storeTabSell.text.setVisible(tabs).setPosition(px + 84, py + 68);
+    this.storeTabSell.text.setVisible(tabs).setPosition(px + 124, py + 80);
 
     const rowW = pw - 24;
     const rowX = px + 12;
@@ -3385,6 +3387,7 @@ export class HudScene extends Phaser.Scene {
 
     this.storeMode = mode;
     this.shown.storeSig = null;
+    playSfx('page');
     haptic('ui');
     this.layoutStore();
     this.refreshStore();
@@ -3412,7 +3415,7 @@ export class HudScene extends Phaser.Scene {
     this.tradeSub.setPosition(px + 18, py + 32);
 
     this.tradeCloseBtn.setPosition(px + pw - 26, py + 24);
-    this.tradeCloseIcon.setPosition(px + pw - 26, py + 24).setScale(17 / 96);
+    this.tradeCloseIcon.setPosition(px + pw - 26, py + 24).setScale(22 / 96);
 
     const rowW = pw - 24;
     const rowX = px + 12;
@@ -3843,6 +3846,7 @@ export class HudScene extends Phaser.Scene {
     this.storeId = id;
     this.shopOpen = true;
     this.storeMode = 'buy';
+    playSfx('bell');
     this.showPanel(this.storeLayer);
     this.releaseStick();
     this.shown.storeSig = null;
@@ -3964,7 +3968,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     this.craftCloseBtn = this.add
-      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .circle(0, 0, 22, 0x3a3128, 0.95)
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.craftCloseIcon = this.add.image(0, 0, 'icon-x');
@@ -4036,7 +4040,7 @@ export class HudScene extends Phaser.Scene {
     this.craftTitle.setPosition(px + 18, py + 14);
     this.craftSub.setPosition(px + 18, py + 34);
     this.craftCloseBtn.setPosition(px + pw - 26, py + 26);
-    this.craftCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+    this.craftCloseIcon.setPosition(px + pw - 26, py + 26).setScale(22 / 96);
     this.craftHint.setPosition(w / 2, py + ph - 14);
 
     const rowW = pw - 24;
@@ -4212,7 +4216,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     this.homeCloseBtn = this.add
-      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .circle(0, 0, 22, 0x3a3128, 0.95)
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.homeCloseIcon = this.add.image(0, 0, 'icon-x');
@@ -4316,7 +4320,7 @@ export class HudScene extends Phaser.Scene {
     this.homeTitle.setPosition(px + 18, py + 14);
     this.homeSub.setPosition(px + 18, py + 36);
     this.homeCloseBtn.setPosition(px + pw - 26, py + 26);
-    this.homeCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+    this.homeCloseIcon.setPosition(px + pw - 26, py + 26).setScale(22 / 96);
 
     const room = { x: px + 14, y: py + 58, w: pw - 28, h: roomH };
     this.homeRoom = room;
@@ -4688,7 +4692,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     this.vendingCloseBtn = this.add
-      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .circle(0, 0, 22, 0x3a3128, 0.95)
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.vendingCloseIcon = this.add.image(0, 0, 'icon-x');
@@ -4761,7 +4765,7 @@ export class HudScene extends Phaser.Scene {
     this.vendingTitle.setPosition(px + 18, py + 14);
     this.vendingSub.setPosition(px + 18, py + 36);
     this.vendingCloseBtn.setPosition(px + pw - 26, py + 26);
-    this.vendingCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+    this.vendingCloseIcon.setPosition(px + pw - 26, py + 26).setScale(22 / 96);
 
     const rowW = pw - 24;
     const rowX = px + 12;
@@ -4892,7 +4896,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     this.slotCloseBtn = this.add
-      .circle(0, 0, 17, 0x3a3128, 0.95)
+      .circle(0, 0, 22, 0x3a3128, 0.95)
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.slotCloseIcon = this.add.image(0, 0, 'icon-x');
@@ -4963,7 +4967,7 @@ export class HudScene extends Phaser.Scene {
     this.slotTitle.setPosition(px + 18, py + 14);
     this.slotSub.setPosition(px + 18, py + 36);
     this.slotCloseBtn.setPosition(px + pw - 26, py + 26);
-    this.slotCloseIcon.setPosition(px + pw - 26, py + 26).setScale(17 / 96);
+    this.slotCloseIcon.setPosition(px + pw - 26, py + 26).setScale(22 / 96);
 
     const step = winW / 3;
     this.slotReels.forEach((reel, i) => {
@@ -5106,7 +5110,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0.5, 0.5);
 
     this.mapCloseBtn = this.add
-      .circle(0, 0, 17, 0x1a1510, 0.95)
+      .circle(0, 0, 22, 0x1a1510, 0.95)
       .setStrokeStyle(1.5, 0xd8c8a8, 0.6)
       .setInteractive();
     this.mapCloseIcon = this.add.image(0, 0, 'icon-x');
@@ -5222,7 +5226,7 @@ export class HudScene extends Phaser.Scene {
     this.mapTitle.setPosition(px + 20, py + 18);
     this.mapSub.setPosition(px + 20, py + 44);
     this.mapCloseBtn.setPosition(px + pw - 26, py + 26);
-    this.mapCloseIcon.setPosition(px + pw - 26, py + 26).setScale(16 / 96);
+    this.mapCloseIcon.setPosition(px + pw - 26, py + 26).setScale(22 / 96);
     this.mapHint.setPosition(w / 2, py + ph - 22);
 
     for (const id of DISTRICT_ORDER) {

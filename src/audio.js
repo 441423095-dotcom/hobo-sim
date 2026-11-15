@@ -357,9 +357,17 @@ export function updateAudio(dt, state) {
 const SFX = {
   foot(opts) {
     const at = ctx.currentTime;
-    const freq = (opts && opts.freq) || 820;
+    const freq = (opts && opts.freq) || 760 + Math.random() * 170;
 
-    playNoise({ at, dur: 0.07, gain: 0.07, type: 'lowpass', freq, q: 0.8, attack: 0.004 });
+    playNoise({
+      at,
+      dur: 0.055 + Math.random() * 0.03,
+      gain: 0.07,
+      type: 'lowpass',
+      freq,
+      q: 0.8,
+      attack: 0.004
+    });
   },
 
   dig() {
@@ -383,6 +391,7 @@ const SFX = {
 
     playOsc({ at, dur: 0.09, type: 'sine', from: 1568, gain: 0.065, attack: 0.002 });
     playOsc({ at: at + 0.055, dur: 0.13, type: 'sine', from: 2093, gain: 0.055, attack: 0.002 });
+    playOsc({ at: at + 0.1, dur: 0.22, type: 'sine', from: 2637, gain: 0.028, attack: 0.002 });
   },
 
   pickup() {
@@ -470,8 +479,67 @@ const SFX = {
   eat() {
     const at = ctx.currentTime;
 
-    playNoise({ at, dur: 0.09, gain: 0.08, type: 'bandpass', freq: 900, q: 1.5 });
-    playNoise({ at: at + 0.11, dur: 0.08, gain: 0.06, type: 'bandpass', freq: 700, q: 1.5 });
+    for (let i = 0; i < 3; i++) {
+      playNoise({
+        at: at + i * 0.1,
+        dur: 0.08,
+        gain: 0.07 - i * 0.015,
+        type: 'bandpass',
+        freq: 720 + Math.random() * 320,
+        q: 1.5
+      });
+    }
+  },
+
+  open() {
+    const at = ctx.currentTime;
+
+    playNoise({ at, dur: 0.18, gain: 0.032, type: 'bandpass', freq: 600, to: 1800, q: 1.6, attack: 0.02 });
+    playOsc({ at, dur: 0.1, type: 'sine', from: 320, to: 520, gain: 0.03 });
+  },
+
+  close() {
+    const at = ctx.currentTime;
+
+    playNoise({ at, dur: 0.14, gain: 0.028, type: 'bandpass', freq: 1200, to: 420, q: 1.4 });
+    playOsc({ at, dur: 0.09, type: 'sine', from: 420, to: 260, gain: 0.024 });
+  },
+
+  page() {
+    const at = ctx.currentTime;
+
+    playNoise({ at, dur: 0.12, gain: 0.05, type: 'highpass', freq: 1800, to: 3200, q: 0.9, attack: 0.01 });
+  },
+
+  bell() {
+    const at = ctx.currentTime;
+
+    playOsc({ at, dur: 0.5, type: 'sine', from: 1180, gain: 0.045, attack: 0.002 });
+    playOsc({ at: at + 0.22, dur: 0.6, type: 'sine', from: 1560, gain: 0.036, attack: 0.002 });
+  },
+
+  thunder() {
+    const at = ctx.currentTime;
+
+    playNoise({ at, dur: 2.4, gain: 0.14, type: 'lowpass', freq: 220, to: 70, q: 0.5, attack: 0.5 });
+    playOsc({ at, dur: 1.8, type: 'sine', from: 48, to: 26, gain: 0.09, attack: 0.3 });
+  },
+
+  bark() {
+    const at = ctx.currentTime;
+
+    for (let i = 0; i < 2; i++) {
+      playNoise({ at: at + i * 0.18, dur: 0.09, gain: 0.07, type: 'bandpass', freq: 900, to: 500, q: 2.4 });
+      playOsc({
+        at: at + i * 0.18,
+        dur: 0.1,
+        type: 'sawtooth',
+        from: 320,
+        to: 190,
+        gain: 0.045,
+        filter: { type: 'lowpass', freq: 1200 }
+      });
+    }
   },
 
   ui() {
