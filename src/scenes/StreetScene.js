@@ -2932,9 +2932,6 @@ export class StreetScene extends Phaser.Scene {
     const goals = this.todayGoals();
     if (!goals.length) return;
 
-    // He says what he would do next before he runs through the list.
-    this.sayBubble(this.oldZhou, this.zhouAdviceLine());
-
     const lines = goals.map((goal) =>
       goal.done ? `${goal.label}·已办` : `${goal.label}·${goal.progress}/${goal.need}`
     );
@@ -2942,7 +2939,9 @@ export class StreetScene extends Phaser.Scene {
     this.floatText(this.player.x, this.player.y - 48, '和老周说了两句', UI.creamDim);
 
     const hud = this.scene.get('Hud');
-    if (hud && hud.showToast) hud.showToast(`老周：今天的事——${lines.join('；')}`);
+    if (!hud || !hud.showDialogue) return;
+
+    hud.showDialogue('zhou', [this.zhouAdviceLine(), `今天的事——${lines.join('；')}`]);
   }
 
   loadHome() {

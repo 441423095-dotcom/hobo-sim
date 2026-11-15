@@ -16,6 +16,7 @@ import { SHOPS, stockFor } from '../shops.js';
 import { FURNITURE, FURNITURE_RECIPES, HOME_SLOTS, furnitureById } from '../home.js';
 import { savedInfo } from '../save.js';
 import { KING, PATRONS, kingProgress, supporters } from '../king.js';
+import { SPEAKERS, shopTalk, tradeTalk } from '../dialogue.js';
 import { COFFEE_PRICE, COFFEE_ENERGY, KICK_WANTED } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS } from '../gamble.js';
 import { RECIPES, amountOf, materialLabel } from '../craft.js';
@@ -99,6 +100,7 @@ export class HudScene extends Phaser.Scene {
     this.goalsOpen = false;
     this.helpOpen = false;
     this.winOpen = false;
+    this.dialogueOpen = false;
     this.panelOpen = false;
     this.inputLockUntil = 0;
     this.uiSettleAt = 0;
@@ -149,6 +151,7 @@ export class HudScene extends Phaser.Scene {
     this.buildGoals();
     this.buildHelp();
     this.buildWin();
+    this.buildDialogue();
     this.buildOverlay();
 
     // The panels start closed: a hidden container can still answer taps, so
@@ -170,6 +173,7 @@ export class HudScene extends Phaser.Scene {
     this.setLayerInput(this.goalsLayer, false);
     this.setLayerInput(this.helpLayer, false);
     this.setLayerInput(this.winLayer, false);
+    this.setLayerInput(this.dialogueLayer, false);
 
     // Closing is the corner button's job now: the little crosses in the panel
     // corners are gone, so there is nothing to catch by accident.
@@ -864,7 +868,8 @@ export class HudScene extends Phaser.Scene {
       this.bagOpen ||
       this.goalsOpen ||
       this.helpOpen ||
-      this.winOpen
+      this.winOpen ||
+      this.dialogueOpen
     )
       return;
 
@@ -2115,6 +2120,140 @@ export class HudScene extends Phaser.Scene {
     }
   }
 
+  // -------------------------------------------------------------- talking head
+
+  buildDialogue() {
+    this.dialogueLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 6).setVisible(false);
+
+    this.dialogueBackdrop = this.add
+      .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.dialogueBackdrop.on('pointerdown', () => this.advanceDialogue());
+
+    this.dialogueGfx = this.add.graphics();
+
+    this.dialoguePortrait = this.add.image(0, 0, 'ped-suit').setOrigin(0.5, 0.5);
+
+    this.dialogueName = this.add
+      .text(0, 0, '', {
+        fontFamily: FONT,
+        fontSize: '17px',
+        color: '#f2c46a',
+        fontStyle: 'bold'
+      })
+      .setOrigin(0, 0.5);
+
+    this.dialogueBody = this.add
+      .text(0, 0, '', {
+        fontFamily: FONT,
+        fontSize: '15px',
+        color: UI.cream,
+        lineSpacing: 6,
+        wordWrap: { width: 220 }
+      })
+      .setOrigin(0, 0);
+
+    this.dialogueHint = this.add
+      .text(0, 0, '点一下继续 ▶', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
+      .setOrigin(1, 0.5);
+
+    this.dialogueLayer.add([
+      this.dialogueBackdrop,
+      this.dialogueGfx,
+      this.dialoguePortrait,
+      this.dialogueName,
+      this.dialogueBody,
+      this.dialogueHint
+    ]);
+
+    this.dialogueLines = [];
+    this.dialogueAt = 0;
+    this.dialogueDone = null;
+  }
+
+  layoutDialogue() {
+    const w = this.w;
+    const pw = Math.min(w - 28, 360);
+    const ph = 168;
+    const px = (w - pw) / 2;
+    const py = Math.max(40, this.playH - ph - 24);
+
+    this.dialogueBackdrop.setScale(w, this.h).setPosition(0, 0);
+
+    const g = this.dialogueGfx;
+    g.clear();
+    g.fillStyle(UI.panel, 0.97);
+    g.fillRoundedRect(px, py, pw, ph, 14);
+    g.lineStyle(2, UI.amber, 0.65);
+    g.strokeRoundedRect(px, py, pw, ph, 14);
+
+    // The portrait sits in its own frame, a head out of the street.
+    g.fillStyle(0x11100d, 1);
+    g.fillRoundedRect(px + 12, py + 14, 92, 140, 10);
+    g.lineStyle(1.5, UI.amber, 0.4);
+    g.strokeRoundedRect(px + 12, py + 14, 92, 140, 10);
+
+    this.dialoguePortrait.setPosition(px + 58, py + 88).setScale(2.1);
+
+    this.dialogueName.setPosition(px + 118, py + 26);
+    this.dialogueBody.setPosition(px + 118, py + 48);
+    this.dialogueBody.setWordWrapWidth(pw - 136);
+    this.dialogueHint.setPosition(px + pw - 14, py + ph - 16);
+  }
+
+  /// An NPC speaks: portrait on the left, words on the right, tap to go on.
+  showDialogue(speakerId, lines, onDone) {
+    if (!lines || !lines.length) {
+      if (onDone) onDone();
+      return;
+    }
+
+    const speaker = SPEAKERS[speakerId] || { name: '路人', portrait: 'ped-suit' };
+
+    this.dialogueLines = lines.slice();
+    this.dialogueAt = 0;
+    this.dialogueDone = onDone || null;
+    this.dialogueOpen = true;
+
+    this.dialoguePortrait.setTexture(speaker.portrait);
+    this.dialogueName.setText(speaker.name);
+    this.dialogueBody.setText(this.dialogueLines[0]);
+
+    this.layoutDialogue();
+    this.showPanel(this.dialogueLayer);
+    this.releaseStick();
+    this.uiSettleAt = this.time.now + 320;
+    haptic('ui');
+  }
+
+  advanceDialogue() {
+    if (!this.dialogueOpen) return;
+    if (this.time.now < this.uiSettleAt) return;
+
+    this.dialogueAt += 1;
+
+    if (this.dialogueAt >= this.dialogueLines.length) {
+      this.closeDialogue();
+      return;
+    }
+
+    this.dialogueBody.setText(this.dialogueLines[this.dialogueAt]);
+    haptic('tick');
+  }
+
+  closeDialogue() {
+    if (!this.dialogueOpen) return;
+
+    this.dialogueOpen = false;
+    this.hidePanel(this.dialogueLayer);
+
+    const done = this.dialogueDone;
+    this.dialogueDone = null;
+
+    if (done) done();
+  }
+
   // ------------------------------------------------------------ king of hobos
 
   buildWin() {
@@ -2494,6 +2633,7 @@ export class HudScene extends Phaser.Scene {
     if (this.goalsOpen) this.layoutGoalsPanel();
     if (this.helpOpen) this.layoutHelp();
     if (this.winOpen) this.layoutWin();
+    if (this.dialogueOpen) this.layoutDialogue();
     this.layoutOverlay();
   }
 
@@ -2864,7 +3004,8 @@ export class HudScene extends Phaser.Scene {
       this.bagOpen ||
       this.goalsOpen ||
       this.helpOpen ||
-      this.winOpen
+      this.winOpen ||
+      this.dialogueOpen
     )
       return;
     // Left half: a thumb summons the movement plate. Right half: a tap does
@@ -2981,7 +3122,8 @@ export class HudScene extends Phaser.Scene {
       this.bagOpen ||
       this.goalsOpen ||
       this.helpOpen ||
-      this.winOpen
+      this.winOpen ||
+      this.dialogueOpen
     )
       return;
 
@@ -3086,6 +3228,11 @@ export class HudScene extends Phaser.Scene {
 
     this.time.delayedCall(180, () => this.restoreActionBtn());
 
+    if (this.dialogueOpen) {
+      this.advanceDialogue();
+      return;
+    }
+
     if (this.stealChoiceOpen) {
       this.closeStealChoice();
       return;
@@ -3178,6 +3325,17 @@ export class HudScene extends Phaser.Scene {
   // --------------------------------------------------------------------- shop
 
   openStore(id) {
+    const talk = shopTalk(id, this.street && this.street.run);
+
+    if (talk && talk.lines && talk.lines.length) {
+      this.showDialogue(talk.speaker, talk.lines, () => this.reallyOpenStore(id));
+      return;
+    }
+
+    this.reallyOpenStore(id);
+  }
+
+  reallyOpenStore(id) {
     if (
       this.overOpen ||
       this.shopOpen ||
@@ -3243,6 +3401,17 @@ export class HudScene extends Phaser.Scene {
   }
 
   openTrade(mode) {
+    const talk = tradeTalk(mode, this.street && this.street.run);
+
+    if (talk && talk.lines && talk.lines.length) {
+      this.showDialogue(talk.speaker, talk.lines, () => this.reallyOpenTrade(mode));
+      return;
+    }
+
+    this.reallyOpenTrade(mode);
+  }
+
+  reallyOpenTrade(mode) {
     if (
       this.overOpen ||
       this.shopOpen ||
@@ -5049,6 +5218,9 @@ export class HudScene extends Phaser.Scene {
     this.winOpen = false;
     this.winLayer.setVisible(false);
     this.setLayerInput(this.winLayer, false);
+    this.dialogueOpen = false;
+    this.dialogueLayer.setVisible(false);
+    this.setLayerInput(this.dialogueLayer, false);
 
     for (const pair of [
       ['begOpen', this.begLayer],
@@ -5118,6 +5290,9 @@ export class HudScene extends Phaser.Scene {
     this.winOpen = false;
     this.winLayer.setVisible(false);
     this.setLayerInput(this.winLayer, false);
+    this.dialogueOpen = false;
+    this.dialogueLayer.setVisible(false);
+    this.setLayerInput(this.dialogueLayer, false);
 
     this.shown.money = null;
     this.shown.bag = null;
