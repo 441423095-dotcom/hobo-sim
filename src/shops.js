@@ -5,6 +5,7 @@ import { FOODS } from './food.js';
 import { JUNK_ITEMS, JUNK_ORDER, junkPrice } from './trade.js';
 import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from './loot.js';
 import { RECIPES } from './craft.js';
+import { errandDone } from './errands.js';
 
 export const SHOPS = [
   {
@@ -253,6 +254,11 @@ export function stockFor(shopId, run) {
   if (shopId === 'grocery') {
     const items = [];
 
+    // The ledger is back in her hands: everything on the shelves is hers at
+    // cost now, and she never says it out loud.
+    const wholesale = errandDone(run, 'ledger');
+    const priceOf = (value) => (wholesale ? Math.max(1, Math.round(value * 0.65)) : value);
+
     for (const id of ['bread', 'water']) {
       const f = FOODS.find((food) => food.id === id);
       if (!f) continue;
@@ -263,7 +269,7 @@ export function stockFor(shopId, run) {
         name: f.name,
         desc: `饱腹 +${f.restore} · 精力 +${f.energy}`,
         icon: `icon-${f.icon}`,
-        price: f.price,
+        price: priceOf(f.price),
         owned: false
       });
     }
@@ -274,9 +280,9 @@ export function stockFor(shopId, run) {
         kind: 'material',
         refId: id,
         name: `${JUNK_ITEMS[id].name} ×3`,
-        desc: '做手工要用的材料',
+        desc: wholesale ? '按进货价拿，别往外说' : '做手工要用的材料',
         icon: JUNK_ITEMS[id].tex,
-        price: id === 'can' ? 5 : 4,
+        price: priceOf(id === 'can' ? 5 : 4),
         owned: false
       });
     }
@@ -291,7 +297,7 @@ export function stockFor(shopId, run) {
       name: '编织袋',
       desc: '背包能装 24 件',
       icon: 'item-rag',
-      price: 20,
+      price: priceOf(20),
       owned: bagUp === 'woven' || bagUp === 'cart'
     });
 
@@ -302,7 +308,7 @@ export function stockFor(shopId, run) {
       name: '手推车',
       desc: '能装 40 件，但推着走不快',
       icon: 'item-scrap',
-      price: 60,
+      price: priceOf(60),
       owned: bagUp === 'cart'
     });
 
@@ -313,7 +319,7 @@ export function stockFor(shopId, run) {
       name: '口才小册子',
       desc: '读完兜售成功率永久 +8%',
       icon: 'item-blueprint',
-      price: 30,
+      price: priceOf(30),
       owned: !!(run && run.books && run.books.peddle)
     });
 
@@ -324,7 +330,7 @@ export function stockFor(shopId, run) {
       name: '旧伞',
       desc: '下雨时不至于淋透，受冻减半',
       icon: 'icon-umbrella',
-      price: 14,
+      price: priceOf(14),
       owned: !!(run && run.umbrella)
     });
 
@@ -351,11 +357,26 @@ export function stockFor(shopId, run) {
       });
     }
 
+    // The noodle seller's girl is in school now, and the man keeps his word:
+    // one bowl a day, on the house.
+    if (run && errandDone(run, 'noodle') && run.noodleDay !== run.day) {
+      items.push({
+        key: 'free:noodle',
+        kind: 'freenoodle',
+        refId: 'noodle',
+        name: '免费牛肉面',
+        desc: '说好的一天一碗 · 今天还没吃',
+        icon: 'icon-utensils',
+        price: 0,
+        owned: false
+      });
+    }
+
     return items;
   }
 
   if (shopId === 'clothes') {
-    return OUTFITS.filter((o) => o.id !== 'rags').map((o) => ({
+    const items = OUTFITS.filter((o) => o.id !== 'rags').map((o) => ({
       key: `outfit:${o.id}`,
       kind: 'outfit',
       refId: o.id,
@@ -368,17 +389,40 @@ export function stockFor(shopId, run) {
       price: o.price,
       owned: !!(run && run.outfit === o.id)
     }));
+
+    // The tailor keeps his word too: once his cloth is bought, a worn outfit is
+    // patched instead of replaced.
+    if (run && errandDone(run, 'cloth') && (run.outfitWear || 0) > 0.01) {
+      const worn = OUTFITS.find((o) => o.id === run.outfit);
+
+      items.unshift({
+        key: 'repair:outfit',
+        kind: 'repair',
+        refId: 'outfit',
+        name: '补衣',
+        desc: `把${worn ? worn.name : '这身衣服'}补好 · 体面回来`,
+        icon: worn ? worn.icon : 'item-rag',
+        price: 0,
+        owned: false
+      });
+    }
+
+    return items;
   }
 
   if (shopId === 'black') {
     const items = [];
 
+    // The hat man's watch came in, and with it a lockpick he has had his own
+    // hands on.
+    const tuned = errandDone(run, 'decent');
+
     items.push({
       key: 'tool:lockpick',
       kind: 'tool',
       refId: 'lockpick',
-      name: '开锁器',
-      desc: '偷窃时绿区更大',
+      name: tuned ? '开锁器（他改过）' : '开锁器',
+      desc: tuned ? '黑市老板亲手磨过，手更稳' : '偷窃时绿区更大',
       icon: 'item-lockpick',
       price: 22,
       owned: !!(run && run.tools.lockpick)
@@ -474,6 +518,21 @@ export function stockFor(shopId, run) {
       price: 45,
       owned: !!(run && run.books && run.books.steal)
     });
+
+    // A bottle of the good stuff, kept back behind the counter for the beggar
+    // who brought the hat man his watch.
+    if (tuned) {
+      items.push({
+        key: 'use:perfume',
+        kind: 'perfume',
+        refId: 'perfume',
+        name: '小香水',
+        desc: '偷东西时直接得手，不用比时机',
+        icon: 'item-perfume',
+        price: 25,
+        owned: false
+      });
+    }
 
     return items;
   }

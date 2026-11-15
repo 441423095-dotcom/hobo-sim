@@ -13,6 +13,20 @@ import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
 import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
 import { RECIPES, recipeById, amountOf, spendMaterial } from '../craft.js';
 import { makeGoalsForDay } from '../goals.js';
+import {
+  ERRANDS,
+  errandById,
+  errandForShop,
+  errandState,
+  errandStep,
+  errandReady,
+  errandMet,
+  errandHandIn,
+  takeForStep,
+  advanceErrand,
+  markErrandStarted,
+  emptyErrands
+} from '../errands.js';
 import { saveGame, loadGame, clearGame } from '../save.js';
 import { KING, patronById, favorOf, kingProgress } from '../king.js';
 import {
@@ -413,6 +427,12 @@ export class StreetScene extends Phaser.Scene {
     if (!this.run.vendingKicked) this.run.vendingKicked = {};
     if (!this.run.openAlleys) this.run.openAlleys = {};
 
+    // The shopkeepers' private business: what has been done for them, and how
+    // much wear the clothes on the beggar's back have taken.
+    if (!this.run.errands) this.run.errands = emptyErrands();
+    if (typeof this.run.outfitWear !== 'number') this.run.outfitWear = 0;
+    if (typeof this.run.noodleDay !== 'number') this.run.noodleDay = 0;
+
     this.layout = layoutFor(this.scale.width, this.scale.height);
     this.axes = { x: 0, y: 0 };
     this.peds = [];
@@ -440,6 +460,7 @@ export class StreetScene extends Phaser.Scene {
     this.skyFlipAt = 0;
     this.passerbyAt = 0;
     this.mugAt = 0;
+    this.errandAt = 0;
     this.warmAt = 0;
     this.warmUntil = 0;
     this.loadHome();
@@ -2025,6 +2046,7 @@ export class StreetScene extends Phaser.Scene {
 
     let width = (asItem ? 0.5 : 0.4) - alert * 0.18;
     if (this.run.tools.lockpick) width += 0.1;
+    if (this.run.tools.lockpick2) width += 0.08;
     if (this.run.tools.coat) width += 0.04;
 
     // The torn glove makes every window a fifth wider.
@@ -3150,6 +3172,7 @@ export class StreetScene extends Phaser.Scene {
     this.mugAt = this.time.now + 55000;
     run.energy = Math.max(0, run.energy - 8);
     this.cameras.main.shake(220, 0.006);
+    this.soilOutfit(0.1);
 
     if (lost > 0) run.money -= lost;
 
@@ -4307,6 +4330,7 @@ export class StreetScene extends Phaser.Scene {
 
     run.energy = 40;
     run.hunger = Math.max(0, run.hunger - 10);
+    this.soilOutfit(0.2);
     run.day += 1;
     run.step = 0;
     run.dayStart = {
@@ -4343,6 +4367,174 @@ export class StreetScene extends Phaser.Scene {
   openStore(id) {
     const hud = this.scene.get('Hud');
     if (hud && hud.openStore && this.scene.isActive('Hud')) hud.openStore(id);
+  }
+
+  // ------------------------------------------------- the shopkeepers' business
+
+  /// The job hanging off a shop's counter, ready for the HUD to read out.
+  errandFor(shopId) {
+    const errand = errandForShop(shopId);
+    if (!errand) return null;
+
+    return {
+      errand,
+      state: errandState(this.run, errand.id),
+      step: errandStep(this.run, errand.id),
+      ready: errandReady(this.run, errand.id)
+    };
+  }
+
+  errandContext() {
+    return {
+      district: this.district ? this.district.id : null,
+      segment: segmentOf(this.run.step),
+      weather: this.cityFx && this.cityFx.weather ? this.cityFx.weather.id : null,
+      wanted: this.run.wanted || 0
+    };
+  }
+
+  /// Jobs that finish on their own — the right street at the right hour, the
+  /// rain, or a wanted level low enough for the 城管 to look past — are watched
+  /// here rather than handed over at a counter.
+  updateErrands() {
+    const run = this.run;
+    if (!run || run.over) return;
+
+    if (this.time.now < (this.errandAt || 0)) return;
+    this.errandAt = this.time.now + 500;
+
+    const ctx = this.errandContext();
+
+    for (const errand of ERRANDS) {
+      const state = errandState(run, errand.id);
+      if (!state.started) continue;
+
+      const step = errandStep(run, errand.id);
+      if (!step || (step.kind !== 'go' && step.kind !== 'wanted')) continue;
+      if (!errandMet(step, ctx)) continue;
+
+      this.completeErrandStep(errand.id);
+      return;
+    }
+  }
+
+  /// The beggar took the job on: from here the street watches the hour, the
+  /// place and the weather for him.
+  beginErrand(id) {
+    if (!this.run) return;
+
+    markErrandStarted(this.run, id);
+    this.saveNow();
+  }
+
+  /// Take what a hand-in step asked for and move the job on.
+  handErrandIn(id) {
+    const step = errandStep(this.run, id);
+    if (!errandHandIn(step)) return false;
+    if (!errandReady(this.run, id)) return false;
+    if (!takeForStep(this.run, step)) return false;
+
+    this.refreshBagCount();
+    this.completeErrandStep(id);
+
+    return true;
+  }
+
+  completeErrandStep(id) {
+    const errand = errandById(id);
+    if (!errand) return;
+
+    const state = advanceErrand(this.run, id);
+    if (!state) return;
+
+    this.addFavor(errand.speaker, 10);
+    playSfx('unlock');
+    haptic('unlock');
+
+    if (state.done) {
+      this.grantErrandReward(errand);
+      return;
+    }
+
+    const next = errandStep(this.run, id);
+
+    this.floatText(
+      this.player.x,
+      this.player.y - 50,
+      `${errand.title} ${state.step}/${errand.steps.length}`,
+      UI.cream
+    );
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast && next) hud.showToast(`${errand.owner}：${next.short}。`);
+
+    this.saveNow();
+  }
+
+  /// What the shopkeeper hands back: never money, always a door left open. The
+  /// free bowl and the grocery price are read off the job list itself, so only
+  /// the two that change the run need writing down.
+  grantErrandReward(errand) {
+    const run = this.run;
+
+    if (errand.id === 'decent') {
+      run.tools.lockpick = true;
+      run.tools.lockpick2 = true;
+      run.perfume = (run.perfume || 0) + 1;
+      this.refreshBagCount();
+    }
+
+    this.floatText(this.player.x, this.player.y - 56, `办成了 · ${errand.reward}`, '#a8d98a');
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast) hud.showToast(`${errand.owner}：${errand.done}`);
+
+    playSfx('jackpot');
+    haptic('jackpot');
+    this.saveNow();
+  }
+
+  /// One free bowl a day at any food stall, once the noodle seller's girl is in
+  /// school.
+  eatFreeNoodle() {
+    const run = this.run;
+    if (!run || run.over) return false;
+    if (!errandState(run, 'noodle').done) return false;
+    if (run.noodleDay === run.day) return false;
+
+    const food = FOODS.find((f) => f.id === 'noodle');
+
+    run.noodleDay = run.day;
+    run.hunger = Math.min(HUNGER_MAX, run.hunger + (food ? food.restore : 44));
+    run.energy = Math.min(ENERGY_MAX, run.energy + (food ? food.energy : 24));
+
+    playSfx('eat');
+    haptic('eat');
+    this.floatText(this.player.x, this.player.y - 46, '免费的一大碗面', '#a8d98a');
+
+    return true;
+  }
+
+  /// The tailor patches whatever the beggar is wearing, so a good coat can be
+  /// kept instead of bought again.
+  repairOutfit() {
+    const run = this.run;
+    if (!run || !run.outfitWear) return false;
+
+    run.outfitWear = 0;
+    this.applyOutfit();
+    playSfx('craft');
+    haptic('craft');
+    this.floatText(this.player.x, this.player.y - 46, '补好了，看着又体面了', '#a8d98a');
+
+    return true;
+  }
+
+  /// Bins, muggings and a night on the pavement all take it out of the clothes.
+  soilOutfit(amount) {
+    if (!this.run) return;
+
+    this.run.outfitWear = Phaser.Math.Clamp((this.run.outfitWear || 0) + amount, 0, 0.9);
   }
 
   /// Buys one line off a shop counter. Food, tools and material bundles talk to
@@ -4540,10 +4732,13 @@ export class StreetScene extends Phaser.Scene {
     haptic('buy');
   }
 
-  /// How presentable the player looks, 0 for rags and 1 for the best coat.
+  /// How presentable the player looks, 0 for rags and 1 for the best coat, and
+  /// worn down by the street until the tailor patches it.
   cleanLevel() {
     const outfit = OUTFITS.find((o) => o.id === this.run.outfit);
-    return outfit ? outfit.clean : 0;
+    const wear = Phaser.Math.Clamp(this.run.outfitWear || 0, 0, 0.9);
+
+    return (outfit ? outfit.clean : 0) * (1 - wear);
   }
 
   /// The sprite for a pose, with the suffix of whatever the player is wearing.
@@ -5565,6 +5760,7 @@ export class StreetScene extends Phaser.Scene {
     this.updateNightDanger();
     this.updateBraziers(dt);
     this.checkKing();
+    this.updateErrands();
 
     if (!run.over) {
       run.hunger = Math.max(0, run.hunger - HUNGER_DRAIN * dt);

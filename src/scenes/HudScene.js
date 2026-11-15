@@ -23,6 +23,7 @@ import { SLOT_COST, SLOT_SYMBOLS } from '../gamble.js';
 import { RECIPES, amountOf, materialLabel } from '../craft.js';
 import { seasonName } from '../city.js';
 import { skillLabel } from '../skill.js';
+import { errandHookLine, errandAskLines, errandHandIn, stepNeedText } from '../errands.js';
 import { STORY_GOALS, STORY_STEPS } from '../story.js';
 import { FONT, UI } from '../style.js';
 
@@ -615,6 +616,7 @@ export class HudScene extends Phaser.Scene {
 
     this.storeMode = 'buy';
     this.storeTabShown = false;
+    this.storeEntries = [];
 
     this.storeLayer.add([
       this.storeBackdrop,
@@ -631,7 +633,7 @@ export class HudScene extends Phaser.Scene {
 
     this.storeRows = [];
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 12; i++) {
       const bg = this.add
         .rectangle(0, 0, ROW_WIDTH, ROW_HEIGHT, UI.panelRow, 1)
         .setOrigin(0, 0.5)
@@ -3713,9 +3715,15 @@ export class HudScene extends Phaser.Scene {
     this.storeTabShown = tabs;
 
     const count = Math.max(1, this.storeEntries.length);
-    const rowH = ROW_HEIGHT;
     const gap = 8;
     const headH = tabs ? 104 : 56;
+
+    // The counter grows a row when a favour comes due, so the rows themselves
+    // give way rather than run off the bottom of the screen.
+    const maxH = Math.max(220, this.playH - 88);
+    const fitted = Math.floor((maxH - headH - 20) / count) - gap;
+    const rowH = Math.max(46, Math.min(ROW_HEIGHT, fitted));
+
     const pw = Math.min(w - 32, ROW_WIDTH + 24);
     const ph = headH + count * (rowH + gap) + 20;
     const px = (w - pw) / 2;
@@ -3755,7 +3763,7 @@ export class HudScene extends Phaser.Scene {
     this.storeRows.forEach((row, i) => {
       const ry = py + headH + rowH / 2 + i * (rowH + gap);
 
-      row.bg.setScale(rowScale, 1).setPosition(rowX, ry);
+      row.bg.setScale(rowScale, rowH / ROW_HEIGHT).setPosition(rowX, ry);
       this.fitIcon(row.icon, 24).setPosition(rowX + 26, ry);
       row.name.setPosition(rowX + 48, ry - 12);
       row.info.setWordWrapWidth(rowW - 150).setPosition(rowX + 48, ry + 8);
@@ -4198,17 +4206,94 @@ export class HudScene extends Phaser.Scene {
   // --------------------------------------------------------------------- shop
 
   openStore(id) {
-    const talk = shopTalk(id, this.street && this.street.run);
+    const run = this.street && this.street.run ? this.street.run : null;
+    const talk = shopTalk(id, run);
+    const info =
+      this.street && this.street.errandFor ? this.street.errandFor(id) : null;
 
-    if (talk && talk.lines && talk.lines.length) {
-      this.showDialogue(talk.speaker, talk.lines, () => this.reallyOpenStore(id), [
-        { label: '看看货', onPick: () => this.reallyOpenStore(id) },
-        { label: '不买了' }
-      ]);
+    const lines = [];
+
+    if (talk && talk.lines && talk.lines.length) lines.push(...talk.lines);
+    if (info) lines.push(errandHookLine(info.errand, info.state, info.step));
+
+    if (!lines.length) {
+      this.reallyOpenStore(id);
       return;
     }
 
-    this.reallyOpenStore(id);
+    const options = [];
+
+    if (info) {
+      options.push({
+        label: info.state.done ? '说两句' : '聊私事',
+        onPick: () => this.openErrand(id)
+      });
+      options.push({ label: '看看货', onPick: () => this.reallyOpenStore(id) });
+    } else {
+      options.push({ label: '看看货', onPick: () => this.reallyOpenStore(id) });
+      options.push({ label: '不买了' });
+    }
+
+    const speaker = talk ? talk.speaker : info.errand.speaker;
+
+    this.showDialogue(speaker, lines, () => this.reallyOpenStore(id), options);
+  }
+
+  /// One shopkeeper's private business: where it stands, and what is left to do
+  /// about it. Hand-in steps are settled right here at the counter.
+  openErrand(id) {
+    const street = this.street;
+    let info = street && street.errandFor ? street.errandFor(id) : null;
+
+    if (!info) return;
+
+    // Picking "聊私事" is taking it on: until then nothing is watched.
+    if (!info.state.started && street.beginErrand) {
+      street.beginErrand(id);
+      info = street.errandFor(id);
+    }
+
+    const errand = info.errand;
+    const lines = errandAskLines(errand, info.state, info.step);
+    const options = [];
+
+    if (!info.state.done && errandHandIn(info.step)) {
+      options.push({
+        label: info.ready ? '交给他' : '还差着',
+        onPick: () => this.tryErrandHandIn(id)
+      });
+    } else {
+      options.push({ label: '知道了' });
+    }
+
+    options.push({ label: '看看货', onPick: () => this.reallyOpenStore(id) });
+
+    this.showDialogue(errand.speaker, lines, () => this.reallyOpenStore(id), options);
+  }
+
+  tryErrandHandIn(id) {
+    const street = this.street;
+    const info = street && street.errandFor ? street.errandFor(id) : null;
+
+    if (info && !info.ready) {
+      const need = stepNeedText(info.step);
+      haptic('refuse');
+
+      if (this.showToast) {
+        this.showToast(`${info.errand.owner}：${need}，还差着呢。`);
+      }
+      return;
+    }
+
+    const ok = street && street.handErrandIn && street.handErrandIn(id);
+
+    if (!ok) {
+      haptic('refuse');
+      return;
+    }
+
+    // Straight back into his mouth: the next step, or the thanks.
+    this.time.delayedCall(320, () => this.openErrand(id));
   }
 
   reallyOpenStore(id) {
@@ -4235,8 +4320,8 @@ export class HudScene extends Phaser.Scene {
     this.showPanel(this.storeLayer);
     this.releaseStick();
     this.shown.storeSig = null;
-    this.layoutStore();
     this.refreshStore();
+    this.layoutStore();
     haptic('ui');
   }
 
@@ -6093,6 +6178,21 @@ export class HudScene extends Phaser.Scene {
     this.refreshTrade();
   }
 
+  /// Everything the counter shows changes with: the money in hand, what the
+  /// beggar is wearing and how worn it is, the kit, and the favours done for the
+  /// shopkeeper.
+  storeSignature(run) {
+    if (!run) return '';
+
+    return `${this.storeMode}|${run.money}|${run.outfit}|${run.outfitWear || 0}|${
+      run.noodleDay || 0
+    }|${Object.keys(run.blueprints).length}|${run.tools.lockpick}|${run.tools.lockpick2}|${
+      run.tools.glove
+    }|${run.tools.blade}|${run.booze}|${run.perfume}|${run.bag}|${JSON.stringify(
+      run.errands || {}
+    )}`;
+  }
+
   refreshStore() {
     const run = this.street && this.street.run ? this.street.run : null;
     const shop = SHOPS.find((s) => s.id === this.storeId);
@@ -6105,11 +6205,15 @@ export class HudScene extends Phaser.Scene {
 
     this.storeEntries = selling ? sellListFor(this.storeId, run) : stockFor(this.storeId, run);
 
-    this.shown.storeSig = run
-      ? `${this.storeMode}|${run.money}|${run.outfit}|${Object.keys(run.blueprints).length}|${
-          run.tools.lockpick
-        }|${run.tools.glove}|${run.tools.blade}|${run.booze}|${run.perfume}|${run.bag}`
-      : '';
+    // A counter grows a row when an errand is finished: the free bowl, the
+    // patched coat, the bottle kept back behind the black market's curtain. The
+    // panel has to be tall enough for it.
+    if (this.storeEntries.length !== (this.storeCount || 0)) {
+      this.storeCount = this.storeEntries.length;
+      if (this.shopOpen) this.layoutStore();
+    }
+
+    this.shown.storeSig = this.storeSignature(run);
 
     this.storeRows.forEach((row, i) => {
       const entry = this.storeEntries[i];
@@ -6127,12 +6231,15 @@ export class HudScene extends Phaser.Scene {
 
       const free = entry.kind === 'recycle';
       const sellable = entry.kind === 'sell';
-      const affordable = !!run && (free || sellable || run.money >= entry.price);
+      const affordable =
+        !!run && (free || sellable || entry.price === 0 || run.money >= entry.price);
 
       row.icon.setTexture(entry.icon);
       row.name.setText(entry.name);
       this.fitRow(row.info, entry.desc, this.storeInfoW || 180, 12);
-      row.price.setText(entry.owned ? '已拥有' : free ? '回收' : `${entry.price} 元`);
+      row.price.setText(
+        entry.owned ? '已拥有' : free ? '回收' : entry.price === 0 ? '免费' : `${entry.price} 元`
+      );
 
       row.name.setColor(entry.owned || affordable ? UI.cream : '#8a8070');
       row.info.setColor(entry.owned || affordable ? UI.creamDim : '#736a5c');
@@ -6163,6 +6270,24 @@ export class HudScene extends Phaser.Scene {
 
     if (entry.owned) {
       haptic('refuse');
+      return;
+    }
+
+    // The two counter rows that are favours rather than goods: the bowl the
+    // noodle seller promised, and the tailor's needle.
+    if (entry.kind === 'freenoodle' || entry.kind === 'repair') {
+      const method = entry.kind === 'freenoodle' ? 'eatFreeNoodle' : 'repairOutfit';
+      const ok = this.street && this.street[method] && this.street[method]();
+
+      if (!ok) {
+        haptic('refuse');
+        return;
+      }
+
+      playSfx('buy');
+      haptic('buy');
+      this.shown.storeSig = null;
+      this.refreshStore();
       return;
     }
 
@@ -6493,9 +6618,7 @@ export class HudScene extends Phaser.Scene {
     else if (!run.over && this.overOpen) this.hideOverlay();
 
     if (this.shopOpen) {
-      const sig = `${run.money}|${run.outfit}|${Object.keys(run.blueprints).length}|${
-        run.tools.lockpick
-      }|${run.bag}`;
+      const sig = this.storeSignature(run);
       if (sig !== this.shown.storeSig) this.refreshStore();
     }
   }
