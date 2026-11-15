@@ -106,7 +106,7 @@ const ALLEY_H = 78;
 // two at the kerb, works hoarding and the odd awning.
 const STREET_DECOR = {
   camp: { crosswalks: [560], cars: [420], hoardings: [], awnings: [] },
-  market: { crosswalks: [520, 1040], cars: [360, 880], hoardings: [], awnings: [330, 900] },
+  market: { crosswalks: [520, 1040], cars: [360, 880], hoardings: [], awnings: [330] },
   square: { crosswalks: [420, 1120], cars: [300], hoardings: [720], awnings: [520] },
   commerce: { crosswalks: [600], cars: [420, 960], hoardings: [860], awnings: [300] },
   alley: { crosswalks: [520], cars: [], hoardings: [], awnings: [] },
@@ -856,7 +856,7 @@ export class StreetScene extends Phaser.Scene {
       }
 
       for (const ay of decor.awnings || []) {
-        this.add.image(x0 + 392, y0 + ay, 'awning').setOrigin(0, 0).setDepth(y0 + ay + 26);
+        this.add.image(x0 + 392, y0 + ay, 'awning').setOrigin(0, 0).setDepth(y0 + ay);
       }
     }
   }
@@ -1129,10 +1129,10 @@ export class StreetScene extends Phaser.Scene {
     this.prompt = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '13px',
+        fontSize: '15px',
         color: UI.cream,
-        backgroundColor: 'rgba(18,14,10,0.78)',
-        padding: { x: 7, y: 4 }
+        backgroundColor: 'rgba(18,14,10,0.82)',
+        padding: { x: 9, y: 5 }
       })
       .setOrigin(0.5, 1)
       .setDepth(6000)
@@ -2332,7 +2332,7 @@ export class StreetScene extends Phaser.Scene {
   }
 
   getClockText() {
-    return `第 ${this.run.day} 天 · ${segmentName(this.run.step)} ${minutesToClock(this.run.step)}`;
+    return `第 ${this.run.day} 天 · ${minutesToClock(this.run.step)}`;
   }
 
   applyNight() {
@@ -2365,8 +2365,14 @@ export class StreetScene extends Phaser.Scene {
     const ys = [200, 560, 920, 1280];
 
     for (const strip of this.strips) {
+      const decor = STREET_DECOR[strip.id] || {};
+      const crossings = decor.crosswalks || [];
+
       ys.forEach((localY, i) => {
-        const x = strip.x0 + (i % 2 === 0 ? 132 : 506);
+        // Keep the lamp clear of the crossing and its lights.
+        if (crossings.some((cy) => Math.abs(cy - localY) < 130)) return;
+
+        const x = strip.x0 + (i % 2 === 0 ? 266 : 374);
         const y = strip.y0 + localY;
 
         this.add.image(x, y, 'streetlamp').setOrigin(0.5, 1).setDepth(y);
@@ -2763,19 +2769,19 @@ export class StreetScene extends Phaser.Scene {
     const label = this.add
       .text(x, y, text, {
         fontFamily: FONT,
-        fontSize: '14px',
+        fontSize: '18px',
         color: colour || UI.cream,
         stroke: '#100d09',
-        strokeThickness: 3
+        strokeThickness: 4
       })
       .setOrigin(0.5, 0.5)
       .setDepth(7000);
 
     this.tweens.add({
       targets: label,
-      y: y - 30,
+      y: y - 44,
       alpha: 0,
-      duration: 900,
+      duration: 1500,
       ease: 'Cubic.easeOut',
       onComplete: () => label.destroy()
     });

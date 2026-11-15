@@ -27,7 +27,7 @@ const DEPTH = {
 };
 
 const ROW_WIDTH = 300;
-const ROW_HEIGHT = 56;
+const ROW_HEIGHT = 66;
 
 // Control sizes are fixed rather than derived per frame: the band is tall
 // enough for them at its smallest, and leaving the circles alone keeps their
@@ -38,10 +38,10 @@ const STICK_THROW = 46;
 const ACTION_RADIUS = 45;
 
 const TRADE_ROW_WIDTH = 300;
-const TRADE_ROW_HEIGHT = 42;
+const TRADE_ROW_HEIGHT = 54;
 const TRADE_MAX_ROWS = 10;
 
-const CRAFT_ROW_HEIGHT = 56;
+const CRAFT_ROW_HEIGHT = 66;
 
 export class HudScene extends Phaser.Scene {
   constructor() {
@@ -240,7 +240,7 @@ export class HudScene extends Phaser.Scene {
     this.moneyText = this.add
       .text(0, 0, '0 元', {
         fontFamily: FONT,
-        fontSize: '15px',
+        fontSize: '17px',
         color: UI.gold,
         fontStyle: 'bold'
       })
@@ -251,7 +251,7 @@ export class HudScene extends Phaser.Scene {
     this.bagText = this.add
       .text(0, 0, '0', {
         fontFamily: FONT,
-        fontSize: '15px',
+        fontSize: '17px',
         color: UI.cream,
         fontStyle: 'bold'
       })
@@ -281,7 +281,7 @@ export class HudScene extends Phaser.Scene {
     this.hintText = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '13px',
+        fontSize: '15px',
         color: UI.cream,
         backgroundColor: 'rgba(20,16,12,0.72)',
         padding: { x: 8, y: 4 }
@@ -309,7 +309,7 @@ export class HudScene extends Phaser.Scene {
     this.districtText = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '13px',
+        fontSize: '15px',
         color: UI.creamDim
       })
       .setOrigin(0.5, 0.5)
@@ -318,7 +318,7 @@ export class HudScene extends Phaser.Scene {
     this.toastText = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '14px',
+        fontSize: '16px',
         color: '#fff3d2',
         backgroundColor: 'rgba(24,18,12,0.86)',
         padding: { x: 10, y: 6 }
@@ -330,8 +330,8 @@ export class HudScene extends Phaser.Scene {
     this.clockText = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '12px',
-        color: UI.creamDim,
+        fontSize: '16px',
+        color: '#f2c46a',
         fontStyle: 'bold'
       })
       .setOrigin(0, 0.5)
@@ -340,7 +340,7 @@ export class HudScene extends Phaser.Scene {
     this.wantedText = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '11px',
+        fontSize: '13px',
         color: '#f0a08a'
       })
       .setOrigin(0.5, 0.5)
@@ -350,7 +350,7 @@ export class HudScene extends Phaser.Scene {
     this.edgeText = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '12px',
+        fontSize: '14px',
         color: UI.cream,
         backgroundColor: 'rgba(20,16,12,0.78)',
         padding: { x: 8, y: 4 }
@@ -376,14 +376,14 @@ export class HudScene extends Phaser.Scene {
     this.storeTitle = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '16px',
+        fontSize: '19px',
         color: UI.cream,
         fontStyle: 'bold'
       })
       .setOrigin(0, 0);
 
     this.storeSub = this.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
       .setOrigin(0, 0);
 
     this.storeCloseBtn = this.add
@@ -411,15 +411,15 @@ export class HudScene extends Phaser.Scene {
         .setInteractive();
       const icon = this.add.image(0, 0, 'icon-sandwich');
       const name = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: UI.cream })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '17px', color: UI.cream })
         .setOrigin(0, 0.5);
       const info = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
         .setOrigin(0, 0.5);
       const price = this.add
         .text(0, 0, '', {
           fontFamily: FONT,
-          fontSize: '16px',
+          fontSize: '19px',
           color: UI.gold,
           fontStyle: 'bold'
         })
@@ -446,14 +446,14 @@ export class HudScene extends Phaser.Scene {
     this.tradeTitle = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '16px',
+        fontSize: '19px',
         color: UI.cream,
         fontStyle: 'bold'
       })
       .setOrigin(0, 0);
 
     this.tradeSub = this.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
       .setOrigin(0, 0);
 
     this.tradeLayer.add([
@@ -472,15 +472,15 @@ export class HudScene extends Phaser.Scene {
         .setInteractive();
       const icon = this.add.image(0, 0, 'item-can');
       const name = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '14px', color: UI.cream })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '16px', color: UI.cream })
         .setOrigin(0, 0.5);
       const info = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
         .setOrigin(0, 0.5);
       const price = this.add
         .text(0, 0, '', {
           fontFamily: FONT,
-          fontSize: '15px',
+          fontSize: '17px',
           color: UI.gold,
           fontStyle: 'bold'
         })
@@ -494,7 +494,7 @@ export class HudScene extends Phaser.Scene {
       const useText = this.add
         .text(0, 0, '用', {
           fontFamily: FONT,
-          fontSize: '12px',
+          fontSize: '14px',
           color: UI.cream,
           fontStyle: 'bold'
         })
@@ -515,7 +515,7 @@ export class HudScene extends Phaser.Scene {
     this.sellAllText = this.add
       .text(0, 0, '废品全卖', {
         fontFamily: FONT,
-        fontSize: '14px',
+        fontSize: '16px',
         color: UI.cream,
         fontStyle: 'bold'
       })
@@ -553,7 +553,7 @@ export class HudScene extends Phaser.Scene {
     this.qteTitle = this.add
       .text(0, 0, '扒钱包', {
         fontFamily: FONT,
-        fontSize: '15px',
+        fontSize: '17px',
         color: UI.cream,
         fontStyle: 'bold'
       })
@@ -562,7 +562,7 @@ export class HudScene extends Phaser.Scene {
     this.qteTip = this.add
       .text(0, 0, '滑块进绿区时点击', {
         fontFamily: FONT,
-        fontSize: '12px',
+        fontSize: '14px',
         color: UI.creamDim
       })
       .setOrigin(0.5, 0.5);
@@ -598,7 +598,7 @@ export class HudScene extends Phaser.Scene {
     this.stealChoiceTitle = this.add
       .text(0, 0, '要偷什么？', {
         fontFamily: FONT,
-        fontSize: '14px',
+        fontSize: '16px',
         color: UI.cream,
         fontStyle: 'bold'
       })
@@ -627,13 +627,13 @@ export class HudScene extends Phaser.Scene {
       const name = this.add
         .text(0, 0, '', {
           fontFamily: FONT,
-          fontSize: '14px',
+          fontSize: '16px',
           color: UI.cream,
           fontStyle: 'bold'
         })
         .setOrigin(0, 0.5);
       const info = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
         .setOrigin(0, 0.5);
 
       const row = {
@@ -901,7 +901,7 @@ export class HudScene extends Phaser.Scene {
     this.overTitle = this.add
       .text(0, 0, '你饿晕了', {
         fontFamily: FONT,
-        fontSize: '22px',
+        fontSize: '24px',
         color: '#f4e9d4',
         fontStyle: 'bold'
       })
@@ -910,7 +910,7 @@ export class HudScene extends Phaser.Scene {
     this.overSub = this.add
       .text(0, 0, '街上没人理会你。', {
         fontFamily: FONT,
-        fontSize: '13px',
+        fontSize: '15px',
         color: UI.creamDim
       })
       .setOrigin(0.5, 0.5);
@@ -918,7 +918,7 @@ export class HudScene extends Phaser.Scene {
     this.overStats = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '13px',
+        fontSize: '15px',
         color: UI.cream,
         align: 'center',
         lineSpacing: 6
@@ -933,7 +933,7 @@ export class HudScene extends Phaser.Scene {
     this.restartText = this.add
       .text(0, 0, '重新开始', {
         fontFamily: FONT,
-        fontSize: '15px',
+        fontSize: '17px',
         color: UI.cream,
         fontStyle: 'bold'
       })
@@ -1017,41 +1017,42 @@ export class HudScene extends Phaser.Scene {
     const g = this.chipGfx;
     g.clear();
 
-    g.fillStyle(0x1a1611, 0.82);
-    g.fillRoundedRect(12, 26, 108, 30, 10);
-    g.fillRoundedRect(w - 92, 26, 80, 30, 10);
-    g.fillRoundedRect(12, 60, 150, 24, 8);
-    g.fillRoundedRect(12, 88, 150, 24, 8);
+    g.fillStyle(0x1a1611, 0.86);
+    g.fillRoundedRect(12, 16, 192, 34, 10);
+    g.fillRoundedRect(12, 58, 118, 34, 10);
+    g.fillRoundedRect(w - 104, 58, 92, 34, 10);
+    g.fillRoundedRect(12, 100, 154, 28, 8);
+    g.fillRoundedRect(12, 134, 154, 28, 8);
 
     const iconScale = 26 / 96;
 
-    this.coinIcon.setPosition(30, 41).setScale(iconScale);
-    this.moneyText.setPosition(46, 41);
+    this.coinIcon.setPosition(30, 75).setScale(iconScale);
+    this.moneyText.setPosition(48, 75);
 
-    this.bagIcon.setPosition(w - 70, 41).setScale(iconScale);
-    this.bagText.setPosition(w - 24, 41);
+    this.bagIcon.setPosition(w - 82, 75).setScale(iconScale);
+    this.bagText.setPosition(w - 22, 75);
 
-    this.hungerIcon.setPosition(28, 72).setScale(22 / 96);
+    this.hungerIcon.setPosition(30, 114).setScale(22 / 96);
 
-    const barX = 42;
+    const barX = 46;
     const barW = 108;
     this.barScale = barW / 118;
 
-    this.hungerTrack.setPosition(barX, 72).setScale(this.barScale, 1);
-    this.hungerFill.setPosition(barX, 72).setScale(this.barScale, 1);
+    this.hungerTrack.setPosition(barX, 114).setScale(this.barScale, 1);
+    this.hungerFill.setPosition(barX, 114).setScale(this.barScale, 1);
 
-    this.energyIcon.setPosition(28, 100).setScale(22 / 96);
-    this.energyTrack.setPosition(barX, 100).setScale(this.barScale, 1);
-    this.energyFill.setPosition(barX, 100).setScale(this.barScale, 1);
+    this.energyIcon.setPosition(30, 148).setScale(22 / 96);
+    this.energyTrack.setPosition(barX, 148).setScale(this.barScale, 1);
+    this.energyFill.setPosition(barX, 148).setScale(this.barScale, 1);
 
-    this.hintText.setPosition(w / 2, playH - 12);
+    this.hintText.setPosition(w / 2, playH - 16);
 
-    this.mapBtn.setPosition(w - 34, 84);
-    this.mapIcon.setPosition(w - 34, 84);
-    this.districtText.setPosition(w / 2, 41);
-    this.clockText.setPosition(14, 13);
-    this.wantedText.setPosition(w - 34, 118);
-    this.edgeText.setPosition(w / 2, 116);
+    this.mapBtn.setPosition(w - 34, 33);
+    this.mapIcon.setPosition(w - 34, 33);
+    this.districtText.setPosition(w / 2, 75);
+    this.clockText.setPosition(24, 33);
+    this.wantedText.setPosition(w - 34, 104);
+    this.edgeText.setPosition(w / 2, 178);
     this.toastText.setPosition(w / 2, playH * 0.28);
   }
 
@@ -1149,8 +1150,8 @@ export class HudScene extends Phaser.Scene {
 
       row.bg.setScale(rowScale, 1).setPosition(rowX, ry);
       row.icon.setPosition(rowX + 26, ry);
-      row.name.setPosition(rowX + 50, ry - 8);
-      row.info.setPosition(rowX + 50, ry + 11);
+      row.name.setPosition(rowX + 50, ry - 11);
+      row.info.setPosition(rowX + 50, ry + 13);
       row.price.setPosition(rowX + rowW - 12, ry);
       row.useBtn.setPosition(rowX + rowW - 96, ry);
       row.useText.setPosition(rowX + rowW - 96, ry);
@@ -1595,14 +1596,14 @@ export class HudScene extends Phaser.Scene {
     this.craftTitle = this.add
       .text(0, 0, '工作台 · 合成', {
         fontFamily: FONT,
-        fontSize: '16px',
+        fontSize: '19px',
         color: UI.cream,
         fontStyle: 'bold'
       })
       .setOrigin(0, 0);
 
     this.craftSub = this.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
       .setOrigin(0, 0);
 
     this.craftCloseBtn = this.add
@@ -1613,7 +1614,7 @@ export class HudScene extends Phaser.Scene {
     this.craftCloseBtn.on('pointerup', () => this.closeCraft());
 
     this.craftHint = this.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
       .setOrigin(0.5, 0.5);
 
     this.craftLayer.add([
@@ -1633,21 +1634,21 @@ export class HudScene extends Phaser.Scene {
         .setInteractive();
       const icon = this.add.image(0, 0, rec.tex);
       const name = this.add
-        .text(0, 0, rec.name, { fontFamily: FONT, fontSize: '14px', color: UI.cream })
+        .text(0, 0, rec.name, { fontFamily: FONT, fontSize: '16px', color: UI.cream })
         .setOrigin(0, 0.5);
       const info = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
         .setOrigin(0, 0.5);
       const value = this.add
         .text(0, 0, `${rec.value} 元`, {
           fontFamily: FONT,
-          fontSize: '14px',
+          fontSize: '16px',
           color: UI.gold,
           fontStyle: 'bold'
         })
         .setOrigin(1, 0.5);
       const state = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
         .setOrigin(1, 0.5);
 
       bg.on('pointerdown', () => this.craftRecipe(rec));
@@ -1805,14 +1806,14 @@ export class HudScene extends Phaser.Scene {
     this.homeTitle = this.add
       .text(0, 0, '城郊营地 · 帐篷里', {
         fontFamily: FONT,
-        fontSize: '16px',
+        fontSize: '19px',
         color: UI.cream,
         fontStyle: 'bold'
       })
       .setOrigin(0, 0);
 
     this.homeSub = this.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
       .setOrigin(0, 0);
 
     this.homeCloseBtn = this.add
@@ -1828,7 +1829,7 @@ export class HudScene extends Phaser.Scene {
       this.add
         .text(0, 0, '', {
           fontFamily: FONT,
-          fontSize: '10px',
+          fontSize: '12px',
           color: '#8a8070',
           align: 'center',
           wordWrap: { width: 108 },
@@ -1852,7 +1853,7 @@ export class HudScene extends Phaser.Scene {
     this.homeNote = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '11px',
+        fontSize: '13px',
         color: UI.creamDim,
         align: 'center'
       })
@@ -1865,7 +1866,7 @@ export class HudScene extends Phaser.Scene {
     this.sleepText = this.add
       .text(0, 0, '睡一觉', {
         fontFamily: FONT,
-        fontSize: '14px',
+        fontSize: '16px',
         color: UI.cream,
         fontStyle: 'bold'
       })
@@ -1875,7 +1876,7 @@ export class HudScene extends Phaser.Scene {
     this.homeHint = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '11px',
+        fontSize: '13px',
         color: UI.creamDim,
         align: 'center',
         wordWrap: { width: 300 },
@@ -2236,7 +2237,7 @@ export class HudScene extends Phaser.Scene {
     this.vendingTitle = this.add
       .text(0, 0, '自动售货机', {
         fontFamily: FONT,
-        fontSize: '16px',
+        fontSize: '19px',
         color: UI.cream,
         fontStyle: 'bold'
       })
@@ -2245,7 +2246,7 @@ export class HudScene extends Phaser.Scene {
     this.vendingSub = this.add
       .text(0, 0, '投币买一罐，或者踹一脚', {
         fontFamily: FONT,
-        fontSize: '11px',
+        fontSize: '13px',
         color: UI.creamDim
       })
       .setOrigin(0, 0);
@@ -2275,15 +2276,15 @@ export class HudScene extends Phaser.Scene {
         .setInteractive();
       const icon = this.add.image(0, 0, 'icon-cup-soda');
       const name = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: UI.cream })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '17px', color: UI.cream })
         .setOrigin(0, 0.5);
       const info = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
         .setOrigin(0, 0.5);
       const price = this.add
         .text(0, 0, '', {
           fontFamily: FONT,
-          fontSize: '15px',
+          fontSize: '17px',
           color: UI.gold,
           fontStyle: 'bold'
         })
@@ -2298,7 +2299,7 @@ export class HudScene extends Phaser.Scene {
     }
 
     this.vendingHint = this.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
       .setOrigin(0.5, 0.5);
     this.vendingLayer.add(this.vendingHint);
   }
@@ -2442,7 +2443,7 @@ export class HudScene extends Phaser.Scene {
     this.slotTitle = this.add
       .text(0, 0, '老虎机', {
         fontFamily: FONT,
-        fontSize: '16px',
+        fontSize: '19px',
         color: UI.cream,
         fontStyle: 'bold'
       })
@@ -2451,7 +2452,7 @@ export class HudScene extends Phaser.Scene {
     this.slotSub = this.add
       .text(0, 0, `拉一次 ${SLOT_COST} 元，三个一样就中`, {
         fontFamily: FONT,
-        fontSize: '11px',
+        fontSize: '13px',
         color: UI.creamDim
       })
       .setOrigin(0, 0);
@@ -2478,7 +2479,7 @@ export class HudScene extends Phaser.Scene {
     for (const reel of this.slotReels) this.slotLayer.add(reel);
 
     this.slotResult = this.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.gold })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: UI.gold })
       .setOrigin(0.5, 0.5);
 
     this.slotPullBtn = this.add
@@ -2488,7 +2489,7 @@ export class HudScene extends Phaser.Scene {
     this.slotPullText = this.add
       .text(0, 0, '拉一把', {
         fontFamily: FONT,
-        fontSize: '14px',
+        fontSize: '16px',
         color: UI.cream,
         fontStyle: 'bold'
       })
@@ -2496,7 +2497,7 @@ export class HudScene extends Phaser.Scene {
     this.slotPullBtn.on('pointerdown', () => this.pullSlot());
 
     this.slotHint = this.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
       .setOrigin(0.5, 0.5);
 
     this.slotLayer.add([this.slotResult, this.slotPullBtn, this.slotPullText, this.slotHint]);
@@ -2664,11 +2665,11 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     this.mapSub = this.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
       .setOrigin(0, 0);
 
     this.mapHint = this.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
       .setOrigin(0.5, 0.5);
 
     this.mapCloseBtn = this.add
@@ -2698,14 +2699,14 @@ export class HudScene extends Phaser.Scene {
       const label = this.add
         .text(0, 0, DISTRICTS[id].name, {
           fontFamily: FONT,
-          fontSize: '12px',
+          fontSize: '14px',
           color: UI.cream,
           fontStyle: 'bold'
         })
         .setOrigin(0.5, 0);
 
       const status = this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '10px', color: UI.creamDim })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
         .setOrigin(0.5, 0);
 
       const lock = this.add.image(0, 0, 'icon-lock').setScale(0.16).setVisible(false);
@@ -2726,7 +2727,7 @@ export class HudScene extends Phaser.Scene {
     this.mapHereTag = this.add
       .text(0, 0, '我在这里', {
         fontFamily: FONT,
-        fontSize: '11px',
+        fontSize: '13px',
         color: '#0d1a0e',
         backgroundColor: '#8fd07a',
         padding: { x: 7, y: 3 }
@@ -2790,11 +2791,11 @@ export class HudScene extends Phaser.Scene {
 
       block.plate.setPosition(c.x, c.y);
       block.icon.setPosition(c.x, c.y);
-      block.label.setPosition(c.x, c.y + 30);
-      block.status.setPosition(c.x, c.y + 46);
+      block.label.setPosition(c.x, c.y + 32);
+      block.status.setPosition(c.x, c.y + 52);
       block.lock.setPosition(c.x + 19, c.y - 19);
       block.star.setPosition(c.x - 19, c.y - 19);
-      block.zone.setScale(104, 104).setPosition(c.x, c.y + 8);
+      block.zone.setScale(104, 104).setPosition(c.x, c.y + 10);
     }
   }
 
@@ -3380,7 +3381,9 @@ export class HudScene extends Phaser.Scene {
     if (clock !== this.shown.clock) {
       this.shown.clock = clock;
       this.clockText.setText(clock);
-      this.clockText.setColor(clock.includes('深夜') ? '#f0a08a' : UI.creamDim);
+      this.clockText.setColor(
+        street.isColdNight && street.isColdNight() ? '#f0a08a' : '#f2c46a'
+      );
     }
 
     const wanted = Math.round(run.wanted || 0);
