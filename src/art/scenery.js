@@ -92,6 +92,8 @@ export function buildWorldArt(scene) {
   canvasTexture(scene, 'streetlamp', 22, 88, drawStreetLamp);
   canvasTexture(scene, 'stationcanopy', 200, 92, drawStationCanopy);
   canvasTexture(scene, 'hedge', 96, 34, drawHedge);
+  canvasTexture(scene, 'grass', 28, 18, drawGrass);
+  canvasTexture(scene, 'flowers', 32, 22, drawFlowers);
   canvasTexture(scene, 'neonsign', 26, 96, drawNeonSign);
 
   // The yard behind the night market, and the buses rusting at the depot.
@@ -2599,5 +2601,72 @@ function drawBusStop(ctx, w, h) {
   ctx.fillStyle = 'rgba(216,200,168,0.6)';
   for (let i = 0; i < 4; i++) {
     ctx.fillRect(w * 0.39, h * 0.47 + i * h * 0.045, w * 0.22, 1.5);
+  }
+}
+
+
+/// A tuft of grass pushing up between the paving stones.
+function drawGrass(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.fillStyle = 'rgba(10,12,8,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.5, h - 2, w * 0.42, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const blades = ['#4f7a3a', '#5e8c44', '#3f6630', '#6a9a4c'];
+
+  for (let i = 0; i < 7; i++) {
+    const bx = w * 0.2 + (i * w * 0.6) / 6;
+    const lean = (i % 3) - 1;
+
+    ctx.strokeStyle = blades[i % blades.length];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(bx, h - 2);
+    ctx.quadraticCurveTo(bx + lean * 3, h * 0.45, bx + lean * 6, h * 0.12 + (i % 2) * 3);
+    ctx.stroke();
+  }
+}
+
+/// A little bed of flowers: green undergrowth and three or four blooms.
+function drawFlowers(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.fillStyle = 'rgba(10,12,8,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.5, h - 2, w * 0.44, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#3f6630';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.5, h * 0.66, w * 0.42, h * 0.26, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#4f7a3a';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 4; i++) {
+    const bx = w * 0.24 + i * w * 0.18;
+    ctx.beginPath();
+    ctx.moveTo(bx, h - 3);
+    ctx.lineTo(bx + (i % 2 ? 2 : -2), h * 0.34);
+    ctx.stroke();
+  }
+
+  const blooms = ['#d96b8a', '#e8c45a', '#c9a0e0', '#e8895a'];
+
+  for (let i = 0; i < 4; i++) {
+    const bx = w * 0.24 + i * w * 0.18;
+    const by = h * 0.32;
+
+    ctx.fillStyle = blooms[i % blooms.length];
+    ctx.beginPath();
+    ctx.arc(bx, by, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,246,214,0.85)';
+    ctx.beginPath();
+    ctx.arc(bx, by, 1.2, 0, Math.PI * 2);
+    ctx.fill();
   }
 }

@@ -11,3 +11,7 @@ export const KICK_WANTED = 25;
 export const SEEN_WANTED = 6;
 
 export const BIN_SEARCH_MS = 2000;
+
+// The machine also takes empties back, a coin apiece: bottles, cans, cardboard.
+export const RECYCLE_UNIT = 1;
+export const RECYCLE_KINDS = ['bottle', 'can', 'cardboard'];

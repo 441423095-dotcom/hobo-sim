@@ -66,7 +66,16 @@ import {
 import { SHOPS, OUTFITS } from '../shops.js';
 import { FURNITURE, HOME_SLOTS, HOME_SCENE_COMFORT, furnitureById } from '../home.js';
 import { DAY_LENGTH, darknessAt, minutesToClock, segmentOf, segmentName } from '../time.js';
-import { COFFEE_PRICE, COFFEE_ENERGY, KICK_ENERGY, KICK_WANTED, SEEN_WANTED, BIN_SEARCH_MS } from '../vending.js';
+import {
+  COFFEE_PRICE,
+  COFFEE_ENERGY,
+  KICK_ENERGY,
+  KICK_WANTED,
+  SEEN_WANTED,
+  BIN_SEARCH_MS,
+  RECYCLE_UNIT,
+  RECYCLE_KINDS
+} from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS, rollSlot } from '../gamble.js';
 import {
   STREET_ORDER,
@@ -183,6 +192,21 @@ const STREET_DECOR = {
   alley: { crosswalks: [520], cars: [], awnings: [] },
   park: { crosswalks: [700], cars: [], awnings: [] },
   slum: { crosswalks: [860], cars: [300], awnings: [] }
+};
+
+// How much green the pavement gets: grass tufts and the odd patch of flowers
+// between the kerb and the shopfronts. The park is all of it, the black street
+// almost none.
+const GREEN = {
+  park: 0.8,
+  camp: 0.55,
+  market: 0.3,
+  square: 0.35,
+  commerce: 0.45,
+  alley: 0.14,
+  slum: 0.12,
+  nightlot: 0.2,
+  depot: 0.18
 };
 
 // How long the player can stand in the cold night before freezing.
@@ -1780,6 +1804,20 @@ export class StreetScene extends Phaser.Scene {
 
         this.add.image(x0 + 392, y0 + ay, 'awning').setOrigin(0, 0).setDepth(y0 + ay);
         if (this.awnings) this.awnings.push({ x: x0 + 392, y: y0 + ay });
+      }
+
+      // Grass and flowers along both kerbs, thicker where the street is looked
+      // after and thinner where nobody bothers.
+      const green = GREEN[strip.id] === undefined ? 0.2 : GREEN[strip.id];
+
+      for (let gy = 90; gy < STREET_HEIGHT - 70; gy += 104) {
+        if (Math.random() > green) continue;
+
+        const gx = Math.random() < 0.5 ? 128 : 500;
+        if (this.spotBlocked(strip, gx, gy, 34, 24)) continue;
+
+        const tex = Math.random() < 0.3 ? 'flowers' : 'grass';
+        this.add.image(x0 + gx, y0 + gy, tex).setOrigin(0.5, 1).setDepth(y0 + gy);
       }
     }
   }
@@ -4342,6 +4380,36 @@ export class StreetScene extends Phaser.Scene {
     this.floatText(this.player.x, this.player.y - 46, '一罐咖啡下肚', '#a8d98a');
     haptic('buy');
     return true;
+  }
+
+  /// The machine takes empties back: bottles, cans and cardboard, a coin each,
+  /// so a full bag is worth a stop on the way home.
+  recycleAtMachine() {
+    const run = this.run;
+    if (!run) return 0;
+
+    let paid = 0;
+    let count = 0;
+
+    for (const id of RECYCLE_KINDS) {
+      const have = run.items[id] || 0;
+      if (have <= 0) continue;
+
+      run.items[id] = 0;
+      paid += have * RECYCLE_UNIT;
+      count += have;
+    }
+
+    if (paid <= 0) return 0;
+
+    run.money += paid;
+
+    this.refreshBagCount();
+    this.floatText(this.player.x, this.player.y - 46, `回收 ${count} 件 · +${paid} 元`, UI.gold);
+    playSfx('sell');
+    haptic('sell');
+
+    return paid;
   }
 
   kickVending(key) {

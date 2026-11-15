@@ -18,7 +18,7 @@ import { FURNITURE, FURNITURE_RECIPES, HOME_SLOTS, furnitureById } from '../home
 import { savedInfo } from '../save.js';
 import { KING, PATRONS, kingProgress, supporters } from '../king.js';
 import { SPEAKERS, shopTalk, tradeTalk, zhouLore } from '../dialogue.js';
-import { COFFEE_PRICE, COFFEE_ENERGY, KICK_WANTED } from '../vending.js';
+import { COFFEE_PRICE, COFFEE_ENERGY, KICK_WANTED, RECYCLE_KINDS, RECYCLE_UNIT } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS } from '../gamble.js';
 import { RECIPES, amountOf, materialLabel } from '../craft.js';
 import { seasonName } from '../city.js';
@@ -5395,7 +5395,7 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     this.vendingSub = this.add
-      .text(0, 0, '投币买一罐，或者踹一脚', {
+      .text(0, 0, '投币买一罐，或者把瓶子塞回去', {
         fontFamily: FONT,
         fontSize: '13px',
         color: UI.creamDim
@@ -5420,7 +5420,7 @@ export class HudScene extends Phaser.Scene {
 
     this.vendingRows = [];
 
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
       const bg = this.add
         .rectangle(0, 0, ROW_WIDTH, ROW_HEIGHT, UI.panelRow, 1)
         .setOrigin(0, 0.5)
@@ -5548,10 +5548,41 @@ export class HudScene extends Phaser.Scene {
     kick.price.setText(kicked ? '踹过了' : '免费').setColor(kicked ? '#8a7a55' : UI.gold);
     kick.bg.setFillStyle(kicked ? UI.panelRowDim : UI.panelRow, 1);
     kick.action = kicked ? null : () => this.kickVending();
+
+    // The machine also pays a coin apiece for empties, so a full bag is worth a
+    // stop on the way home.
+    const recycle = this.vendingRows[2];
+    let units = 0;
+
+    for (const id of RECYCLE_KINDS) units += (run && run.items ? run.items[id] || 0 : 0);
+
+    recycle.icon.setTexture('item-bottle');
+    recycle.name.setText('回收瓶罐纸板').setColor(units ? UI.cream : '#8a8070');
+    recycle.info
+      .setText(units ? `瓶子 / 易拉罐 / 纸板 · 共 ${units} 件` : '包里没有能回收的')
+      .setColor(units ? UI.creamDim : '#736a5c');
+    recycle.price.setText(units ? `${units * RECYCLE_UNIT} 元` : '—').setColor(units ? UI.gold : '#8a7a55');
+    recycle.bg.setFillStyle(units ? UI.panelRow : UI.panelRowDim, 1);
+    recycle.action = units ? () => this.recycleAtVending() : null;
   }
 
-  buyCoffee() {
-    if (!this.street) return;
+  /// What the machine pays back for a bag of empties.
+  recycleAtVending() {
+    if (!this.street || !this.street.recycleAtMachine) return;
+
+    const paid = this.street.recycleAtMachine();
+
+    if (paid <= 0) {
+      haptic('refuse');
+      this.vendingHint.setText('没有能回收的东西');
+      return;
+    }
+
+    this.vendingHint.setText(`收回 ${paid} 元，瓶子纸板都清了`);
+    this.refreshVending();
+  }
+
+  buyCoffee() {    if (!this.street) return;
 
     if (!this.street.buyCoffee(this.vendingKey)) {
       haptic('refuse');

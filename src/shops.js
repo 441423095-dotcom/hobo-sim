@@ -212,20 +212,37 @@ export const OUTFITS = [
   }
 ];
 
+/// What each food cart actually cooks. The cart's sign and its menu are the
+/// same three things.
+const STALL_MENUS = {
+  'stall-market': ['noodle', 'coldnoodle', 'teaegg'],
+  'stall-square': ['dumpling', 'mixnoodle', 'soup'],
+  'stall-alley': ['skewer', 'eggplant', 'bunslice'],
+  'stall-camp': ['boxlunch', 'hotdog', 'teaegg'],
+  'stall-slum': ['malatang', 'bingfen', 'teaegg'],
+  'stall-park': ['jianbing', 'soymilk', 'teaegg'],
+  'stall-commerce': ['milktea', 'bubbletea', 'lemonade']
+};
+
+/// The counter at the corner shop: quick food, not a restaurant menu.
+const CONVENIENCE_MENU = ['bread', 'meal', 'water', 'baozi', 'teaegg'];
+
 /// The list of things a shop has on the counter right now. `owned` marks what
 /// the player already carries, so the panel can grey it out.
 export function stockFor(shopId, run) {
   if (shopId === 'convenience') {
-    const items = FOODS.map((f) => ({
-      key: `food:${f.id}`,
-      kind: 'food',
-      refId: f.id,
-      name: f.name,
-      desc: `饱腹 +${f.restore} · 精力 +${f.energy}`,
-      icon: `icon-${f.icon}`,
-      price: f.price,
-      owned: false
-    }));
+    const items = CONVENIENCE_MENU.map((id) => FOODS.find((food) => food.id === id))
+      .filter(Boolean)
+      .map((f) => ({
+        key: `food:${f.id}`,
+        kind: 'food',
+        refId: f.id,
+        name: f.name,
+        desc: `饱腹 +${f.restore} · 精力 +${f.energy}`,
+        icon: `icon-${f.icon}`,
+        price: f.price,
+        owned: false
+      }));
 
     // The shop takes the two things it sells by the crate: cardboard and
     // bottles. One tap, all of it, at the counter price.
@@ -337,11 +354,12 @@ export function stockFor(shopId, run) {
     return items;
   }
 
-  // The street-food carts sell the same cheap three things wherever they stand.
+  // The street-food carts each cook their own short menu, matching the sign
+  // over the counter.
   if (shopId.indexOf('stall-') === 0) {
     const items = [];
 
-    for (const id of ['noodle', 'baozi', 'teaegg']) {
+    for (const id of STALL_MENUS[shopId] || STALL_MENUS['stall-market']) {
       const f = FOODS.find((food) => food.id === id);
       if (!f) continue;
 
