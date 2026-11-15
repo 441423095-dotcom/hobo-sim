@@ -7,11 +7,12 @@ export const FURNITURE = [
   {
     id: 'bed',
     slot: 'bed',
-    name: '纸箱床',
+    name: '破旧的纸板床',
     tex: 'furn-bed',
     comfort: 3,
     price: 0,
     need: { cardboard: 4, rag: 1 },
+    starter: true,
     blurb: '捡来的纸板压平，垫上破布'
   },
   {

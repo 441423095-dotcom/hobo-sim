@@ -35,7 +35,7 @@ const ROW_HEIGHT = 56;
 const STICK_RADIUS = 62;
 const KNOB_RADIUS = 26;
 const STICK_THROW = 46;
-const ACTION_RADIUS = 30;
+const ACTION_RADIUS = 45;
 
 const TRADE_ROW_WIDTH = 300;
 const TRADE_ROW_HEIGHT = 42;
@@ -225,7 +225,7 @@ export class HudScene extends Phaser.Scene {
 
     this.actionIcon = this.add
       .image(0, 0, 'icon-hand')
-      .setScale(32 / 96)
+      .setScale(48 / 96)
       .setAlpha(0.4)
       .setDepth(DEPTH.panel + 6);
 
@@ -1828,11 +1828,13 @@ export class HudScene extends Phaser.Scene {
       this.add
         .text(0, 0, '', {
           fontFamily: FONT,
-          fontSize: '9px',
+          fontSize: '10px',
           color: '#8a8070',
           align: 'center',
-          wordWrap: { width: 104 },
-          lineSpacing: 2
+          wordWrap: { width: 108 },
+          lineSpacing: 2,
+          backgroundColor: 'rgba(10,8,6,0.62)',
+          padding: { x: 4, y: 2 }
         })
         .setOrigin(0.5, 0.5)
     );
@@ -2042,84 +2044,90 @@ export class HudScene extends Phaser.Scene {
 
     const slotOf = (id) => this.homeSlots[id];
 
-    // The bed: a flattened cardboard box with a rag on top.
+    // The bed: a flattened cardboard box, torn at one corner and creased down
+    // the middle, with an old rag thrown over it.
     const bed = slotOf('bed');
     const bedItem = FURNITURE.find((item) => item.slot === 'bed');
-    if (bed) {
-      if (placed(bedItem)) {
-        rg.fillStyle(0x3b2a1c, 1);
-        rg.fillRect(bed.x, bed.y, bed.w, bed.h);
-        rg.fillStyle(0xc9b391, 1);
-        rg.fillRect(bed.x + 2, bed.y + bed.h * 0.22, bed.w - 4, bed.h * 0.74);
-        rg.fillStyle(0xe6dcc6, 1);
-        rg.fillRect(bed.x + 5, bed.y + bed.h * 0.28, bed.w * 0.34, bed.h * 0.3);
-        rg.fillStyle(0x8a4a3a, 0.55);
-        rg.fillRect(bed.x + 2, bed.y + bed.h * 0.62, bed.w - 4, bed.h * 0.16);
-      } else {
-        this.drawHomeEmpty(rg, bed);
-      }
+    if (bed && placed(bedItem)) {
+      rg.fillStyle(0x6b5236, 1);
+      rg.fillRect(bed.x, bed.y + bed.h * 0.18, bed.w, bed.h * 0.72);
+
+      rg.fillStyle(0x8a6a44, 1);
+      rg.fillRect(bed.x + 2, bed.y + bed.h * 0.2, bed.w - 4, bed.h * 0.22);
+      rg.fillStyle(0xa8865a, 1);
+      rg.fillRect(bed.x + 4, bed.y + bed.h * 0.23, bed.w * 0.44, bed.h * 0.12);
+
+      // Creases and the taped edge.
+      rg.lineStyle(1, 0x4a3a26, 0.9);
+      rg.lineBetween(bed.x + 2, bed.y + bed.h * 0.55, bed.x + bed.w - 6, bed.y + bed.h * 0.52);
+      rg.lineBetween(bed.x + bed.w * 0.56, bed.y + bed.h * 0.2, bed.x + bed.w * 0.59, bed.y + bed.h * 0.9);
+      rg.fillStyle(0xcfc6b2, 0.45);
+      rg.fillRect(bed.x, bed.y + bed.h * 0.18, 4, bed.h * 0.72);
+
+      // A torn-off corner, cut back to the floor.
+      rg.fillStyle(0x1d1710, 1);
+      rg.fillTriangle(
+        bed.x + bed.w,
+        bed.y + bed.h * 0.62,
+        bed.x + bed.w,
+        bed.y + bed.h * 0.9,
+        bed.x + bed.w * 0.74,
+        bed.y + bed.h * 0.9
+      );
+
+      // The rag on top.
+      rg.fillStyle(0xc9b391, 0.85);
+      rg.fillRect(bed.x + bed.w * 0.3, bed.y + bed.h * 0.62, bed.w * 0.42, bed.h * 0.16);
     }
 
     // The table: a wooden crate with the lid on.
     const table = slotOf('table');
     const tableItem = FURNITURE.find((item) => item.slot === 'table');
-    if (table) {
-      if (placed(tableItem)) {
-        rg.fillStyle(0x4a3420, 1);
-        rg.fillRect(table.x + 3, table.y + table.h * 0.42, 5, table.h * 0.5);
-        rg.fillRect(table.x + table.w - 8, table.y + table.h * 0.42, 5, table.h * 0.5);
-        rg.fillStyle(0x7a5a36, 1);
-        rg.fillRect(table.x, table.y + table.h * 0.18, table.w, table.h * 0.3);
-        rg.fillStyle(0x9a7546, 1);
-        rg.fillRect(table.x, table.y + table.h * 0.18, table.w, table.h * 0.09);
-      } else {
-        this.drawHomeEmpty(rg, table);
-      }
+    if (table && placed(tableItem)) {
+      rg.fillStyle(0x4a3420, 1);
+      rg.fillRect(table.x + 3, table.y + table.h * 0.42, 5, table.h * 0.5);
+      rg.fillRect(table.x + table.w - 8, table.y + table.h * 0.42, 5, table.h * 0.5);
+      rg.fillStyle(0x7a5a36, 1);
+      rg.fillRect(table.x, table.y + table.h * 0.18, table.w, table.h * 0.3);
+      rg.fillStyle(0x9a7546, 1);
+      rg.fillRect(table.x, table.y + table.h * 0.18, table.w, table.h * 0.09);
     }
 
     // The fireplace: a punched oil drum with a small fire in it.
     const fireSlot = slotOf('fireplace');
     const fireItem = FURNITURE.find((item) => item.slot === 'fireplace');
-    if (fireSlot) {
-      if (placed(fireItem)) {
-        rg.fillStyle(0x2f3236, 1);
-        rg.fillRoundedRect(fireSlot.x, fireSlot.y + fireSlot.h * 0.18, fireSlot.w, fireSlot.h * 0.82, 6);
-        rg.fillStyle(0x4a4f56, 1);
-        rg.fillRoundedRect(
-          fireSlot.x + 3,
-          fireSlot.y + fireSlot.h * 0.24,
-          fireSlot.w - 6,
-          fireSlot.h * 0.2,
-          5
-        );
+    if (fireSlot && placed(fireItem)) {
+      rg.fillStyle(0x2f3236, 1);
+      rg.fillRoundedRect(fireSlot.x, fireSlot.y + fireSlot.h * 0.18, fireSlot.w, fireSlot.h * 0.82, 6);
+      rg.fillStyle(0x4a4f56, 1);
+      rg.fillRoundedRect(
+        fireSlot.x + 3,
+        fireSlot.y + fireSlot.h * 0.24,
+        fireSlot.w - 6,
+        fireSlot.h * 0.2,
+        5
+      );
 
-        const fx = fireSlot.x + fireSlot.w / 2;
-        const fy = fireSlot.y + fireSlot.h * 0.42;
+      const fx = fireSlot.x + fireSlot.w / 2;
+      const fy = fireSlot.y + fireSlot.h * 0.42;
 
-        rg.fillStyle(0xd9563f, 0.95);
-        rg.fillCircle(fx, fy + 4, 9);
-        rg.fillStyle(0xf2a83c, 1);
-        rg.fillCircle(fx, fy, 6);
-        rg.fillStyle(0xf7e2a0, 1);
-        rg.fillCircle(fx, fy - 2, 3);
-      } else {
-        this.drawHomeEmpty(rg, fireSlot);
-      }
+      rg.fillStyle(0xd9563f, 0.95);
+      rg.fillCircle(fx, fy + 4, 9);
+      rg.fillStyle(0xf2a83c, 1);
+      rg.fillCircle(fx, fy, 6);
+      rg.fillStyle(0xf7e2a0, 1);
+      rg.fillCircle(fx, fy - 2, 3);
     }
 
     // The rug: flattened newspapers under everything.
     const rug = slotOf('rug');
     const rugItem = FURNITURE.find((item) => item.slot === 'rug');
-    if (rug) {
-      if (placed(rugItem)) {
-        rg.fillStyle(0xb9b2a0, 0.9);
-        rg.fillRect(rug.x, rug.y, rug.w, rug.h);
-        rg.fillStyle(0x8f8877, 0.9);
-        rg.fillRect(rug.x, rug.y + rug.h * 0.3, rug.w, 2);
-        rg.fillRect(rug.x, rug.y + rug.h * 0.66, rug.w, 2);
-      } else {
-        this.drawHomeEmpty(rg, rug);
-      }
+    if (rug && placed(rugItem)) {
+      rg.fillStyle(0xb9b2a0, 0.9);
+      rg.fillRect(rug.x, rug.y, rug.w, rug.h);
+      rg.fillStyle(0x8f8877, 0.9);
+      rg.fillRect(rug.x, rug.y + rug.h * 0.3, rug.w, 2);
+      rg.fillRect(rug.x, rug.y + rug.h * 0.66, rug.w, 2);
     }
 
     rg.lineStyle(2, UI.amber, 0.35);
@@ -2171,21 +2179,6 @@ export class HudScene extends Phaser.Scene {
         .setText(`睡一觉：精力 +${preview.energy} · 饱食 +${preview.hunger}`)
         .setColor(UI.creamDim);
     }
-  }
-
-  /// The ghost of a place that has nothing in it yet.
-  drawHomeEmpty(g, slot) {
-    g.lineStyle(1.5, 0x8a8070, 0.35);
-    g.strokeRoundedRect(slot.x, slot.y, slot.w, slot.h, 6);
-    g.fillStyle(0x8a8070, 0.16);
-    g.fillRoundedRect(slot.x, slot.y, slot.w, slot.h, 6);
-
-    const cx = slot.x + slot.w / 2;
-    const cy = slot.y + slot.h / 2;
-
-    g.lineStyle(1.5, 0xcfc6b2, 0.5);
-    g.lineBetween(cx - 5, cy, cx + 5, cy);
-    g.lineBetween(cx, cy - 5, cx, cy + 5);
   }
 
   placeFurnitureItem(item) {

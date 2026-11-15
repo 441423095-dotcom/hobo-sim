@@ -110,6 +110,7 @@ const PED_KINDS = {
     purse: [6, 16],
     base: 0.45,
     watch: 0.34,
+    speed: [18, 27],
     loot: ['wallet', 'phone']
   },
   lady: {
@@ -118,6 +119,7 @@ const PED_KINDS = {
     purse: [4, 12],
     base: 0.5,
     watch: 0.26,
+    speed: [14, 22],
     loot: ['phone', 'wallet']
   },
   drunk: {
@@ -126,6 +128,7 @@ const PED_KINDS = {
     purse: [2, 8],
     base: 0.7,
     watch: 0.14,
+    speed: [9, 16],
     loot: ['cigarettes', 'snackbar']
   },
   rich: {
@@ -134,6 +137,7 @@ const PED_KINDS = {
     purse: [18, 42],
     base: 0.3,
     watch: 0.42,
+    speed: [20, 29],
     loot: ['phone', 'wallet']
   },
   gang: {
@@ -142,9 +146,19 @@ const PED_KINDS = {
     purse: [3, 9],
     base: 0.35,
     watch: 0.5,
+    speed: [16, 24],
     loot: ['cigarettes'],
     hostile: true
   }
+};
+
+// What some of the crowd are thinking while they walk.
+const PED_THOUGHTS = {
+  suit: ['今天的会又开不完了。', '老板还在群里 @ 我。', '工资什么时候到账。'],
+  lady: ['这双鞋磨脚。', '晚上吃什么好呢。', '他昨天没回我消息。'],
+  drunk: ['再来一瓶……', '我当年也阔过。', '这地怎么在晃。'],
+  rich: ['又是没意义的一天。', '该换辆车了。', '这条街真脏。'],
+  gang: ['这条街归我管。', '看什么看。', '今晚得收点东西。']
 };
 
 export class StreetScene extends Phaser.Scene {
@@ -1840,6 +1854,14 @@ export class StreetScene extends Phaser.Scene {
   loadHome() {
     const stored = this.registry.get('homePlaced');
     this.homePlaced = stored && typeof stored === 'object' ? { ...stored } : {};
+
+    // A beggar always starts with a bed: a flattened cardboard box on the
+    // floor of the tent, worth almost nothing but enough to lie down on.
+    for (const item of FURNITURE) {
+      if (item.starter && !this.homePlaced[item.slot]) this.homePlaced[item.slot] = item.id;
+    }
+
+    this.registry.set('homePlaced', { ...this.homePlaced });
   }
 
   homeComfort() {
@@ -2461,9 +2483,10 @@ export class StreetScene extends Phaser.Scene {
       strip,
       vx: Math.cos(angle),
       vy: Math.sin(angle),
-      speed: Phaser.Math.FloatBetween(26, 50),
+      speed: Phaser.Math.FloatBetween(kind.speed ? kind.speed[0] : 16, kind.speed ? kind.speed[1] : 26),
       turnAt: 0,
       ttl: Phaser.Math.Between(30000, 70000),
+      thoughtAt: this.time.now + Phaser.Math.Between(8000, 20000),
       canGive: !kind.hostile && Math.random() < 0.62 + this.cleanLevel() * 0.3,
       gave: false,
       kind,
@@ -2635,6 +2658,17 @@ export class StreetScene extends Phaser.Scene {
           if (hud && hud.showToast) {
             hud.showToast('他注意到你了：头顶的黄条是警戒，越满越难下手。');
           }
+        }
+      }
+
+      // Now and then a passer-by says what they are thinking.
+      if (!ped.hostile && !ped.startled && near < 620 && this.time.now > ped.thoughtAt) {
+        ped.thoughtAt = this.time.now + Phaser.Math.Between(18000, 34000);
+
+        const lines = PED_THOUGHTS[ped.kind.id];
+        if (lines && lines.length) {
+          const line = lines[Phaser.Math.Between(0, lines.length - 1)];
+          this.floatText(ped.sprite.x, ped.sprite.y - 44, line, '#cfc3ae');
         }
       }
 
