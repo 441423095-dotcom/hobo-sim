@@ -66,6 +66,21 @@ export function buildWorldArt(scene) {
   canvasTexture(scene, 'homearch', 130, 96, drawHomeArch);
   canvasTexture(scene, 'tent', 180, 130, drawTent);
   canvasTexture(scene, 'passage', 224, 200, drawPassage);
+
+  // The alleys cut between two blocks, and what is left lying in them.
+  canvasTexture(scene, 'alley', 224, 78, drawAlley);
+  canvasTexture(scene, 'fence', 96, 78, drawFence);
+  canvasTexture(scene, 'cardboardpile', 56, 36, drawCardboardPile);
+  canvasTexture(scene, 'trashbags', 48, 34, drawTrashBags);
+  canvasTexture(scene, 'shack', 86, 64, drawShack);
+  canvasTexture(scene, 'backdoor', 40, 56, drawBackdoor);
+
+  // Street furniture: crossings, lights, parked cars, works and awnings.
+  canvasTexture(scene, 'crosswalk', 96, 54, drawCrosswalk);
+  canvasTexture(scene, 'trafficlight', 22, 64, drawTrafficLight);
+  canvasTexture(scene, 'parkedcar', 54, 96, drawParkedCar);
+  canvasTexture(scene, 'hoarding', 200, 46, drawHoarding);
+  canvasTexture(scene, 'awning', 120, 26, drawAwning);
   canvasTexture(scene, 'vending', 44, 74, drawVending);
   canvasTexture(scene, 'slotmachine', 48, 64, drawSlotMachine);
   canvasTexture(scene, 'bench', 66, 34, drawBench);
@@ -1069,4 +1084,328 @@ function drawShadow(ctx, w, h) {
   ctx.beginPath();
   ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
   ctx.fill();
+}
+
+
+// ------------------------------------------------------------- the alleys
+
+function drawAlley(ctx, w, h) {
+  ctx.fillStyle = '#12100d';
+  ctx.fillRect(0, 0, w, h);
+
+  // Cobbles, wet with something.
+  const r = seeded(41);
+  for (let y = 0; y < h; y += 9) {
+    for (let x = ((y / 9) % 2) * 8; x < w; x += 16) {
+      ctx.fillStyle = r() > 0.5 ? 'rgba(58,52,44,0.5)' : 'rgba(44,39,33,0.5)';
+      ctx.fillRect(x, y, 14, 7);
+    }
+  }
+
+  // A puddle catching the far light.
+  ctx.fillStyle = 'rgba(90,127,168,0.16)';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.42, h * 0.62, 30, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Brick edges where the buildings were cut.
+  ctx.fillStyle = '#2a211a';
+  ctx.fillRect(0, 0, 6, h);
+  ctx.fillRect(w - 6, 0, 6, h);
+
+  // A lamp at the far end.
+  const glow = ctx.createRadialGradient(w * 0.82, h * 0.3, 4, w * 0.82, h * 0.3, 44);
+  glow.addColorStop(0, 'rgba(242,196,106,0.22)');
+  glow.addColorStop(1, 'rgba(242,196,106,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(w * 0.82, h * 0.3, 44, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Something scrawled on the wall.
+  ctx.strokeStyle = 'rgba(196,85,63,0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(w * 0.16, h * 0.32);
+  ctx.lineTo(w * 0.24, h * 0.52);
+  ctx.lineTo(w * 0.2, h * 0.56);
+  ctx.moveTo(w * 0.24, h * 0.34);
+  ctx.lineTo(w * 0.17, h * 0.54);
+  ctx.stroke();
+}
+
+function drawFence(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Rails.
+  ctx.fillStyle = '#4c525a';
+  ctx.fillRect(0, h * 0.16, w, 5);
+  ctx.fillRect(0, h * 0.7, w, 5);
+
+  // Bars.
+  for (let x = 4; x < w - 4; x += 11) {
+    ctx.fillStyle = x % 22 === 4 ? '#565d66' : '#4a5058';
+    ctx.fillRect(x, h * 0.05, 4, h * 0.86);
+
+    // A rust fleck here and there.
+    if (x % 33 === 4) {
+      ctx.fillStyle = 'rgba(150,90,50,0.55)';
+      ctx.fillRect(x, h * 0.35, 4, 6);
+    }
+  }
+
+  // Spiked tops.
+  ctx.fillStyle = '#5b626b';
+  for (let x = 4; x < w - 4; x += 11) {
+    ctx.beginPath();
+    ctx.moveTo(x - 1, h * 0.06);
+    ctx.lineTo(x + 2, h * 0.0);
+    ctx.lineTo(x + 5, h * 0.06);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawCardboardPile(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  const boxes = [
+    { x: 2, y: h - 22, w: 26, h: 20 },
+    { x: 26, y: h - 18, w: 22, h: 16 },
+    { x: 10, y: h - 38, w: 24, h: 18 }
+  ];
+
+  for (const box of boxes) {
+    ctx.fillStyle = '#6b5236';
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+    ctx.fillStyle = '#8a6a44';
+    ctx.fillRect(box.x + 2, box.y + 2, box.w - 4, box.h * 0.4);
+    ctx.fillStyle = 'rgba(30,24,16,0.45)';
+    ctx.fillRect(box.x + box.w * 0.5 - 1, box.y, 2, box.h);
+  }
+}
+
+function drawTrashBags(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  const bags = [
+    { x: w * 0.3, y: h * 0.66, rx: 15, ry: 13 },
+    { x: w * 0.66, y: h * 0.72, rx: 12, ry: 11 },
+    { x: w * 0.5, y: h * 0.44, rx: 11, ry: 10 }
+  ];
+
+  for (const bag of bags) {
+    ctx.fillStyle = '#26262a';
+    ctx.beginPath();
+    ctx.ellipse(bag.x, bag.y, bag.rx, bag.ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(120,130,140,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(bag.x - bag.rx * 0.3, bag.y - bag.ry * 0.35, bag.rx * 0.4, bag.ry * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Tied neck.
+    ctx.fillStyle = '#3a3a3e';
+    ctx.fillRect(bag.x - 3, bag.y - bag.ry - 4, 6, 5);
+  }
+}
+
+function drawShack(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Posts.
+  ctx.fillStyle = '#3a2c1e';
+  ctx.fillRect(4, h * 0.28, 5, h * 0.7);
+  ctx.fillRect(w - 9, h * 0.34, 5, h * 0.64);
+
+  // A tarp thrown over them.
+  ctx.fillStyle = '#3f4a52';
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.4);
+  ctx.lineTo(w * 0.5, h * 0.1);
+  ctx.lineTo(w, h * 0.46);
+  ctx.lineTo(w, h * 0.58);
+  ctx.lineTo(0, h * 0.52);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(20,26,30,0.5)';
+  ctx.fillRect(0, h * 0.44, w, 4);
+
+  // A crate inside, and a bit of bedding.
+  ctx.fillStyle = '#6a5236';
+  ctx.fillRect(w * 0.18, h * 0.62, 22, 18);
+  ctx.fillStyle = '#8a6a44';
+  ctx.fillRect(w * 0.18 + 2, h * 0.62 + 2, 18, 6);
+  ctx.fillStyle = '#7a6f5c';
+  ctx.fillRect(w * 0.52, h * 0.72, 30, 12);
+}
+
+function drawBackdoor(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  // The frame.
+  ctx.fillStyle = '#1e1a15';
+  ctx.fillRect(0, 0, w, h);
+
+  // The steel door.
+  ctx.fillStyle = '#3a3f46';
+  ctx.fillRect(4, 10, w - 8, h - 10);
+  ctx.fillStyle = '#4a5158';
+  ctx.fillRect(6, 12, w - 12, 6);
+
+  // Panel lines and a handle.
+  ctx.strokeStyle = 'rgba(20,22,26,0.8)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(8, 24, w - 16, 20);
+  ctx.fillStyle = '#c9c2b0';
+  ctx.fillRect(w - 12, h * 0.52, 5, 3);
+
+  // A bare bulb over it.
+  ctx.fillStyle = 'rgba(242,196,106,0.85)';
+  ctx.beginPath();
+  ctx.arc(w * 0.5, 6, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ------------------------------------------------------- the street furniture
+
+function drawCrosswalk(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.fillStyle = 'rgba(216,210,196,0.5)';
+  for (let x = 4; x < w - 4; x += 18) {
+    ctx.fillRect(x, 2, 9, h - 4);
+  }
+}
+
+function drawTrafficLight(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Pole.
+  ctx.fillStyle = '#3a3f46';
+  ctx.fillRect(w * 0.5 - 2, h * 0.32, 4, h * 0.68);
+
+  // The head.
+  ctx.fillStyle = '#20242a';
+  ctx.fillRect(w * 0.5 - 8, 2, 16, h * 0.36);
+  ctx.strokeStyle = '#4a5158';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(w * 0.5 - 8, 2, 16, h * 0.36);
+
+  const lights = ['#8a3a30', '#8a7a30', '#3a7a44'];
+  lights.forEach((colour, i) => {
+    ctx.fillStyle = i === 0 ? colour : 'rgba(60,60,64,0.9)';
+    ctx.beginPath();
+    ctx.arc(w * 0.5, 9 + i * 8, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawParkedCar(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  // Shadow.
+  ctx.fillStyle = 'rgba(10,9,7,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.5, h * 0.94, w * 0.44, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body.
+  ctx.fillStyle = '#5a5f68';
+  roundRectPath(ctx, w * 0.08, h * 0.06, w * 0.84, h * 0.84, 8);
+  ctx.fill();
+
+  // Roof and windows.
+  ctx.fillStyle = '#3a3f48';
+  roundRectPath(ctx, w * 0.16, h * 0.24, w * 0.68, h * 0.34, 6);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(120,150,170,0.5)';
+  roundRectPath(ctx, w * 0.2, h * 0.28, w * 0.26, h * 0.24, 4);
+  ctx.fill();
+  roundRectPath(ctx, w * 0.54, h * 0.28, w * 0.26, h * 0.24, 4);
+  ctx.fill();
+
+  // Wheels.
+  ctx.fillStyle = '#1a1a1c';
+  ctx.fillRect(w * 0.02, h * 0.22, 6, h * 0.16);
+  ctx.fillRect(w * 0.92, h * 0.22, 6, h * 0.16);
+  ctx.fillRect(w * 0.02, h * 0.6, 6, h * 0.16);
+  ctx.fillRect(w * 0.92, h * 0.6, 6, h * 0.16);
+
+  // Lights.
+  ctx.fillStyle = 'rgba(242,196,106,0.85)';
+  ctx.fillRect(w * 0.2, h * 0.08, 8, 3);
+  ctx.fillRect(w * 0.72, h * 0.08, 8, 3);
+}
+
+function drawHoarding(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.fillStyle = '#3f4a52';
+  ctx.fillRect(0, 0, w, h);
+
+  // Panels.
+  ctx.fillStyle = 'rgba(20,26,30,0.55)';
+  for (let x = 40; x < w; x += 40) {
+    ctx.fillRect(x, 0, 2, h);
+  }
+
+  // Hazard stripes along the bottom.
+  for (let x = 0; x < w; x += 22) {
+    ctx.fillStyle = (x / 22) % 2 === 0 ? '#d9a44a' : '#26221c';
+    ctx.beginPath();
+    ctx.moveTo(x, h);
+    ctx.lineTo(x + 11, h);
+    ctx.lineTo(x + 22, h - 12);
+    ctx.lineTo(x + 11, h - 12);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // A poster.
+  ctx.fillStyle = '#cfc6b2';
+  ctx.fillRect(w * 0.4, 8, 34, 20);
+  ctx.fillStyle = 'rgba(60,52,40,0.7)';
+  ctx.fillRect(w * 0.4 + 4, 12, 26, 3);
+  ctx.fillRect(w * 0.4 + 4, 18, 18, 3);
+}
+
+function drawAwning(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  const colours = ['#8a4a3a', '#d8c8a8'];
+  const stripe = 15;
+
+  for (let x = 0, i = 0; x < w; x += stripe, i++) {
+    ctx.fillStyle = colours[i % 2];
+    ctx.fillRect(x, 0, Math.min(stripe, w - x), h - 6);
+  }
+
+  // Scalloped edge.
+  for (let x = 0; x < w; x += stripe) {
+    ctx.fillStyle = colours[((x / stripe) | 0) % 2];
+    ctx.beginPath();
+    ctx.arc(x + stripe / 2, h - 6, stripe / 2, 0, Math.PI);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = 'rgba(20,16,12,0.35)';
+  ctx.fillRect(0, h - 3, w, 3);
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }

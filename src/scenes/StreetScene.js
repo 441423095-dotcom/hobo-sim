@@ -37,6 +37,8 @@ import { FONT, UI } from '../style.js';
 import {
   WORLD,
   LEFT_BUILDINGS,
+  LEFT_PAVEMENT,
+  ROAD,
   RIGHT_BUILDINGS,
   STALL,
   WORKBENCH,
@@ -91,6 +93,26 @@ const GANG_SPEED = 96;
 const GANG_GRAB = 26;
 const GANG_COOLDOWN = 9000;
 const GANG_ENERGY = 12;
+
+// Narrow alleys cut through the buildings between two blocks. The low one is
+// open to anyone; the high one is fenced until somebody picks the lock.
+const ALLEYS = [
+  { y: 240, locked: false },
+  { y: 1200, locked: true }
+];
+const ALLEY_H = 78;
+
+// What each district puts on its street: crossings and traffic lights, a car or
+// two at the kerb, works hoarding and the odd awning.
+const STREET_DECOR = {
+  camp: { crosswalks: [560], cars: [420], hoardings: [], awnings: [] },
+  market: { crosswalks: [520, 1040], cars: [360, 880], hoardings: [], awnings: [330, 900] },
+  square: { crosswalks: [420, 1120], cars: [300], hoardings: [720], awnings: [520] },
+  commerce: { crosswalks: [600], cars: [420, 960], hoardings: [860], awnings: [300] },
+  alley: { crosswalks: [520], cars: [], hoardings: [], awnings: [] },
+  park: { crosswalks: [700], cars: [], hoardings: [], awnings: [] },
+  slum: { crosswalks: [860], cars: [300], hoardings: [], awnings: [] }
+};
 
 // How long the player can stand in the cold night before freezing.
 const NIGHT_GRACE = 30000;
@@ -194,6 +216,7 @@ export class StreetScene extends Phaser.Scene {
         dayStart: { begging: 0, scavenge: 0, stolen: 0, sold: 0 },
         wanted: 0,
         vendingKicked: {},
+        openAlleys: {},
         energy: ENERGY_MAX,
         bag: 0,
         items: JUNK_ORDER.reduce((bagOfJunk, id) => {
@@ -258,6 +281,7 @@ export class StreetScene extends Phaser.Scene {
     this.benchAsleep = false;
     if (typeof this.run.wanted !== 'number') this.run.wanted = 0;
     if (!this.run.vendingKicked) this.run.vendingKicked = {};
+    if (!this.run.openAlleys) this.run.openAlleys = {};
 
     this.layout = layoutFor(this.scale.width, this.scale.height);
     this.axes = { x: 0, y: 0 };
@@ -314,6 +338,8 @@ export class StreetScene extends Phaser.Scene {
 
     this.buildScenery();
     this.buildWalls();
+    this.buildAlleyContent();
+    this.buildStreetDetail();
     this.buildBins();
     this.buildLitter();
     this.buildMats();
@@ -420,6 +446,18 @@ export class StreetScene extends Phaser.Scene {
         .setDepth(-29);
     }
 
+    // The narrow alleys, floor and all.
+    for (const strip of this.strips) {
+      if (!neighbourOf(strip.id, 'east')) continue;
+
+      for (const alley of ALLEYS) {
+        this.add
+          .image(strip.x0 + RIGHT_BUILDINGS.x, strip.y0 + alley.y, 'alley')
+          .setOrigin(0, 0)
+          .setDepth(-27);
+      }
+    }
+
     // The police sight fans are painted on the ground, under everyone else.
     this.coneGfx = this.add.graphics().setDepth(-6);
 
@@ -446,15 +484,19 @@ export class StreetScene extends Phaser.Scene {
     return (id && this.stripFor(id)) || this.strips[0];
   }
 
-  /// A building wall runs the whole block unless a passage cuts through it.
-  addBuildingWall(add, x, y0, w, gap) {
-    if (!gap) {
-      add(x, y0, w, STREET_HEIGHT);
-      return;
+  /// A building wall runs the whole block, split wherever an opening is cut
+  /// through it: the wide passage and the narrow alleys.
+  addBuildingWall(add, x, y0, w, openings) {
+    const gaps = (openings || []).slice().sort((a, b) => a.y - b.y);
+
+    let cursor = 0;
+
+    for (const gap of gaps) {
+      if (gap.y > cursor) add(x, y0 + cursor, w, gap.y - cursor);
+      cursor = Math.max(cursor, gap.y + gap.h);
     }
 
-    add(x, y0, w, SEAM.y0);
-    add(x, y0 + SEAM.y1, w, STREET_HEIGHT - SEAM.y1);
+    if (cursor < STREET_HEIGHT) add(x, y0 + cursor, w, STREET_HEIGHT - cursor);
   }
 
   buildWalls() {
@@ -467,23 +509,32 @@ export class StreetScene extends Phaser.Scene {
       return rect;
     };
 
+    const seamsFor = (connected) => {
+      if (!connected) return [];
+
+      const openings = [{ y: SEAM.y0, h: SEAM.y1 - SEAM.y0 }];
+      for (const alley of ALLEYS) openings.push({ y: alley.y, h: ALLEY_H });
+
+      return openings;
+    };
+
     for (const strip of this.strips) {
-      const leftGap = !!neighbourOf(strip.id, 'west');
-      const rightGap = !!neighbourOf(strip.id, 'east');
+      const westOpenings = seamsFor(!!neighbourOf(strip.id, 'west'));
+      const eastOpenings = seamsFor(!!neighbourOf(strip.id, 'east'));
 
       this.addBuildingWall(
         add,
         strip.x0 + LEFT_BUILDINGS.x,
         strip.y0,
         LEFT_BUILDINGS.width,
-        leftGap
+        westOpenings
       );
       this.addBuildingWall(
         add,
         strip.x0 + RIGHT_BUILDINGS.x,
         strip.y0,
         RIGHT_BUILDINGS.width,
-        rightGap
+        eastOpenings
       );
     }
 
@@ -499,6 +550,43 @@ export class StreetScene extends Phaser.Scene {
     if (camp) {
       add(WORKBENCH.x + camp.x0 - 30, WORKBENCH.y + camp.y0 - 26, 60, 26);
       add(camp.x0 + 240, camp.y0 + 432, 160, 92);
+    }
+
+    // Fences across the narrow alleys that are still locked, and the wall that
+    // backs them.
+    this.alleyFences = [];
+    this.openAlleys = this.run.openAlleys || {};
+
+    for (const strip of this.strips) {
+      const eastId = neighbourOf(strip.id, 'east');
+      if (!eastId) continue;
+
+      const boundaryX = strip.x0 + STREET_WIDTH;
+
+      for (const alley of ALLEYS) {
+        if (!alley.locked) continue;
+
+        const key = `${strip.id}:${eastId}:${alley.y}`;
+        if (this.openAlleys[key]) continue;
+
+        const rect = add(boundaryX - 8, strip.y0 + alley.y, 16, ALLEY_H);
+
+        const sprite = this.add
+          .image(boundaryX - 48, strip.y0 + alley.y, 'fence')
+          .setOrigin(0, 0)
+          .setDepth(strip.y0 + alley.y + ALLEY_H);
+
+        const def = {
+          x: boundaryX,
+          y: strip.y0 + alley.y + ALLEY_H / 2,
+          radius: 76,
+          label: '铁栅栏 · 需要开锁器',
+          use: () => this.openAlley(key, rect, sprite, def)
+        };
+
+        this.addInteractable(def);
+        this.alleyFences.push({ key, rect, sprite });
+      }
     }
 
     // Gates close off every way into a district that has not been unlocked yet.
@@ -534,15 +622,233 @@ export class StreetScene extends Phaser.Scene {
 
       if (neighbourOf(strip.id, 'west')) {
         gates.push(add(strip.x0 - 8, strip.y0 + SEAM.y0, 16, SEAM.y1 - SEAM.y0));
+
+        for (const alley of ALLEYS) {
+          gates.push(add(strip.x0 - 8, strip.y0 + alley.y, 16, ALLEY_H));
+        }
       }
 
       if (neighbourOf(strip.id, 'east')) {
         gates.push(
           add(strip.x0 + STREET_WIDTH - 8, strip.y0 + SEAM.y0, 16, SEAM.y1 - SEAM.y0)
         );
+
+        for (const alley of ALLEYS) {
+          gates.push(
+            add(strip.x0 + STREET_WIDTH - 8, strip.y0 + alley.y, 16, ALLEY_H)
+          );
+        }
       }
 
       for (const rect of gates) this.gates.push({ id: strip.id, rect });
+    }
+  }
+
+  /// Opening a locked alley with the lockpick: the fence comes down and stays
+  /// down for the rest of the run.
+  openAlley(key, rect, sprite, def) {
+    if (!this.run.tools.lockpick) {
+      haptic('refuse');
+      this.floatText(this.player.x, this.player.y - 46, '铁链锁着，得有开锁器', UI.creamDim);
+      return;
+    }
+
+    this.run.openAlleys = this.run.openAlleys || {};
+    this.run.openAlleys[key] = true;
+
+    if (rect) {
+      rect.destroy();
+      this.walls = this.walls.filter((wall) => wall !== rect);
+    }
+
+    if (sprite) {
+      this.tweens.add({
+        targets: sprite,
+        alpha: 0,
+        angle: -6,
+        duration: 260,
+        onComplete: () => sprite.destroy()
+      });
+    }
+
+    this.interactables = this.interactables.filter((d) => d !== def);
+
+    this.advanceTime(15);
+    haptic('unlock');
+    this.floatText(this.player.x, this.player.y - 46, '铁栅栏开了', '#a8d98a');
+  }
+
+  /// What is lying in the alleys between blocks: piles of boxes, bags of
+  /// rubbish, somebody else's shack and the shop back doors.
+  buildAlleyContent() {
+    for (const strip of this.strips) {
+      const eastId = neighbourOf(strip.id, 'east');
+      if (!eastId) continue;
+
+      const baseX = strip.x0 + RIGHT_BUILDINGS.x;
+      const junk = strip.district.junk || [];
+
+      ALLEYS.forEach((alley, index) => {
+        const y0 = strip.y0 + alley.y;
+        const floorY = y0 + ALLEY_H;
+
+        if (index === 0) {
+          const pile = this.add
+            .image(baseX + 16, floorY - 4, 'cardboardpile')
+            .setOrigin(0, 1)
+            .setDepth(floorY);
+
+          const pileDef = {
+            x: baseX + 44,
+            y: floorY - 20,
+            radius: 72,
+            label: '翻纸箱堆',
+            flash: () => this.flashSprite(pile),
+            use: () => {
+              this.interactables = this.interactables.filter((d) => d !== pileDef);
+              pile.destroy();
+
+              this.addToBag('cardboard', baseX + 44, floorY - 30);
+              this.addToBag('cardboard', baseX + 44, floorY - 30);
+              if (junk.length) {
+                this.addToBag(junk[Phaser.Math.Between(0, junk.length - 1)], baseX + 44, floorY - 30);
+              }
+
+              this.advanceTime(15);
+            }
+          };
+          this.addInteractable(pileDef);
+
+          const bags = this.add
+            .image(baseX + 108, floorY - 2, 'trashbags')
+            .setOrigin(0, 1)
+            .setDepth(floorY);
+
+          const bagsDef = {
+            x: baseX + 132,
+            y: floorY - 16,
+            radius: 70,
+            label: '翻垃圾袋',
+            flash: () => this.flashSprite(bags),
+            use: () => {
+              this.interactables = this.interactables.filter((d) => d !== bagsDef);
+              bags.destroy();
+
+              if (junk.length) {
+                this.addToBag(junk[Phaser.Math.Between(0, junk.length - 1)], baseX + 132, floorY - 26);
+              }
+
+              this.advanceTime(10);
+            }
+          };
+          this.addInteractable(bagsDef);
+
+          this.add
+            .image(baseX + 186, y0 + 6, 'backdoor')
+            .setOrigin(0, 0)
+            .setDepth(y0 + 1);
+
+          this.addInteractable({
+            x: baseX + 206,
+            y: y0 + 38,
+            radius: 64,
+            label: '店铺后门 · 锁着',
+            use: () => {
+              haptic('refuse');
+              const hud = this.scene.get('Hud');
+              if (hud && hud.showToast) hud.showToast('后门从里面锁死了，敲也没人应。');
+            }
+          });
+        } else {
+          this.add
+            .image(baseX + 150, floorY - 2, 'shack')
+            .setOrigin(0.5, 1)
+            .setDepth(floorY);
+
+          this.addInteractable({
+            x: baseX + 150,
+            y: floorY - 12,
+            radius: 72,
+            label: '别人的窝棚',
+            use: () => {
+              haptic('refuse');
+              const hud = this.scene.get('Hud');
+              if (hud && hud.showToast) hud.showToast('窝棚里的人盯了你一眼，还是别翻了。');
+            }
+          });
+
+          const pile = this.add
+            .image(baseX + 14, floorY - 4, 'cardboardpile')
+            .setOrigin(0, 1)
+            .setDepth(floorY);
+
+          const pileDef = {
+            x: baseX + 42,
+            y: floorY - 20,
+            radius: 70,
+            label: '翻纸箱堆',
+            flash: () => this.flashSprite(pile),
+            use: () => {
+              this.interactables = this.interactables.filter((d) => d !== pileDef);
+              pile.destroy();
+              this.addToBag('cardboard', baseX + 42, floorY - 30);
+              this.advanceTime(15);
+            }
+          };
+          this.addInteractable(pileDef);
+        }
+      });
+    }
+  }
+
+  /// Street furniture: crossings and their lights, cars at the kerb, works
+  /// hoarding, awnings over the odd door.
+  buildStreetDetail() {
+    const add = (x, y, w, h) => {
+      const rect = this.add.rectangle(x + w / 2, y + h / 2, w, h, 0x000000, 0);
+      this.physics.add.existing(rect, true);
+      this.walls.push(rect);
+      return rect;
+    };
+
+    for (const strip of this.strips) {
+      const decor = STREET_DECOR[strip.id];
+      if (!decor) continue;
+
+      const x0 = strip.x0;
+      const y0 = strip.y0;
+
+      for (const cy of decor.crosswalks || []) {
+        this.add.image(x0 + ROAD.x, y0 + cy, 'crosswalk').setOrigin(0, 0).setDepth(-35);
+
+        this.add
+          .image(x0 + ROAD.x - 14, y0 + cy + 4, 'trafficlight')
+          .setOrigin(0, 0)
+          .setDepth(y0 + cy);
+
+        this.add
+          .image(x0 + ROAD.x + ROAD.width + 4, y0 + cy + 4, 'trafficlight')
+          .setOrigin(0, 0)
+          .setDepth(y0 + cy);
+      }
+
+      (decor.cars || []).forEach((cy, i) => {
+        const cx = i % 2 === 0 ? x0 + ROAD.x + 8 : x0 + ROAD.x + ROAD.width - 62;
+
+        this.add.image(cx, y0 + cy, 'parkedcar').setOrigin(0, 0).setDepth(y0 + cy + 96);
+        add(cx + 4, y0 + cy + 4, 46, 88);
+      });
+
+      for (const hy of decor.hoardings || []) {
+        const hx = x0 + LEFT_PAVEMENT.x + 8;
+
+        this.add.image(hx, y0 + hy, 'hoarding').setOrigin(0, 0).setDepth(y0 + hy + 46);
+        add(hx, y0 + hy + 4, 200, 38);
+      }
+
+      for (const ay of decor.awnings || []) {
+        this.add.image(x0 + 392, y0 + ay, 'awning').setOrigin(0, 0).setDepth(y0 + ay + 26);
+      }
     }
   }
 
