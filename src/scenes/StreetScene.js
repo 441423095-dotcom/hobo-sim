@@ -418,6 +418,8 @@ export class StreetScene extends Phaser.Scene {
     this.alertExplained = false;
     this.skyFlipAt = 0;
     this.passerbyAt = 0;
+    this.warmAt = 0;
+    this.warmUntil = 0;
     this.loadHome();
     this.ensureGoals();
     ensureCity(this.run);
@@ -479,6 +481,7 @@ export class StreetScene extends Phaser.Scene {
     this.buildBenches();
     if (this.strips.some((strip) => strip.district.shops)) this.buildShops();
     this.buildGangCamps();
+    this.buildBraziers();
     this.buildPrompt();
 
     this.nightDeadline = 0;
@@ -525,8 +528,54 @@ export class StreetScene extends Phaser.Scene {
     this.time.delayedCall(700, () => this.announceGoals());
   }
 
-  // ----------------------------------------------------------------- the gangs
+  /// Where somebody has left a fire burning: under the bridge in the alley, in
+  /// the corners of the black street, by the tent and behind the park's trees.
+  /// Anybody can stand at one and get the shiver out of their bones.
+  buildBraziers() {
+    const spots = [
+      { district: 'alley', x: 140, y: 470 },
+      { district: 'alley', x: 402, y: 900 },
+      { district: 'park', x: 150, y: 640 },
+      { district: 'camp', x: 486, y: 1150 },
+      { district: 'slum', x: 470, y: 300 }
+    ];
 
+    for (const spot of spots) {
+      const strip = this.stripFor(spot.district);
+      if (!strip) continue;
+
+      const x = strip.x0 + spot.x;
+      const y = strip.y0 + spot.y;
+
+      this.add.image(x, y, 'furn-fire').setOrigin(0.5, 1).setDepth(y);
+      if (this.lightSpots) this.lightSpots.push({ x, y: y - 30 });
+
+      this.addInteractable({
+        x,
+        y: y - 10,
+        radius: 70,
+        label: '烤火·暖和一下',
+        use: () => this.warmUp()
+      });
+    }
+  }
+
+  warmUp() {
+    if (this.time.now < (this.warmAt || 0)) {
+      haptic('refuse');
+      return;
+    }
+
+    this.warmAt = this.time.now + 12000;
+    this.warmUntil = this.time.now + 22000;
+    this.run.energy = Math.min(ENERGY_MAX, this.run.energy + 14);
+
+    this.floatText(this.player.x, this.player.y - 46, '烤了会儿火，暖和过来', '#f2c46a');
+    playSfx('eat');
+    haptic('eat');
+  }
+
+  // ----------------------------------------------------------------- the gangs
   /// The camps: a burning barrel, a pile of cardboard and two people sitting
   /// close to it, in the alley, on the black street and in the park.
   buildGangCamps() {
@@ -2626,7 +2675,17 @@ export class StreetScene extends Phaser.Scene {
     city.weather = ids[Math.floor(Math.random() * ids.length)];
 
     const hud = this.scene.get('Hud');
-    if (hud && hud.showToast) hud.showToast(`天变了：${WEATHERS[city.weather].name}`);
+    if (hud && hud.showToast) {
+      if (city.weather === 'rain') {
+        hud.showToast(
+          this.run.umbrella ? '下雨了 —— 伞撑着，冷得慢一点' : '下雨了 —— 没伞要淋透，杂货铺有卖'
+        );
+      } else if (city.weather === 'snow') {
+        hud.showToast('下雪了 —— 桥洞和后巷有火盆，别硬扛');
+      } else {
+        hud.showToast(`天变了：${WEATHERS[city.weather].name}`);
+      }
+    }
     playSfx(city.weather === 'rain' ? 'thunder' : 'voice');
     haptic('ui');
   }
@@ -3875,6 +3934,15 @@ export class StreetScene extends Phaser.Scene {
         return true;
       }
 
+      case 'umbrella': {
+        if (this.run.umbrella) return false;
+
+        this.run.money -= entry.price;
+        this.run.umbrella = true;
+        this.floatText(this.player.x, this.player.y - 46, '撑开伞试了试，还能用', '#a8d98a');
+        return true;
+      }
+
       default:
         return false;
     }
@@ -5033,7 +5101,15 @@ export class StreetScene extends Phaser.Scene {
 
     const segment = segmentOf(run.step);
     const coldExtra = this.cityFx ? Math.max(0, this.cityFx.coldExtra) * 0.3 : 0;
-    const coldDrain = (segment === 3 ? 1.2 : segment === 2 ? 0.4 : 0) + coldExtra;
+    const wet = !!(this.cityFx && this.cityFx.weather && this.cityFx.weather.id === 'rain');
+
+    let coldDrain = (segment === 3 ? 1.2 : segment === 2 ? 0.4 : 0) + coldExtra;
+
+    // A fire takes the shiver out of the bones for a while, and an umbrella
+    // keeps the rain off: without one the wet cold bites twice as hard.
+    if (this.time.now < (this.warmUntil || 0)) coldDrain *= 0.4;
+    if (wet && this.run.umbrella) coldDrain *= 0.5;
+
     if (!run.over && !paused && coldDrain > 0) {
       run.energy = Math.max(0, run.energy - coldDrain * dt);
     }

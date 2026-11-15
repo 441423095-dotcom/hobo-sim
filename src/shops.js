@@ -317,6 +317,17 @@ export function stockFor(shopId, run) {
       owned: !!(run && run.books && run.books.peddle)
     });
 
+    items.push({
+      key: 'umbrella',
+      kind: 'umbrella',
+      refId: 'umbrella',
+      name: '旧伞',
+      desc: '下雨时不至于淋透，受冻减半',
+      icon: 'icon-umbrella',
+      price: 14,
+      owned: !!(run && run.umbrella)
+    });
+
     return items;
   }
 

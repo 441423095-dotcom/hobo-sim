@@ -115,7 +115,8 @@ export class HudScene extends Phaser.Scene {
       'tent',
       'building-2',
       'factory',
-      'list-checks'
+      'list-checks',
+      'umbrella'
     ]);
 
     this.street = this.scene.get('Street');
