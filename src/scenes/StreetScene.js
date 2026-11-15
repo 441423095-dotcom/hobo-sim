@@ -15,6 +15,7 @@ import { RECIPES, recipeById, amountOf, spendMaterial } from '../craft.js';
 import { makeGoalsForDay } from '../goals.js';
 import { saveGame, loadGame, clearGame } from '../save.js';
 import { KING, patronById, favorOf, kingProgress } from '../king.js';
+import { zhouGreeting } from '../dialogue.js';
 import {
   begGiveLine,
   begRefuseLine,
@@ -2941,7 +2942,11 @@ export class StreetScene extends Phaser.Scene {
     const hud = this.scene.get('Hud');
     if (!hud || !hud.showDialogue) return;
 
-    hud.showDialogue('zhou', [this.zhouAdviceLine(), `今天的事——${lines.join('；')}`]);
+    hud.showDialogue('zhou', [
+      zhouGreeting(this.run),
+      this.zhouAdviceLine(),
+      `今天的事——${lines.join('；')}`
+    ]);
   }
 
   loadHome() {

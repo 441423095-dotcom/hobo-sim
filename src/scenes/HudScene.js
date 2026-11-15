@@ -2158,18 +2158,46 @@ export class HudScene extends Phaser.Scene {
       .text(0, 0, '点一下继续 ▶', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
       .setOrigin(1, 0.5);
 
+    this.dialogueChoiceA = this.add
+      .rectangle(0, 0, 100, 34, UI.panelRow, 1)
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(1.5, UI.amber, 0.6)
+      .setVisible(false);
+    this.dialogueChoiceAText = this.add
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '14px', color: UI.cream })
+      .setOrigin(0.5, 0.5)
+      .setVisible(false);
+
+    this.dialogueChoiceB = this.add
+      .rectangle(0, 0, 100, 34, UI.panelRowDim, 1)
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(1.5, UI.amber, 0.4)
+      .setVisible(false);
+    this.dialogueChoiceBText = this.add
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '14px', color: UI.creamDim })
+      .setOrigin(0.5, 0.5)
+      .setVisible(false);
+
+    this.dialogueChoiceA.on('pointerdown', () => this.pickDialogueOption(0));
+    this.dialogueChoiceB.on('pointerdown', () => this.pickDialogueOption(1));
+
     this.dialogueLayer.add([
       this.dialogueBackdrop,
       this.dialogueGfx,
       this.dialoguePortrait,
       this.dialogueName,
       this.dialogueBody,
-      this.dialogueHint
+      this.dialogueHint,
+      this.dialogueChoiceA,
+      this.dialogueChoiceAText,
+      this.dialogueChoiceB,
+      this.dialogueChoiceBText
     ]);
 
     this.dialogueLines = [];
     this.dialogueAt = 0;
     this.dialogueDone = null;
+    this.dialogueOptions = null;
   }
 
   layoutDialogue() {
@@ -2200,10 +2228,46 @@ export class HudScene extends Phaser.Scene {
     this.dialogueBody.setPosition(px + 118, py + 48);
     this.dialogueBody.setWordWrapWidth(pw - 136);
     this.dialogueHint.setPosition(px + pw - 14, py + ph - 16);
+
+    const choiceW = (pw - 132 - 10) / 2;
+    const choiceY = py + ph - 40;
+
+    this.dialogueChoiceA.setSize(choiceW, 34).setScale(1, 1).setPosition(px + 118, choiceY);
+    this.dialogueChoiceAText.setPosition(px + 118 + choiceW / 2, choiceY);
+    this.dialogueChoiceB.setSize(choiceW, 34).setScale(1, 1).setPosition(px + 128 + choiceW, choiceY);
+    this.dialogueChoiceBText.setPosition(px + 128 + choiceW + choiceW / 2, choiceY);
   }
 
-  /// An NPC speaks: portrait on the left, words on the right, tap to go on.
-  showDialogue(speakerId, lines, onDone) {
+  /// Two little answers under the last line, when there is a choice to make.
+  showDialogueChoices(show) {
+    const options = this.dialogueOptions || [];
+    const on = !!show && options.length > 0;
+
+    this.dialogueHint.setVisible(!on);
+
+    const pairs = [
+      [this.dialogueChoiceA, this.dialogueChoiceAText, options[0]],
+      [this.dialogueChoiceB, this.dialogueChoiceBText, options[1]]
+    ];
+
+    for (const [box, text, option] of pairs) {
+      const visible = on && !!option;
+
+      box.setVisible(visible);
+      text.setVisible(visible);
+      if (visible) {
+        box.setInteractive();
+        if (box.input) box.input.enabled = true;
+        text.setText(option.label);
+      } else if (box.input) {
+        box.input.enabled = false;
+      }
+    }
+  }
+
+  /// An NPC speaks: portrait on the left, words on the right, tap to go on. A
+  /// last line with options offers two answers instead of closing.
+  showDialogue(speakerId, lines, onDone, options) {
     if (!lines || !lines.length) {
       if (onDone) onDone();
       return;
@@ -2211,9 +2275,16 @@ export class HudScene extends Phaser.Scene {
 
     const speaker = SPEAKERS[speakerId] || { name: '路人', portrait: 'ped-suit' };
 
+    // Whoever has been spoken to once is no longer a stranger.
+    if (this.street && this.street.run) {
+      this.street.run.met = this.street.run.met || {};
+      this.street.run.met[speakerId] = true;
+    }
+
     this.dialogueLines = lines.slice();
     this.dialogueAt = 0;
     this.dialogueDone = onDone || null;
+    this.dialogueOptions = options && options.length ? options.slice(0, 2) : null;
     this.dialogueOpen = true;
 
     this.dialoguePortrait.setTexture(speaker.portrait);
@@ -2221,6 +2292,7 @@ export class HudScene extends Phaser.Scene {
     this.dialogueBody.setText(this.dialogueLines[0]);
 
     this.layoutDialogue();
+    this.showDialogueChoices(false);
     this.showPanel(this.dialogueLayer);
     this.releaseStick();
     this.uiSettleAt = this.time.now + 320;
@@ -2234,6 +2306,11 @@ export class HudScene extends Phaser.Scene {
     this.dialogueAt += 1;
 
     if (this.dialogueAt >= this.dialogueLines.length) {
+      if (this.dialogueOptions) {
+        this.showDialogueChoices(true);
+        return;
+      }
+
       this.closeDialogue();
       return;
     }
@@ -2242,16 +2319,32 @@ export class HudScene extends Phaser.Scene {
     haptic('tick');
   }
 
-  closeDialogue() {
-    if (!this.dialogueOpen) return;
-
-    this.dialogueOpen = false;
-    this.hidePanel(this.dialogueLayer);
+  pickDialogueOption(index) {
+    const option = this.dialogueOptions ? this.dialogueOptions[index] : null;
+    if (!option) return;
 
     const done = this.dialogueDone;
     this.dialogueDone = null;
 
-    if (done) done();
+    this.closeDialogue(true);
+    haptic('ui');
+
+    if (option.onPick) option.onPick();
+    else if (done) done();
+  }
+
+  closeDialogue(silent) {
+    if (!this.dialogueOpen) return;
+
+    this.dialogueOpen = false;
+    this.hidePanel(this.dialogueLayer);
+    this.showDialogueChoices(false);
+
+    const done = this.dialogueDone;
+    this.dialogueDone = null;
+    this.dialogueOptions = null;
+
+    if (!silent && done) done();
   }
 
   // ------------------------------------------------------------ king of hobos
@@ -3328,7 +3421,10 @@ export class HudScene extends Phaser.Scene {
     const talk = shopTalk(id, this.street && this.street.run);
 
     if (talk && talk.lines && talk.lines.length) {
-      this.showDialogue(talk.speaker, talk.lines, () => this.reallyOpenStore(id));
+      this.showDialogue(talk.speaker, talk.lines, () => this.reallyOpenStore(id), [
+        { label: '看看货', onPick: () => this.reallyOpenStore(id) },
+        { label: '不买了' }
+      ]);
       return;
     }
 
@@ -3404,7 +3500,10 @@ export class HudScene extends Phaser.Scene {
     const talk = tradeTalk(mode, this.street && this.street.run);
 
     if (talk && talk.lines && talk.lines.length) {
-      this.showDialogue(talk.speaker, talk.lines, () => this.reallyOpenTrade(mode));
+      this.showDialogue(talk.speaker, talk.lines, () => this.reallyOpenTrade(mode), [
+        { label: '出货', onPick: () => this.reallyOpenTrade(mode) },
+        { label: '算了' }
+      ]);
       return;
     }
 
