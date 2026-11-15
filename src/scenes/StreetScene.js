@@ -2134,7 +2134,7 @@ export class StreetScene extends Phaser.Scene {
 
     if (style === 'song' && this.begTick >= 8) {
       this.begTick = 0;
-      this.run.wanted = Math.min(100, (this.run.wanted || 0) + 2);
+      this.run.wanted = Math.min(100, (this.run.wanted || 0) + 6);
       this.floatText(this.player.x, this.player.y - 58, '♪', '#f2c46a');
     } else if (style === 'fake' && this.begTick >= 9) {
       this.begTick = 0;
@@ -2579,6 +2579,18 @@ export class StreetScene extends Phaser.Scene {
     const strip = this.stripFor(bin.getData('strip')) || this.currentStrip();
     const pool = (strip && strip.district.junk) || JUNK_ORDER;
     const loot = pool[Math.floor(Math.random() * pool.length)];
+
+    // A full bag still leaves the loose change at the bottom of the bin.
+    if (this.run.bag >= this.bagLimit()) {
+      const amount = Phaser.Math.Between(1, 2);
+
+      this.run.money += amount;
+      this.run.scavengeIncome += amount;
+      this.floatText(bin.x, bin.y - 36, `包满了，只捡到 ${amount} 元`, UI.gold);
+      playSfx('coin');
+      haptic('coin');
+      return;
+    }
 
     this.addToBag(loot, bin.x, bin.y - 36);
   }
@@ -4174,6 +4186,17 @@ export class StreetScene extends Phaser.Scene {
     if (have <= 0) return 'none';
 
     const worth = kind === 'good' ? item.value : item.price;
+
+    // Nobody pays out more than they are carrying.
+    if (price > Math.max(6, (ped.purse || 0) * 3)) {
+      this.advanceTime(10);
+      ped.alert = Math.min(1, ped.alert + 0.2);
+      this.sayBubble(ped, '太贵了，你抢钱啊。');
+      haptic('refuse');
+
+      return 'no';
+    }
+
     const { rate, charm } = this.peddleRate(worth, price, ped);
 
     if (charm) {
@@ -4419,7 +4442,7 @@ export class StreetScene extends Phaser.Scene {
         hudPanels.overOpen);
 
     const segment = segmentOf(run.step);
-    const coldExtra = this.cityFx ? Math.max(0, this.cityFx.coldExtra) : 0;
+    const coldExtra = this.cityFx ? Math.max(0, this.cityFx.coldExtra) * 0.3 : 0;
     const coldDrain = (segment === 3 ? 1.2 : segment === 2 ? 0.4 : 0) + coldExtra;
     if (!run.over && !paused && coldDrain > 0) {
       run.energy = Math.max(0, run.energy - coldDrain * dt);
@@ -4448,7 +4471,7 @@ export class StreetScene extends Phaser.Scene {
 
       const heat = this.cityFx ? this.cityFx.heat : 0;
       if (!this.sneaking) {
-        run.energy = Math.max(0, run.energy - (RUN_DRAIN + heat * 0.6) * dt);
+        run.energy = Math.max(0, run.energy - (RUN_DRAIN + heat * 0.2) * dt);
       }
 
       // A heel on the pavement, once a stride.
