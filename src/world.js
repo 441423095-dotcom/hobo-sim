@@ -25,8 +25,9 @@ export const SHOP = {
 // pawn shop set into the left building near the bottom of the block.
 export const STALL = { x: 200, y: 1330, vendorX: 252, vendorY: 1308 };
 
-// The workbench stands outside the tent, at the camp end of the street.
-export const WORKBENCH = { x: 190, y: 588 };
+// The workbench stands right at the tent door, in the camp; there is no bench
+// out on the street.
+export const WORKBENCH = { x: 250, y: 620 };
 export const PAWN = { x: 0, y: 1180, width: 112, height: 176, doorX: 124, doorY: 1266 };
 
 // Where pedestrians walk: one lane down each pavement.

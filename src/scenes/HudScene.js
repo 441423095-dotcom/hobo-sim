@@ -13,7 +13,7 @@ import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
 import { DISTRICTS, DISTRICT_ORDER, QUEST_TARGET } from '../districts.js';
 import { STREET_ORDER, CITY_COLS, CITY_ROWS, cellOf, neighbourOf } from '../streets.js';
 import { SHOPS, stockFor } from '../shops.js';
-import { FURNITURE } from '../home.js';
+import { FURNITURE, FURNITURE_RECIPES, HOME_SLOTS, furnitureById } from '../home.js';
 import { COFFEE_PRICE, COFFEE_ENERGY, KICK_WANTED } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS } from '../gamble.js';
 import { RECIPES, amountOf, materialLabel } from '../craft.js';
@@ -44,7 +44,7 @@ const TRADE_MAX_ROWS = 10;
 
 const PEDDLE_ROWS = 4;
 
-const CRAFT_ROW_HEIGHT = 66;
+const CRAFT_ROW_HEIGHT = 58;
 
 export class HudScene extends Phaser.Scene {
   constructor() {
@@ -2165,7 +2165,7 @@ export class HudScene extends Phaser.Scene {
       this.craftHint
     ]);
 
-    this.craftRows = RECIPES.map((rec) => {
+    this.craftRows = RECIPES.concat(FURNITURE_RECIPES).map((rec) => {
       const bg = this.add
         .rectangle(0, 0, ROW_WIDTH, CRAFT_ROW_HEIGHT, UI.panelRow, 1)
         .setOrigin(0, 0.5)
@@ -2178,7 +2178,7 @@ export class HudScene extends Phaser.Scene {
         .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
         .setOrigin(0, 0.5);
       const value = this.add
-        .text(0, 0, `${rec.value} 元`, {
+        .text(0, 0, rec.furniture ? '放进帐篷' : `${rec.value} 元`, {
           fontFamily: FONT,
           fontSize: '16px',
           color: UI.gold,
@@ -2286,12 +2286,37 @@ export class HudScene extends Phaser.Scene {
     for (const row of this.craftRows) {
       const rec = row.rec;
       const locked = rec.blueprint && !(run && run.blueprints[rec.id]);
-      const enough =
-        !!run &&
-        Object.keys(rec.need).every((id) => amountOf(run, id) >= rec.need[id]);
 
-      const needs = Object.keys(rec.need)
-        .map((id) => `${materialLabel(id)} ${run ? amountOf(run, id) : 0}/${rec.need[id]}`)
+      // Furniture that is already standing in the tent only needs mending once
+      // it has worn through, and that costs its repair list, not a new build.
+      let needList = rec.need;
+      let mending = false;
+
+      if (rec.furniture) {
+        const built = furnitureById(rec.furniture);
+        const piece =
+          built && this.street && this.street.homePiece
+            ? this.street.homePiece(built.slot)
+            : null;
+
+        if (piece && piece.item.id === rec.furniture) {
+          if (!piece.broken) {
+            row.state.setText('已摆好').setColor('#8a8070');
+            row.bg.setFillStyle(UI.panelRowDim, 0.8);
+            row.value.setColor('#8a7a55');
+            return;
+          }
+
+          needList = built.repair || { cardboard: 2 };
+          mending = true;
+        }
+      }
+
+      const enough =
+        !!run && Object.keys(needList).every((id) => amountOf(run, id) >= needList[id]);
+
+      const needs = Object.keys(needList)
+        .map((id) => `${materialLabel(id)} ${run ? amountOf(run, id) : 0}/${needList[id]}`)
         .join(' · ');
 
       row.info.setText(needs);
@@ -2301,7 +2326,7 @@ export class HudScene extends Phaser.Scene {
       if (locked) {
         row.state.setText('需要图纸').setColor('#b0705e');
       } else if (enough) {
-        row.state.setText('可合成').setColor('#8fd07a');
+        row.state.setText(mending ? '可修理' : '可合成').setColor('#8fd07a');
       } else {
         row.state.setText('材料不足').setColor('#8a8070');
       }
@@ -2319,11 +2344,26 @@ export class HudScene extends Phaser.Scene {
     if (result === 'ok') {
       haptic('craft');
       this.refreshCraft();
-      this.craftHint.setText(`合成了 ${rec.name}`);
+      this.craftHint.setText(
+        rec.furniture ? `把${rec.name}摆进帐篷了` : `合成了 ${rec.name}`
+      );
       return;
     }
 
     haptic('refuse');
+
+    if (result === 'repaired') {
+      haptic('craft');
+      this.refreshCraft();
+      this.craftHint.setText(`修好了${rec.name}`);
+      return;
+    }
+
+    if (result === 'owned') {
+      this.craftHint.setText(`帐篷里已经有${rec.name}了`);
+      return;
+    }
+
     this.craftHint.setText(result === 'locked' ? `还没有 ${rec.name} 的图纸` : '材料不够');
   }
 
@@ -2534,9 +2574,14 @@ export class HudScene extends Phaser.Scene {
       ? `${run.money}|${run.bag}|${Object.values(run.goods).join(',')}|${comfort}`
       : '';
 
-    const placed = (item) => !!(street && street.homePlaced[item.slot] === item.id);
+    const pieceOf = (slot) => (street && street.homePiece ? street.homePiece(slot) : null);
+    const placed = (item) => {
+      const piece = pieceOf(item.slot);
+      return !!(piece && piece.item.id === item.id);
+    };
+
     const placedCount = FURNITURE.filter(placed).length;
-    const fire = placed(FURNITURE.find((item) => item.slot === 'fireplace'));
+    const fire = !!(street && street.hasFire ? street.hasFire() : false);
     const cold = !!(street && street.isColdNight && street.isColdNight() && !fire);
 
     this.homeSub.setText(`舒适度 ${comfort} · 摆好 ${placedCount}/${FURNITURE.length}`);
@@ -2670,6 +2715,17 @@ export class HudScene extends Phaser.Scene {
       rg.fillRect(rug.x, rug.y + rug.h * 0.66, rug.w, 2);
     }
 
+    // A worn-out piece is still standing, but it reads as broken: a dark wash
+    // over it and a line saying what it needs.
+    HOME_SLOTS.forEach((slot) => {
+      const piece = pieceOf(slot);
+      const s = this.homeSlots[slot];
+      if (!piece || !piece.broken || !s) return;
+
+      rg.fillStyle(0x0b0906, 0.5);
+      rg.fillRoundedRect(s.x - 2, s.y - 2, s.w + 4, s.h + 4, 6);
+    });
+
     rg.lineStyle(2, UI.amber, 0.35);
     rg.strokeRoundedRect(r.x, r.y, r.w, r.h, 10);
 
@@ -2680,7 +2736,20 @@ export class HudScene extends Phaser.Scene {
       const state = street ? street.furnitureState(item) : 'short';
 
       if (isPlaced) {
-        text.setText(item.name).setColor(UI.gold);
+        const piece = pieceOf(item.slot);
+        if (!piece) return;
+
+        if (piece.broken) {
+          const need = item.repair || { cardboard: 2 };
+          const cost = Object.keys(need)
+            .map((id) => `${materialLabel(id)} ${need[id]}`)
+            .join(' · ');
+
+          text.setText(`${item.name}\n破损 · 点一下修\n${cost}`).setColor('#f0a08a');
+          return;
+        }
+
+        text.setText(`${item.name}\n耐久 ${piece.left}/${piece.max}`).setColor(UI.gold);
         return;
       }
 
@@ -2725,11 +2794,20 @@ export class HudScene extends Phaser.Scene {
     if (!this.street) return;
 
     const result = this.street.placeFurniture(item);
+
     if (result === 'owned') {
       haptic('refuse');
       this.homeHint.setText('这件已经摆好了');
       return;
     }
+
+    if (result === 'repaired') {
+      this.shown.homeSig = null;
+      this.refreshHome();
+      this.homeHint.setText(`修好了${item.name}`);
+      return;
+    }
+
     if (result !== 'ok') {
       haptic('refuse');
       this.homeHint.setText(result === 'poor' ? '钱不够' : '材料不够');

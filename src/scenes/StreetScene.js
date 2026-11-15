@@ -22,7 +22,7 @@ import {
   zhouAdvice
 } from '../lines.js';
 import { SHOPS, OUTFITS } from '../shops.js';
-import { FURNITURE, HOME_SCENE_COMFORT } from '../home.js';
+import { FURNITURE, HOME_SLOTS, HOME_SCENE_COMFORT, furnitureById } from '../home.js';
 import { DAY_LENGTH, darknessAt, minutesToClock, segmentOf, segmentName } from '../time.js';
 import { COFFEE_PRICE, COFFEE_ENERGY, KICK_ENERGY, KICK_WANTED, SEEN_WANTED, BIN_SEARCH_MS } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS, rollSlot } from '../gamble.js';
@@ -1706,6 +1706,12 @@ export class StreetScene extends Phaser.Scene {
 
   /// Returns 'ok', 'locked' or 'short' so the panel can say what happened.
   craft(id) {
+    // A recipe prefixed "furn:" builds a piece of furniture and sets it down in
+    // the tent there and then.
+    if (typeof id === 'string' && id.indexOf('furn:') === 0) {
+      return this.craftFurniture(id.slice(5));
+    }
+
     const rec = recipeById(id);
     if (!rec || this.run.over) return 'locked';
     if (rec.blueprint && !this.run.blueprints[rec.id]) return 'locked';
@@ -2486,29 +2492,71 @@ export class StreetScene extends Phaser.Scene {
 
   loadHome() {
     const stored = this.registry.get('homePlaced');
-    this.homePlaced = stored && typeof stored === 'object' ? { ...stored } : {};
+    const raw = stored && typeof stored === 'object' ? stored : {};
+
+    // Saves from before furniture had a life span kept just the piece's id.
+    this.homePlaced = {};
+    for (const slot of HOME_SLOTS) {
+      const entry = raw[slot];
+      if (!entry) continue;
+
+      const id = typeof entry === 'string' ? entry : entry.id;
+      const item = furnitureById(id);
+      if (!item || item.slot !== slot) continue;
+
+      const max = item.durability || 6;
+      this.homePlaced[slot] = {
+        id,
+        left: typeof entry.left === 'number' ? entry.left : max,
+        max,
+        temp: !!item.temp
+      };
+    }
 
     // A beggar always starts with a bed: a flattened cardboard box on the
     // floor of the tent, worth almost nothing but enough to lie down on.
     for (const item of FURNITURE) {
-      if (item.starter && !this.homePlaced[item.slot]) this.homePlaced[item.slot] = item.id;
+      if (item.starter && !this.homePlaced[item.slot]) this.setHomePiece(item.slot, item);
     }
 
     this.registry.set('homePlaced', { ...this.homePlaced });
   }
 
+  /// One place in the tent: the piece standing there and what is left of it.
+  homePiece(slot) {
+    const piece = this.homePlaced[slot];
+    if (!piece) return null;
+
+    const item = furnitureById(piece.id);
+    if (!item) return null;
+
+    return { ...piece, item, broken: (piece.left || 0) <= 0 };
+  }
+
+  setHomePiece(slot, item) {
+    const max = item.durability || 6;
+
+    this.homePlaced[slot] = { id: item.id, left: max, max, temp: !!item.temp };
+    this.registry.set('homePlaced', { ...this.homePlaced });
+  }
+
   homeComfort() {
-    return FURNITURE.reduce(
-      (total, item) => total + (this.homePlaced[item.slot] === item.id ? item.comfort : 0),
-      0
-    );
+    return HOME_SLOTS.reduce((total, slot) => {
+      const piece = this.homePiece(slot);
+      if (!piece || piece.broken) return total;
+
+      return total + piece.item.comfort;
+    }, 0);
   }
 
   /// What the house can do with a piece of furniture right now.
   furnitureState(item) {
-    if (this.homePlaced[item.slot] === item.id) return 'owned';
+    const piece = this.homePiece(item.slot);
+
+    if (piece && piece.item.id === item.id) return piece.broken ? 'broken' : 'owned';
 
     if (item.price > 0) return this.run.money >= item.price ? 'ok' : 'poor';
+    if (!item.need) return 'ok';
 
     for (const id of Object.keys(item.need)) {
       if (amountOf(this.run, id) < item.need[id]) return 'short';
@@ -2516,10 +2564,36 @@ export class StreetScene extends Phaser.Scene {
     return 'ok';
   }
 
+  /// Mending a worn-out piece at the bench costs a small handful of material.
+  repairFurniture(item) {
+    const piece = this.homePiece(item.slot);
+    if (!piece || !piece.broken) return 'owned';
+
+    const need = item.repair || { cardboard: 2 };
+
+    for (const id of Object.keys(need)) {
+      if (amountOf(this.run, id) < need[id]) return 'short';
+    }
+
+    for (const id of Object.keys(need)) {
+      spendMaterial(this.run, id, need[id]);
+    }
+    this.refreshBagCount();
+
+    this.homePlaced[item.slot].left = piece.max;
+    this.registry.set('homePlaced', { ...this.homePlaced });
+
+    haptic('craft');
+    this.floatText(this.player.x, this.player.y - 46, `修好了${item.name}`, '#a8d98a');
+
+    return 'repaired';
+  }
+
   placeFurniture(item) {
     if (this.run.over) return 'short';
 
     const state = this.furnitureState(item);
+    if (state === 'broken') return this.repairFurniture(item);
     if (state !== 'ok') return state;
 
     if (item.price > 0) {
@@ -2531,23 +2605,84 @@ export class StreetScene extends Phaser.Scene {
       this.refreshBagCount();
     }
 
-    this.homePlaced[item.slot] = item.id;
-    this.registry.set('homePlaced', { ...this.homePlaced });
+    this.setHomePiece(item.slot, item);
     haptic('craft');
     this.floatText(this.player.x, this.player.y - 46, `摆好了${item.name}`, '#a8d98a');
 
-    // Enough furniture turns the nook into something worth calling home.
-    if (!this.registry.get('homeScene') && this.homeComfort() >= HOME_SCENE_COMFORT) {
-      this.registry.set('homeScene', true);
-      haptic('unlock');
-
-      const hud = this.scene.get('Hud');
-      if (hud && hud.showToast) {
-        hud.showToast('火堆噼啪响着，你第一次觉得这个帐篷像个家。');
-      }
-    }
+    this.checkHomeScene();
 
     return 'ok';
+  }
+
+  /// Building a piece of furniture at the workbench sets it down in the tent.
+  craftFurniture(id) {
+    const item = furnitureById(id);
+    if (!item || !item.craft || this.run.over) return 'locked';
+
+    const piece = this.homePiece(item.slot);
+    if (piece && piece.item.id === item.id) {
+      if (!piece.broken) return 'owned';
+      return this.repairFurniture(item);
+    }
+
+    for (const mat of Object.keys(item.craft)) {
+      if (amountOf(this.run, mat) < item.craft[mat]) return 'short';
+    }
+
+    for (const mat of Object.keys(item.craft)) {
+      spendMaterial(this.run, mat, item.craft[mat]);
+    }
+    this.refreshBagCount();
+
+    this.setHomePiece(item.slot, item);
+    haptic('craft');
+    this.floatText(this.player.x, this.player.y - 46, `合成了${item.name}，摆进帐篷`, '#a8d98a');
+
+    this.checkHomeScene();
+
+    return 'ok';
+  }
+
+  /// Enough furniture turns the nook into something worth calling home.
+  checkHomeScene() {
+    if (this.registry.get('homeScene') || this.homeComfort() < HOME_SCENE_COMFORT) return;
+
+    this.registry.set('homeScene', true);
+    haptic('unlock');
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast) {
+      hud.showToast('火堆噼啪响着，你第一次觉得这个帐篷像个家。');
+    }
+  }
+
+  /// A night in the tent wears everything in it by a day. Flimsy things made of
+  /// paper and cardboard simply fall apart.
+  wearFurniture() {
+    const gone = [];
+    const broke = [];
+
+    for (const slot of Object.keys(this.homePlaced)) {
+      const piece = this.homePlaced[slot];
+      if (!piece) continue;
+
+      const before = piece.left || 0;
+      piece.left = Math.max(0, before - 1);
+
+      const item = furnitureById(piece.id);
+      if (!item) continue;
+
+      if (piece.left <= 0 && before > 0) {
+        if (piece.temp) gone.push(item.name);
+        else broke.push(item.name);
+      }
+
+      if (piece.left <= 0 && piece.temp) delete this.homePlaced[slot];
+    }
+
+    this.registry.set('homePlaced', { ...this.homePlaced });
+
+    return { gone, broke };
   }
 
   /// True once the evening sets in: that is when the cold bites.
@@ -2556,7 +2691,8 @@ export class StreetScene extends Phaser.Scene {
   }
 
   hasFire() {
-    return this.homePlaced.fireplace === 'fireplace';
+    const piece = this.homePiece('fireplace');
+    return !!piece && piece.item.id === 'fireplace' && !piece.broken;
   }
 
   /// What a night in the tent would do right now. Cold nights without a fire
@@ -2605,6 +2741,8 @@ export class StreetScene extends Phaser.Scene {
       sold: this.run.soldIncome
     };
 
+    const worn = this.wearFurniture();
+
     this.run.day += 1;
     this.run.step = 0;
     this.nightDeadline = 0;
@@ -2622,6 +2760,19 @@ export class StreetScene extends Phaser.Scene {
     } else {
       haptic('sleep');
       this.floatText(this.player.x, this.player.y - 46, '睡了一觉', '#a8d98a');
+    }
+
+    // What the night took out of the furniture.
+    if (worn.gone.length || worn.broke.length) {
+      const hud = this.scene.get('Hud');
+
+      if (hud && hud.showToast) {
+        const parts = [];
+        if (worn.gone.length) parts.push(`${worn.gone.join('、')}散架了`);
+        if (worn.broke.length) parts.push(`${worn.broke.join('、')}坏了，回工作台修`);
+
+        hud.showToast(parts.join('；'));
+      }
     }
 
     // A new morning, so a new list from Old Zhou.
