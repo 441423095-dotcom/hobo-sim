@@ -10,7 +10,7 @@ import { FOODS } from '../food.js';
 import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
 import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
 import { DISTRICTS, DISTRICT_ORDER, QUEST_TARGET } from '../districts.js';
-import { STREET_ORDER } from '../streets.js';
+import { STREET_ORDER, CITY_COLS, CITY_ROWS, cellOf, neighbourOf } from '../streets.js';
 import { SHOPS, stockFor } from '../shops.js';
 import { FURNITURE } from '../home.js';
 import { COFFEE_PRICE, COFFEE_ENERGY, KICK_WANTED } from '../vending.js';
@@ -32,11 +32,7 @@ const ROW_HEIGHT = 56;
 // Control sizes are fixed rather than derived per frame: the band is tall
 // enough for them at its smallest, and leaving the circles alone keeps their
 // stroke widths consistent.
-const STICK_RADIUS = 64;
-const KNOB_RADIUS = 22;
-// How far the knob can be pushed from the middle of the plate: far enough to
-// reach full speed, long enough that a gentle push for sneaking is easy to hit.
-const STICK_THROW = STICK_RADIUS * 0.72;
+const STICK_THROW = 46;
 const BUTTON_RADIUS = 44;
 const STEAL_RADIUS = 36;
 
@@ -168,43 +164,9 @@ export class HudScene extends Phaser.Scene {
   }
 
   buildControls() {
-    this.stickRadius = STICK_RADIUS;
-
-    // There is no fixed joystick any more. The plate and its knob only exist
-    // while a thumb is down on the left half of the screen, and they appear
-    // right under that thumb.
-
-    this.stickBase = this.add
-      .circle(0, 0, STICK_RADIUS, 0x241f18, 0.5)
-      .setStrokeStyle(3, UI.amber, 0.45)
-      .setDepth(DEPTH.control)
-      .setVisible(false);
-
-    this.stickRing = this.add
-      .circle(0, 0, STICK_THROW, 0x000000, 0)
-      .setStrokeStyle(1.5, UI.amber, 0.2)
-      .setDepth(DEPTH.control)
-      .setVisible(false);
-
-    this.stickKnob = this.add
-      .circle(0, 0, KNOB_RADIUS, UI.amber, 0.85)
-      .setStrokeStyle(3, 0x201a13, 0.9)
-      .setDepth(DEPTH.control + 1)
-      .setVisible(false);
-
-    // A quiet line where the old circle used to sit, so a player who never
-    // tries the left half still finds out where the thumb belongs.
-    this.stickHint = this.add
-      .text(0, 0, '左侧任意处拖动移动\n轻推可以潜行', {
-        fontFamily: FONT,
-        fontSize: '11px',
-        color: UI.creamDim,
-        align: 'center',
-        lineSpacing: 3
-      })
-      .setOrigin(0.5, 0.5)
-      .setDepth(DEPTH.control - 1)
-      .setAlpha(0.45);
+    // Movement is a direct drag: the city is moved by dragging a thumb
+    // anywhere on the left half of the screen, and nothing is drawn at all.
+    this.stickOrigin = null;
 
     this.interactGlow = this.add
       .circle(0, 0, BUTTON_RADIUS + 8, 0x000000, 0)
@@ -1081,14 +1043,11 @@ export class HudScene extends Phaser.Scene {
   }
 
   layoutControls() {
-    const stickX = Math.max(STICK_RADIUS + 20, this.w * 0.22);
     const stickY = this.playH + this.bandH * 0.5 + 6;
 
-    // A resize drops the stick: the thumb that held it is no longer where it
-    // was, and the next touch summons a fresh one.
+    // A resize drops the drag: the thumb that was holding it is no longer where
+    // it was.
     this.releaseStick();
-
-    if (this.stickHint) this.stickHint.setPosition(stickX, stickY);
 
     const btnX = this.w - Math.max(BUTTON_RADIUS + 26, this.w * 0.2);
 
@@ -1261,33 +1220,12 @@ export class HudScene extends Phaser.Scene {
     return hit(this.stealBtn, STEAL_RADIUS) || hit(this.interactBtn, BUTTON_RADIUS);
   }
 
-  /// Puts the plate and the knob where the thumb just landed, and pops them in
-  /// so the stick feels summoned rather than switched on.
+  /// Remembers where the thumb landed. Everything after that is a plain drag
+  /// from that point, with nothing drawn on the screen.
   grabStick(pointer) {
-    this.stickBase.setPosition(pointer.x, pointer.y).setVisible(true);
-    this.stickRing.setPosition(pointer.x, pointer.y).setVisible(true);
-    this.stickKnob.setPosition(pointer.x, pointer.y).setVisible(true);
-
-    const parts = [this.stickBase, this.stickRing, this.stickKnob];
-
-    this.tweens.killTweensOf(parts);
-    this.stickBase.setScale(0.78);
-    this.stickRing.setScale(0.78);
-    this.stickKnob.setScale(0.78);
-    this.tweens.add({
-      targets: parts,
-      scaleX: 1,
-      scaleY: 1,
-      duration: 120,
-      ease: 'Quad.easeOut'
-    });
-
-    if (this.stickHint && this.stickHint.alpha > 0.3) {
-      this.tweens.add({ targets: this.stickHint, alpha: 0.22, duration: 240 });
-    }
+    this.stickOrigin = { x: pointer.x, y: pointer.y };
 
     haptic('tick');
-    this.updateStick(pointer);
   }
 
   onPointerMove(pointer) {
@@ -1301,8 +1239,10 @@ export class HudScene extends Phaser.Scene {
   }
 
   updateStick(pointer) {
-    const bx = this.stickBase.x;
-    const by = this.stickBase.y;
+    if (!this.stickOrigin) return;
+
+    const bx = this.stickOrigin.x;
+    const by = this.stickOrigin.y;
     const limit = STICK_THROW;
 
     let dx = pointer.x - bx;
@@ -1313,8 +1253,6 @@ export class HudScene extends Phaser.Scene {
       dx = (dx / len) * limit;
       dy = (dy / len) * limit;
     }
-
-    this.stickKnob.setPosition(bx + dx, by + dy);
 
     const dead = 0.18;
     const nx = dx / limit;
@@ -1327,16 +1265,7 @@ export class HudScene extends Phaser.Scene {
 
   releaseStick() {
     this.stickId = null;
-
-    if (this.stickKnob) {
-      const parts = [this.stickBase, this.stickRing, this.stickKnob];
-
-      this.tweens.killTweensOf(parts);
-      this.stickKnob.setPosition(this.stickBase.x, this.stickBase.y);
-      this.stickKnob.setVisible(false);
-      this.stickBase.setVisible(false);
-      if (this.stickRing) this.stickRing.setVisible(false);
-    }
+    this.stickOrigin = null;
 
     if (this.street) this.street.setAxes(0, 0);
   }
@@ -2610,12 +2539,14 @@ export class HudScene extends Phaser.Scene {
   }
 
   blockCentre(id) {
-    const pos = DISTRICTS[id].mapPos;
     const rect = this.mapRect;
+    const cell = cellOf(id);
+    const cellW = rect.w / CITY_COLS;
+    const cellH = rect.h / CITY_ROWS;
 
     return {
-      x: rect.x + pos.x * rect.w,
-      y: rect.y + pos.y * rect.h
+      x: rect.x + cellW * (cell.col + 0.5),
+      y: rect.y + cellH * (cell.row + 0.5)
     };
   }
 
@@ -2628,15 +2559,18 @@ export class HudScene extends Phaser.Scene {
 
     const g = this.mapGfx;
 
-    // The street runs camp → market → alley → park → square, so only the
-    // neighbours on it are joined. The map is a plan of that one street.
-    for (let i = 0; i < STREET_ORDER.length - 1; i++) {
-      const a = STREET_ORDER[i];
-      const b = STREET_ORDER[i + 1];
-      const p = this.blockCentre(a);
-      const q = this.blockCentre(b);
-      const live = unlocked.includes(a) && unlocked.includes(b);
-      this.drawRoute(g, p, q, live ? 0xf2e8d5 : 0x6b6257, live ? 0.42 : 0.18);
+    // The map is the same grid the city is: only blocks that touch are joined.
+    for (const id of STREET_ORDER) {
+      for (const dir of ['east', 'south']) {
+        const other = neighbourOf(id, dir);
+        if (!other) continue;
+
+        const p = this.blockCentre(id);
+        const q = this.blockCentre(other);
+        const live = unlocked.includes(id) && unlocked.includes(other);
+
+        this.drawRoute(g, p, q, live ? 0xf2e8d5 : 0x6b6257, live ? 0.42 : 0.18);
+      }
     }
 
     for (const id of DISTRICT_ORDER) {
@@ -2746,14 +2680,10 @@ export class HudScene extends Phaser.Scene {
       return;
     }
 
-    // The map never moves the player: the whole city is one street, so the way
-    // there is to walk it. Tapping only tells you which way to go.
-    const from = STREET_ORDER.indexOf(street.district.id);
-    const to = STREET_ORDER.indexOf(id);
-    const dir = to > from ? '右' : '左';
-
+    // The map never moves the player: the whole city is walkable, so the way
+    // there is to walk it. Tapping only says where it is.
     haptic('ui');
-    this.mapHint.setText(`${DISTRICTS[id].name}在${dir}边，顺着街道走过去就行`);
+    this.mapHint.setText(`${DISTRICTS[id].name}就在这座城里，顺着街道走过去就行`);
   }
 
   showToast(text) {

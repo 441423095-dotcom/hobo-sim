@@ -1,7 +1,6 @@
-// The districts of the city, and what each one is made of. The whole city is one
-// long street built from this data, left to right in the order of STREET_ORDER
-// in streets.js, and the city map is a plan of that same street, so mapPos
-// snakes down the sheet in the order you would walk it.
+// The districts of the city, and what each one is made of. The city is a 3×3
+// grid of blocks (see streets.js): each district fills one block, and the blocks
+// that touch share their streets, so the whole thing is walkable at any angle.
 
 export const DISTRICT_ORDER = ['market', 'square', 'alley', 'park', 'camp', 'slum', 'commerce'];
 

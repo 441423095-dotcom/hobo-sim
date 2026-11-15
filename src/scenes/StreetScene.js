@@ -15,7 +15,18 @@ import { FURNITURE, HOME_SCENE_COMFORT } from '../home.js';
 import { SEGMENTS, STEPS_PER_DAY, segmentOf, segmentName } from '../time.js';
 import { COFFEE_PRICE, COFFEE_ENERGY, KICK_ENERGY, KICK_WANTED, SEEN_WANTED, BIN_SEARCH_MS } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS, rollSlot } from '../gamble.js';
-import { STREET_ORDER, STREET_WIDTH, SEAM, SEAM_WIDTH } from '../streets.js';
+import {
+  STREET_ORDER,
+  STREET_WIDTH,
+  STREET_HEIGHT,
+  CITY_COLS,
+  CITY_ROWS,
+  SEAM,
+  SEAM_WIDTH,
+  cellOf,
+  districtAt,
+  neighbourOf
+} from '../streets.js';
 import {
   DISTRICTS,
   DISTRICT_ORDER,
@@ -249,25 +260,37 @@ export class StreetScene extends Phaser.Scene {
     this.qtePed = null;
     this.sneaking = false;
     this.energyWarned = false;
+    this.alertExplained = false;
     this.loadHome();
 
-    // The whole city is one street: every district sits beside the next, with a
-    // passage cut through the buildings where two of them meet.
+    // The city is a grid of blocks: each district fills one cell, and the
+    // streets of touching cells run into each other.
     this.pair = true;
-    this.strips = STREET_ORDER.map((id, index) => ({
-      id,
-      index,
-      x0: index * STREET_WIDTH,
-      district: DISTRICTS[id]
-    }));
-    this.worldWidth = this.strips.length * STREET_WIDTH;
+    this.strips = STREET_ORDER.map((id, index) => {
+      const cell = cellOf(id);
 
-    this.seams = [];
-    for (let i = 0; i < this.strips.length - 1; i++) {
-      this.seams.push({
-        x: (i + 1) * STREET_WIDTH,
-        left: this.strips[i],
-        right: this.strips[i + 1]
+      return {
+        id,
+        index,
+        col: cell.col,
+        row: cell.row,
+        x0: cell.col * STREET_WIDTH,
+        y0: cell.row * STREET_HEIGHT,
+        district: DISTRICTS[id]
+      };
+    });
+    this.worldWidth = CITY_COLS * STREET_WIDTH;
+    this.worldHeight = CITY_ROWS * STREET_HEIGHT;
+
+    // Every left-right pair of blocks is joined by a passage through the
+    // buildings; north-south neighbours share the street itself.
+    this.passages = [];
+    for (const strip of this.strips) {
+      if (!neighbourOf(strip.id, 'east')) continue;
+
+      this.passages.push({
+        x: strip.x0 + STREET_WIDTH,
+        y: strip.y0 + SEAM.y0
       });
     }
 
@@ -298,12 +321,12 @@ export class StreetScene extends Phaser.Scene {
     this.applyNight();
     if (this.lastSegment === 3) this.nightDeadline = this.time.now + NIGHT_GRACE;
 
-    this.physics.world.setBounds(0, 0, this.worldWidth, WORLD.height);
+    this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
     this.physics.add.collider(this.player, this.walls);
     this.physics.add.collider(this.player, this.bins);
 
     const cam = this.cameras.main;
-    cam.setBounds(0, 0, this.worldWidth, WORLD.height);
+    cam.setBounds(0, 0, this.worldWidth, this.worldHeight);
     cam.setBackgroundColor(0x191510);
     cam.startFollow(this.player, true, 0.14, 0.14);
     cam.centerOn(this.player.x, this.player.y);
@@ -333,28 +356,52 @@ export class StreetScene extends Phaser.Scene {
 
   buildScenery() {
     for (const strip of this.strips) {
-      this.add.image(strip.x0, 0, 'ground').setOrigin(0, 0).setDepth(-40);
+      this.add.image(strip.x0, strip.y0, 'ground').setOrigin(0, 0).setDepth(-40);
       this.add
-        .image(strip.x0 + LEFT_BUILDINGS.x, 0, 'bld-left')
+        .image(strip.x0 + LEFT_BUILDINGS.x, strip.y0, 'bld-left')
         .setOrigin(0, 0)
         .setDepth(-30);
       this.add
-        .image(strip.x0 + RIGHT_BUILDINGS.x, 0, 'bld-right')
+        .image(strip.x0 + RIGHT_BUILDINGS.x, strip.y0, 'bld-right')
         .setOrigin(0, 0)
         .setDepth(-30);
 
       if (strip.district.tintAlpha > 0) {
         this.add
-          .rectangle(strip.x0, 0, STREET_WIDTH, WORLD.height, strip.district.tint, strip.district.tintAlpha)
+          .rectangle(
+            strip.x0,
+            strip.y0,
+            STREET_WIDTH,
+            STREET_HEIGHT,
+            strip.district.tint,
+            strip.district.tintAlpha
+          )
           .setOrigin(0, 0)
           .setDepth(-26);
       }
     }
 
-    // The passages cut between the districts.
-    for (const seam of this.seams) {
+    // The holes in the grid are painted too, so the camera never looks out onto
+    // nothing when the player stands at the edge of the city.
+    for (let row = 0; row < CITY_ROWS; row++) {
+      for (let col = 0; col < CITY_COLS; col++) {
+        if (districtAt(col, row)) continue;
+
+        const x = col * STREET_WIDTH;
+        const y = row * STREET_HEIGHT;
+
+        this.add.image(x, y, 'ground').setOrigin(0, 0).setDepth(-40);
+        this.add
+          .rectangle(x, y, STREET_WIDTH, STREET_HEIGHT, 0x0b0906, 0.85)
+          .setOrigin(0, 0)
+          .setDepth(-24);
+      }
+    }
+
+    // The passages cut through the buildings between left and right blocks.
+    for (const passage of this.passages) {
       this.add
-        .image(seam.x - SEAM_WIDTH / 2, SEAM.y0, 'passage')
+        .image(passage.x - SEAM_WIDTH / 2, passage.y, 'passage')
         .setOrigin(0, 0)
         .setDepth(-29);
     }
@@ -365,9 +412,9 @@ export class StreetScene extends Phaser.Scene {
     // The bin-search progress bar, drawn above whatever is being searched.
     this.searchBarGfx = this.add.graphics().setDepth(5600);
 
-    // Cold light of the evening and the night, over the whole street.
+    // Cold light of the evening and the night, over the whole city.
     this.nightOverlay = this.add
-      .rectangle(0, 0, this.worldWidth, WORLD.height, 0x0a1428, 0)
+      .rectangle(0, 0, this.worldWidth, this.worldHeight, 0x0a1428, 0)
       .setOrigin(0, 0)
       .setDepth(-25);
   }
@@ -376,16 +423,24 @@ export class StreetScene extends Phaser.Scene {
     return this.strips.find((strip) => strip.id === id) || null;
   }
 
-  /// A building wall runs the whole street unless a seam passage cuts through
-  /// it, in which case the wall is split above and below the opening.
-  addBuildingWall(add, x, w, gap) {
+  /// The block a point of the world is standing in.
+  stripAt(x, y) {
+    const col = Phaser.Math.Clamp(Math.floor(x / STREET_WIDTH), 0, CITY_COLS - 1);
+    const row = Phaser.Math.Clamp(Math.floor(y / STREET_HEIGHT), 0, CITY_ROWS - 1);
+    const id = districtAt(col, row);
+
+    return (id && this.stripFor(id)) || this.strips[0];
+  }
+
+  /// A building wall runs the whole block unless a passage cuts through it.
+  addBuildingWall(add, x, y0, w, gap) {
     if (!gap) {
-      add(x, 0, w, WORLD.height);
+      add(x, y0, w, STREET_HEIGHT);
       return;
     }
 
-    add(x, 0, w, SEAM.y0);
-    add(x, SEAM.y1, w, WORLD.height - SEAM.y1);
+    add(x, y0, w, SEAM.y0);
+    add(x, y0 + SEAM.y1, w, STREET_HEIGHT - SEAM.y1);
   }
 
   buildWalls() {
@@ -398,40 +453,82 @@ export class StreetScene extends Phaser.Scene {
       return rect;
     };
 
-    const last = this.strips.length - 1;
-
     for (const strip of this.strips) {
-      const leftGap = strip.index > 0;
-      const rightGap = strip.index < last;
+      const leftGap = !!neighbourOf(strip.id, 'west');
+      const rightGap = !!neighbourOf(strip.id, 'east');
 
-      this.addBuildingWall(add, strip.x0 + LEFT_BUILDINGS.x, LEFT_BUILDINGS.width, leftGap);
-      this.addBuildingWall(add, strip.x0 + RIGHT_BUILDINGS.x, RIGHT_BUILDINGS.width, rightGap);
+      this.addBuildingWall(
+        add,
+        strip.x0 + LEFT_BUILDINGS.x,
+        strip.y0,
+        LEFT_BUILDINGS.width,
+        leftGap
+      );
+      this.addBuildingWall(
+        add,
+        strip.x0 + RIGHT_BUILDINGS.x,
+        strip.y0,
+        RIGHT_BUILDINGS.width,
+        rightGap
+      );
     }
 
     // The junk stall's table is solid, so the player has to stand at the front
     // of it to trade.
     const market = this.stripFor('market');
     if (market) {
-      add(STALL.x + market.x0 - 34, STALL.y - 26, 68, 26);
+      add(STALL.x + market.x0 - 34, STALL.y + market.y0 - 26, 68, 26);
     }
 
     // The workbench outside the tent is solid too.
     const camp = this.stripFor('camp');
     if (camp) {
-      add(WORKBENCH.x + camp.x0 - 30, WORKBENCH.y - 26, 60, 26);
-      add(camp.x0 + 240, 432, 160, 92);
+      add(WORKBENCH.x + camp.x0 - 30, WORKBENCH.y + camp.y0 - 26, 60, 26);
+      add(camp.x0 + 240, camp.y0 + 432, 160, 92);
     }
 
-    // Gates close off any district that has not been unlocked yet.
+    // Gates close off every way into a district that has not been unlocked yet.
     this.gates = [];
     const unlocked = this.unlockedList();
+    const walkX = LEFT_BUILDINGS.x + LEFT_BUILDINGS.width;
+    const walkW = RIGHT_BUILDINGS.x - walkX;
+
+    // Where the city ends, the street ends too: a wall across the block so the
+    // beggar cannot walk off into the void between blocks.
+    for (const strip of this.strips) {
+      if (!neighbourOf(strip.id, 'north')) {
+        add(strip.x0 + walkX, strip.y0 - 8, walkW, 16);
+      }
+
+      if (!neighbourOf(strip.id, 'south')) {
+        add(strip.x0 + walkX, strip.y0 + STREET_HEIGHT - 8, walkW, 16);
+      }
+    }
 
     for (const strip of this.strips) {
       if (unlocked.includes(strip.id)) continue;
 
-      const rect = add(strip.x0 - 8, SEAM.y0, 16, SEAM.y1 - SEAM.y0);
+      const gates = [];
 
-      this.gates.push({ id: strip.id, rect });
+      if (neighbourOf(strip.id, 'north')) {
+        gates.push(add(strip.x0 + walkX, strip.y0 - 8, walkW, 16));
+      }
+
+      if (neighbourOf(strip.id, 'south')) {
+        gates.push(add(strip.x0 + walkX, strip.y0 + STREET_HEIGHT - 8, walkW, 16));
+      }
+
+      if (neighbourOf(strip.id, 'west')) {
+        gates.push(add(strip.x0 - 8, strip.y0 + SEAM.y0, 16, SEAM.y1 - SEAM.y0));
+      }
+
+      if (neighbourOf(strip.id, 'east')) {
+        gates.push(
+          add(strip.x0 + STREET_WIDTH - 8, strip.y0 + SEAM.y0, 16, SEAM.y1 - SEAM.y0)
+        );
+      }
+
+      for (const rect of gates) this.gates.push({ id: strip.id, rect });
     }
   }
 
@@ -457,14 +554,15 @@ export class StreetScene extends Phaser.Scene {
     for (const strip of this.strips) {
       for (const spot of strip.district.bins) {
         const x = spot.x + strip.x0;
-        const bin = this.bins.create(x, spot.y, 'bin');
+        const y = spot.y + strip.y0;
+        const bin = this.bins.create(x, y, 'bin');
         bin.setDepth(bin.y);
         bin.setData('charges', Phaser.Math.Between(2, 3));
         bin.setData('strip', strip.id);
 
         this.addInteractable({
           x,
-          y: spot.y,
+          y,
           label: '翻垃圾桶',
           enabled: () => bin.getData('charges') > 0,
           use: () => this.searchBin(bin)
@@ -480,11 +578,12 @@ export class StreetScene extends Phaser.Scene {
         if (!kind) continue;
 
         const x = spot.x + strip.x0;
-        const sprite = this.add.image(x, spot.y, kind.tex).setDepth(spot.y);
+        const y = spot.y + strip.y0;
+        const sprite = this.add.image(x, y, kind.tex).setDepth(y);
 
         this.tweens.add({
           targets: sprite,
-          y: spot.y - 3,
+          y: y - 3,
           duration: 1300,
           yoyo: true,
           repeat: -1,
@@ -493,9 +592,9 @@ export class StreetScene extends Phaser.Scene {
 
         const def = {
           x,
-          y: spot.y,
+          y,
           label: `捡起${kind.name}·${kind.place}`,
-          use: () => this.pickUpLitter(sprite, def, { ...spot, x })
+          use: () => this.pickUpLitter(sprite, def, { ...spot, x, y })
         };
         this.addInteractable(def);
       }
@@ -506,13 +605,14 @@ export class StreetScene extends Phaser.Scene {
     for (const strip of this.strips) {
       for (const spot of strip.district.mats) {
         const x = spot.x + strip.x0;
-        this.add.image(x, spot.y, 'beg-mat').setDepth(spot.y - 20);
+        const y = spot.y + strip.y0;
+        this.add.image(x, y, 'beg-mat').setDepth(y - 20);
         this.addInteractable({
           x,
-          y: spot.y,
+          y,
           radius: 74,
           label: '坐下乞讨',
-          use: () => this.sitDown({ ...spot, x })
+          use: () => this.sitDown({ ...spot, x, y })
         });
       }
     }
@@ -523,20 +623,18 @@ export class StreetScene extends Phaser.Scene {
       for (const mark of strip.district.landmarks) {
         const ox = mark.ox === undefined ? 0.5 : mark.ox;
         const oy = mark.oy === undefined ? 1 : mark.oy;
-        const depth = mark.depth === undefined ? mark.y : mark.depth;
+        const y = mark.y + strip.y0;
+        const depth = mark.depth === undefined ? y : mark.depth;
 
-        this.add
-          .image(mark.x + strip.x0, mark.y, mark.tex)
-          .setOrigin(ox, oy)
-          .setDepth(depth);
+        this.add.image(mark.x + strip.x0, y, mark.tex).setOrigin(ox, oy).setDepth(depth);
       }
     }
   }
 
   buildPlayer() {
-    const spawnY = this.spawnAt === 'top' ? 150 : 1180;
     const strip = this.stripFor(this.district.id) || this.strips[0];
     const spawnX = strip.x0 + 200;
+    const spawnY = strip.y0 + (this.spawnAt === 'top' ? 150 : 1180);
 
     this.playerShadow = this.add.image(spawnX, spawnY + 18, 'shadow').setDepth(1);
 
@@ -574,7 +672,7 @@ export class StreetScene extends Phaser.Scene {
 
       for (let i = 0; i < count; i++) {
         const laneX = strip.x0 + PED_LANES[i % PED_LANES.length];
-        const y = 300 + i * 520;
+        const y = strip.y0 + 300 + i * 300;
 
         const sprite = this.add.image(laneX, y, 'guard').setDepth(y);
         const baton = this.add.image(laneX + 11, y + 6, 'baton').setDepth(y + 1);
@@ -597,6 +695,8 @@ export class StreetScene extends Phaser.Scene {
           mark,
           laneX,
           stripId: strip.id,
+          yMin: strip.y0 + 200,
+          yMax: strip.y0 + 1240,
           dir: i % 2 === 0 ? 1 : -1,
           faceAngle: i % 2 === 0 ? Math.PI / 2 : -Math.PI / 2,
           chasing: false,
@@ -638,14 +738,17 @@ export class StreetScene extends Phaser.Scene {
     if (!strip) return;
 
     const ox = strip.x0;
+    const oy = strip.y0;
 
-    this.add.image(PAWN.x + ox, PAWN.y, 'pawnshop').setOrigin(0, 0).setDepth(-28);
-    this.add.image(STALL.x + ox, STALL.y, 'stall').setOrigin(0.5, 1).setDepth(STALL.y);
-    this.add.image(STALL.vendorX + ox, STALL.vendorY, 'ped-lady').setDepth(STALL.vendorY);
+    this.add.image(PAWN.x + ox, PAWN.y + oy, 'pawnshop').setOrigin(0, 0).setDepth(-28);
+    this.add.image(STALL.x + ox, STALL.y + oy, 'stall').setOrigin(0.5, 1).setDepth(STALL.y + oy);
+    this.add
+      .image(STALL.vendorX + ox, STALL.vendorY + oy, 'ped-lady')
+      .setDepth(STALL.vendorY + oy);
 
     this.addInteractable({
       x: STALL.x + ox,
-      y: STALL.y - 30,
+      y: STALL.y + oy - 30,
       radius: TRADE_RADIUS,
       label: '旧货摊·卖废品',
       use: () => this.openTrade('stall')
@@ -653,7 +756,7 @@ export class StreetScene extends Phaser.Scene {
 
     this.addInteractable({
       x: PAWN.doorX + ox,
-      y: PAWN.doorY,
+      y: PAWN.doorY + oy,
       radius: TRADE_RADIUS,
       label: '当铺·卖废品和工具',
       use: () => this.openTrade('pawn')
@@ -667,11 +770,14 @@ export class StreetScene extends Phaser.Scene {
       for (const shop of SHOPS) {
         if (shop.district !== strip.id) continue;
 
-        this.add.image(shop.x + strip.x0, shop.y, shop.tex).setOrigin(0, 0).setDepth(-28);
+        this.add
+          .image(shop.x + strip.x0, shop.y + strip.y0, shop.tex)
+          .setOrigin(0, 0)
+          .setDepth(-28);
 
         this.addInteractable({
           x: shop.doorX + strip.x0,
-          y: shop.doorY,
+          y: shop.doorY + strip.y0,
           radius: shop.radius,
           label: `进${shop.name}`,
           use: () => this.openStore(shop.id)
@@ -1277,14 +1383,9 @@ export class StreetScene extends Phaser.Scene {
     if (hud && hud.openMap && this.scene.isActive('Hud')) hud.openMap();
   }
 
-  /// Which strip of the one long street the player is standing on.
+  /// The block of the city the player is standing in.
   currentStrip() {
-    const index = Math.min(
-      this.strips.length - 1,
-      Math.max(0, Math.floor(this.player.x / STREET_WIDTH))
-    );
-
-    return this.strips[index];
+    return this.stripAt(this.player.x, this.player.y);
   }
 
   isSeamless() {
@@ -1295,15 +1396,15 @@ export class StreetScene extends Phaser.Scene {
     return this.edgeHint || '';
   }
 
-  /// Every pair of districts is joined by a passage cut through the buildings,
-  /// and the two far ends of the street are just walls. Standing in a passage
-  /// tells you which district it leads to.
+  /// Keeps the HUD's district name in step with the block the beggar is in,
+  /// names the way through to the next block, and complains when they walk
+  /// into the edge of the city.
   checkSeam() {
+    const px = this.player.x;
+    const py = this.player.y;
+
     const nearEnd =
-      this.player.x < 132 ||
-      this.player.x > this.worldWidth - 132 ||
-      this.player.y < 132 ||
-      this.player.y > WORLD.height - 132;
+      px < 132 || px > this.worldWidth - 132 || py < 132 || py > this.worldHeight - 132;
 
     if (nearEnd && this.time.now > this.deadEndUntil) {
       this.deadEndUntil = this.time.now + 6000;
@@ -1312,18 +1413,27 @@ export class StreetScene extends Phaser.Scene {
     }
 
     const strip = this.currentStrip();
-    if (strip.district !== this.district) this.district = strip.district;
+    if (strip && strip.district !== this.district) this.district = strip.district;
 
     this.edgeHint = '';
+    if (!strip) return;
 
-    for (const seam of this.seams) {
-      if (Math.abs(this.player.x - seam.x) > 200) continue;
-      if (this.player.y < SEAM.y0 - 40 || this.player.y > SEAM.y1 + 40) continue;
+    const reach = 150;
+    const toX = px - strip.x0;
+    const toY = py - strip.y0;
 
-      const goingRight = this.player.x < seam.x;
-      const target = goingRight ? seam.right.district : seam.left.district;
-      this.edgeHint = goingRight ? `➡️ 前往${target.name}` : `⬅️ 前往${target.name}`;
-      break;
+    if (toX < reach) {
+      const id = neighbourOf(strip.id, 'west');
+      if (id) this.edgeHint = `⬅️ 前往${DISTRICTS[id].name}`;
+    } else if (toX > STREET_WIDTH - reach) {
+      const id = neighbourOf(strip.id, 'east');
+      if (id) this.edgeHint = `➡️ 前往${DISTRICTS[id].name}`;
+    } else if (toY < reach) {
+      const id = neighbourOf(strip.id, 'north');
+      if (id) this.edgeHint = `⬆️ 前往${DISTRICTS[id].name}`;
+    } else if (toY > STREET_HEIGHT - reach) {
+      const id = neighbourOf(strip.id, 'south');
+      if (id) this.edgeHint = `⬇️ 前往${DISTRICTS[id].name}`;
     }
   }
 
@@ -1387,12 +1497,13 @@ export class StreetScene extends Phaser.Scene {
     for (const strip of this.strips) {
       for (const spot of strip.district.slots || []) {
         const x = spot.x + strip.x0;
+        const y = spot.y + strip.y0;
 
-        this.add.image(x, spot.y, 'slotmachine').setOrigin(0.5, 1).setDepth(spot.y);
+        this.add.image(x, y, 'slotmachine').setOrigin(0.5, 1).setDepth(y);
 
         this.addInteractable({
           x: x - 6,
-          y: spot.y - 30,
+          y: y - 30,
           radius: 70,
           label: '老虎机·拉一把 10 元',
           use: () => this.openSlot()
@@ -1405,15 +1516,16 @@ export class StreetScene extends Phaser.Scene {
     for (const strip of this.strips) {
       for (const spot of strip.district.benches || []) {
         const x = spot.x + strip.x0;
+        const y = spot.y + strip.y0;
 
-        this.add.image(x, spot.y, 'bench').setOrigin(0.5, 1).setDepth(spot.y);
+        this.add.image(x, y, 'bench').setOrigin(0.5, 1).setDepth(y);
 
         this.addInteractable({
           x,
-          y: spot.y - 14,
+          y: y - 14,
           radius: 70,
           label: '长椅·坐一会儿',
-          use: () => this.sitOnBench({ ...spot, x })
+          use: () => this.sitOnBench({ ...spot, x, y })
         });
       }
     }
@@ -1511,15 +1623,16 @@ export class StreetScene extends Phaser.Scene {
     for (const strip of this.strips) {
       for (const spot of strip.district.vending || []) {
         const x = spot.x + strip.x0;
+        const y = spot.y + strip.y0;
 
-        this.add.image(x, spot.y, 'vending').setOrigin(0.5, 1).setDepth(spot.y);
+        this.add.image(x, y, 'vending').setOrigin(0.5, 1).setDepth(y);
 
         const key = `${strip.id}:${spot.x}:${spot.y}`;
-        this.vendingMachines.push({ key, x, y: spot.y });
+        this.vendingMachines.push({ key, x, y });
 
         this.addInteractable({
           x: x - 8,
-          y: spot.y - 34,
+          y: y - 34,
           radius: 70,
           label: '自动售货机',
           use: () => this.openVending(key)
@@ -1681,12 +1794,13 @@ export class StreetScene extends Phaser.Scene {
     if (!strip) return;
 
     const x = strip.x0 + 320;
+    const oy = strip.y0;
 
-    this.add.image(x, 560, 'tent').setOrigin(0.5, 1).setDepth(560);
+    this.add.image(x, 560 + oy, 'tent').setOrigin(0.5, 1).setDepth(560 + oy);
 
     this.addInteractable({
       x,
-      y: 544,
+      y: 544 + oy,
       radius: 84,
       label: '进帐篷（家）',
       use: () => this.openHome()
@@ -1696,13 +1810,13 @@ export class StreetScene extends Phaser.Scene {
     const benchX = strip.x0 + WORKBENCH.x;
 
     this.add
-      .image(benchX, WORKBENCH.y, 'workbench')
+      .image(benchX, WORKBENCH.y + oy, 'workbench')
       .setOrigin(0.5, 1)
-      .setDepth(WORKBENCH.y);
+      .setDepth(WORKBENCH.y + oy);
 
     this.addInteractable({
       x: benchX - 5,
-      y: WORKBENCH.y - 32,
+      y: WORKBENCH.y + oy - 32,
       radius: 76,
       label: '工作台·合成',
       use: () => this.openCraft()
@@ -2088,11 +2202,11 @@ export class StreetScene extends Phaser.Scene {
       } else {
         cop.sprite.y += cop.dir * COP_SPEED * dt;
 
-        if (cop.sprite.y > 1240) {
-          cop.sprite.y = 1240;
+        if (cop.sprite.y > cop.yMax) {
+          cop.sprite.y = cop.yMax;
           cop.dir = -1;
-        } else if (cop.sprite.y < 200) {
-          cop.sprite.y = 200;
+        } else if (cop.sprite.y < cop.yMin) {
+          cop.sprite.y = cop.yMin;
           cop.dir = 1;
         }
 
@@ -2232,19 +2346,33 @@ export class StreetScene extends Phaser.Scene {
   spawnPed(initial) {
     if (this.run.over) return;
 
+    // A walker turns up somewhere in one of the city's blocks and wanders from
+    // there, crossing the road on the way.
     const strip = this.strips[Phaser.Math.Between(0, this.strips.length - 1)];
-    const laneX = strip.x0 + PED_LANES[Phaser.Math.Between(0, PED_LANES.length - 1)];
-    const fromTop = Math.random() < 0.5;
-    const y = initial
-      ? Phaser.Math.Between(80, WORLD.height - 80)
-      : fromTop
-        ? -40
-        : WORLD.height + 40;
+    const spot = this.pedSpotIn(strip);
 
     const kinds = strip.district.pedKinds;
     const kindId = kinds[Phaser.Math.Between(0, kinds.length - 1)];
 
-    this.makePed(strip, laneX, y, kindId, fromTop ? 1 : -1);
+    this.makePed(strip, spot.x, spot.y, kindId);
+  }
+
+  /// A point on the pavement or the road of a block.
+  pedSpotIn(strip) {
+    return {
+      x: Phaser.Math.Between(strip.x0 + 150, strip.x0 + 490),
+      y: Phaser.Math.Between(strip.y0 + 120, strip.y0 + STREET_HEIGHT - 120)
+    };
+  }
+
+  /// How far a walker roams inside their own block.
+  pedBounds(strip) {
+    return {
+      x0: strip.x0 + 150,
+      x1: strip.x0 + 490,
+      y0: strip.y0 + 110,
+      y1: strip.y0 + STREET_HEIGHT - 110
+    };
   }
 
   /// The gang members of a district, standing on their stretch of street until
@@ -2254,19 +2382,17 @@ export class StreetScene extends Phaser.Scene {
       const count = strip.district.gangs || 0;
 
       for (let i = 0; i < count; i++) {
-        const laneX = strip.x0 + PED_LANES[i % PED_LANES.length] + 16;
-        const y = 260 + i * 420;
-
-        this.makePed(strip, laneX, y, 'gang', i % 2 === 0 ? 1 : -1);
+        const spot = this.pedSpotIn(strip);
+        this.makePed(strip, spot.x, spot.y, 'gang');
       }
     }
   }
 
   /// One walker on the street, whether they strolled in or were standing there
   /// when the player arrived.
-  makePed(strip, laneX, y, kindId, dir) {
+  makePed(strip, x, y, kindId) {
     const kind = PED_KINDS[kindId] || PED_KINDS.suit;
-    const sprite = this.add.image(laneX, y, kind.tex).setDepth(y);
+    const sprite = this.add.image(x, y, kind.tex).setDepth(y);
 
     this.tweens.add({
       targets: sprite,
@@ -2277,15 +2403,18 @@ export class StreetScene extends Phaser.Scene {
       ease: 'Sine.easeInOut'
     });
 
+    const angle = Math.random() * Math.PI * 2;
+
     const ped = {
       sprite,
       strip,
-      laneX,
-      dir,
-      speed: Phaser.Math.FloatBetween(46, 74),
+      vx: Math.cos(angle),
+      vy: Math.sin(angle),
+      speed: Phaser.Math.FloatBetween(26, 50),
+      turnAt: 0,
+      ttl: Phaser.Math.Between(30000, 70000),
       canGive: !kind.hostile && Math.random() < 0.62 + this.cleanLevel() * 0.3,
       gave: false,
-      sway: Math.random() * Math.PI * 2,
       kind,
       hostile: !!kind.hostile,
       chasing: false,
@@ -2299,6 +2428,44 @@ export class StreetScene extends Phaser.Scene {
 
     this.peds.push(ped);
     return ped;
+  }
+
+  /// Walks a passer-by in whatever direction they happen to be going, turning
+  /// now and then, and never off their own block.
+  walkPed(ped, dt) {
+    const now = this.time.now;
+    const b = this.pedBounds(ped.strip);
+
+    if (now > ped.turnAt) {
+      ped.turnAt = now + Phaser.Math.Between(1400, 3600);
+
+      const angle = Math.atan2(ped.vy, ped.vx) + Phaser.Math.FloatBetween(-1.5, 1.5);
+      ped.vx = Math.cos(angle);
+      ped.vy = Math.sin(angle);
+    }
+
+    const speed = ped.startled ? ped.speed * 2.6 : ped.speed;
+
+    ped.sprite.x += ped.vx * speed * dt;
+    ped.sprite.y += ped.vy * speed * dt;
+
+    if (ped.sprite.x < b.x0) {
+      ped.sprite.x = b.x0;
+      ped.vx = Math.abs(ped.vx);
+    } else if (ped.sprite.x > b.x1) {
+      ped.sprite.x = b.x1;
+      ped.vx = -Math.abs(ped.vx);
+    }
+
+    if (ped.sprite.y < b.y0) {
+      ped.sprite.y = b.y0;
+      ped.vy = Math.abs(ped.vy);
+    } else if (ped.sprite.y > b.y1) {
+      ped.sprite.y = b.y1;
+      ped.vy = -Math.abs(ped.vy);
+    }
+
+    ped.sprite.setDepth(ped.sprite.y);
   }
 
   /// One thing out of the pocket of a passer-by, or nothing at all.
@@ -2326,7 +2493,6 @@ export class StreetScene extends Phaser.Scene {
         this.gangShakedown(ped);
         ped.chasing = false;
         ped.angerUntil = now + GANG_COOLDOWN;
-        ped.dir = -ped.dir;
         return;
       }
 
@@ -2340,21 +2506,7 @@ export class StreetScene extends Phaser.Scene {
       return;
     }
 
-    const speed = ped.startled ? ped.speed * 2.6 : ped.speed;
-
-    ped.sprite.y += ped.dir * speed * dt;
-    ped.sprite.x += (ped.laneX - ped.sprite.x) * Math.min(1, dt * 2);
-
-    // They never wander off their own street.
-    if (ped.sprite.y < 140) {
-      ped.sprite.y = 140;
-      ped.dir = 1;
-    } else if (ped.sprite.y > WORLD.height - 140) {
-      ped.sprite.y = WORLD.height - 140;
-      ped.dir = -1;
-    }
-
-    ped.sprite.setDepth(ped.sprite.y);
+    this.walkPed(ped, dt);
 
     if (this.run.over || this.run.sitting || ped.startled) return;
     if (now < ped.angerUntil || d > GANG_AGGRO) return;
@@ -2401,16 +2553,10 @@ export class StreetScene extends Phaser.Scene {
     for (const ped of this.peds) {
       const frozen = ped === this.qtePed;
 
-      ped.sway += dt * 3;
-
       if (ped.hostile) {
         if (!frozen) this.gangTick(ped, dt);
       } else if (!frozen) {
-        const speed = ped.startled ? ped.speed * 2.6 : ped.speed;
-
-        ped.sprite.y += ped.dir * speed * dt;
-        ped.sprite.x = ped.laneX + Math.sin(ped.sway) * 1.5;
-        ped.sprite.setDepth(ped.sprite.y);
+        this.walkPed(ped, dt);
       }
 
       const near = Phaser.Math.Distance.Between(
@@ -2430,9 +2576,27 @@ export class StreetScene extends Phaser.Scene {
         } else {
           ped.alert = Math.max(0, ped.alert - 0.22 * dt);
         }
+
+        if (ped.alert > 0.5 && !this.alertExplained) {
+          this.alertExplained = true;
+
+          const hud = this.scene.get('Hud');
+          if (hud && hud.showToast) {
+            hud.showToast('他注意到你了：头顶的黄条是警戒，越满越难下手。');
+          }
+        }
       }
 
-      if (ped.sprite.y < -80 || ped.sprite.y > WORLD.height + 80) {
+      ped.ttl -= dt * 1000;
+
+      const away = Phaser.Math.Distance.Between(
+        ped.sprite.x,
+        ped.sprite.y,
+        player.x,
+        player.y
+      );
+
+      if ((ped.ttl <= 0 && away > 700) || away > 2400) {
         ped.dead = true;
         continue;
       }
