@@ -69,7 +69,7 @@ export function buildWorldArt(scene) {
   canvasTexture(scene, 'shadow', 40, 18, drawShadow);
 
   canvasTexture(scene, 'homearch', 130, 96, drawHomeArch);
-  canvasTexture(scene, 'tent', 180, 130, drawTent);
+  canvasTexture(scene, 'tent', 200, 150, drawTent);
   canvasTexture(scene, 'passage', 224, 200, drawPassage);
 
   // The alleys cut between two blocks, and what is left lying in them.
@@ -78,6 +78,7 @@ export function buildWorldArt(scene) {
   canvasTexture(scene, 'cardboardpile', 56, 36, drawCardboardPile);
   canvasTexture(scene, 'trashbags', 48, 34, drawTrashBags);
   canvasTexture(scene, 'shack', 86, 64, drawShack);
+  canvasTexture(scene, 'dumpster', 74, 54, drawDumpster);
   canvasTexture(scene, 'backdoor', 40, 56, drawBackdoor);
 
   // Street furniture: crossings, lights, parked cars, works and awnings.
@@ -1431,78 +1432,152 @@ function drawSlotSymbol(ctx, w, h, kind) {
 }
 
 function drawTent(ctx, w, h) {
-  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  // Not a tent but a lean-to: a sheet of corrugated iron propped against the
+  // wall on two posts, a tarp thrown over it, and a few patches sewn on where
+  // the rain gets in. Somewhere to keep the wind off, and no more.
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
-  ctx.ellipse(w / 2, h - 5, w / 2 - 8, 8, 0, 0, Math.PI * 2);
+  ctx.ellipse(w / 2, h - 4, w / 2 - 6, 9, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Guy ropes.
-  ctx.strokeStyle = '#5a4a34';
+  // The iron sheet, leaning from the top down to the ground.
+  ctx.beginPath();
+  ctx.moveTo(w * 0.08, h * 0.06);
+  ctx.lineTo(w * 0.7, h * 0.02);
+  ctx.lineTo(w * 0.94, h - 10);
+  ctx.lineTo(w * 0.2, h - 8);
+  ctx.closePath();
+  ctx.fillStyle = '#4a4a46';
+  ctx.fill();
+
+  // Corrugation: ridges running down the sheet.
+  ctx.strokeStyle = 'rgba(28,28,26,0.55)';
   ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(18, h - 10);
-  ctx.lineTo(w / 2 - 46, 22);
-  ctx.moveTo(w - 18, h - 10);
-  ctx.lineTo(w / 2 + 46, 22);
-  ctx.stroke();
+  for (let i = 0; i < 9; i++) {
+    const x = w * 0.12 + i * (w * 0.085);
+    ctx.beginPath();
+    ctx.moveTo(x, h * 0.1);
+    ctx.lineTo(x + w * 0.12, h - 10);
+    ctx.stroke();
+  }
 
-  // Canvas body.
-  ctx.fillStyle = '#8a7a5a';
+  // Rust eating the edges.
+  ctx.fillStyle = 'rgba(138,90,58,0.42)';
+  for (let i = 0; i < 9; i++) {
+    ctx.fillRect(
+      w * 0.14 + ((i * 53) % Math.floor(w * 0.7)),
+      h * 0.16 + ((i * 37) % Math.floor(h * 0.6)),
+      14,
+      9
+    );
+  }
+
+  // Tarpaulin patches over the worst of it: one dark green, one dark blue.
+  ctx.fillStyle = '#2f4a3a';
   ctx.beginPath();
-  ctx.moveTo(w / 2, 10);
-  ctx.lineTo(w - 12, h - 14);
-  ctx.lineTo(12, h - 14);
+  ctx.moveTo(w * 0.22, h * 0.2);
+  ctx.lineTo(w * 0.58, h * 0.14);
+  ctx.lineTo(w * 0.62, h * 0.46);
+  ctx.lineTo(w * 0.26, h * 0.52);
   ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = '#9d8b68';
+  ctx.fillStyle = '#2b3a52';
   ctx.beginPath();
-  ctx.moveTo(w / 2, 10);
-  ctx.lineTo(w / 2 + 34, h - 14);
-  ctx.lineTo(w / 2, h - 14);
+  ctx.moveTo(w * 0.6, h * 0.3);
+  ctx.lineTo(w * 0.88, h * 0.26);
+  ctx.lineTo(w * 0.9, h * 0.62);
+  ctx.lineTo(w * 0.64, h * 0.66);
   ctx.closePath();
   ctx.fill();
 
-  // Patches and seams.
-  ctx.fillStyle = 'rgba(90,70,48,0.55)';
-  ctx.fillRect(w / 2 - 34, 52, 22, 18);
-  ctx.fillRect(w / 2 + 22, 76, 16, 14);
-  ctx.strokeStyle = 'rgba(70,55,38,0.5)';
+  // The stitching along the green patch.
+  ctx.strokeStyle = 'rgba(200,190,160,0.35)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 8; i++) {
+    const t = i / 8;
+    const sx = w * 0.22 + t * w * 0.36;
+    const sy = h * 0.2 - t * h * 0.06;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx, sy + 5);
+    ctx.stroke();
+  }
+
+  // Two posts holding the front edge up, and the rope tying it down.
+  ctx.fillStyle = '#4a3a26';
+  ctx.fillRect(w * 0.82, h * 0.2, 7, h * 0.78);
+  ctx.fillRect(w * 0.14, h * 0.42, 6, h * 0.56);
+  ctx.fillStyle = 'rgba(255,236,200,0.16)';
+  ctx.fillRect(w * 0.82, h * 0.2, 2, h * 0.78);
+
+  ctx.strokeStyle = 'rgba(160,150,120,0.5)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(w / 2, 10);
-  ctx.lineTo(w / 2, h - 14);
+  ctx.moveTo(w * 0.86, h * 0.2);
+  ctx.lineTo(w * 0.98, h * 0.78);
   ctx.stroke();
 
-  // Flap opening, tied back.
-  ctx.fillStyle = '#221c14';
+  // The opening: a dark gap with a flattened cardboard doorstep.
+  ctx.fillStyle = '#0d0b08';
   ctx.beginPath();
-  ctx.moveTo(w / 2, 54);
-  ctx.lineTo(w / 2 + 30, h - 14);
-  ctx.lineTo(w / 2 - 30, h - 14);
+  ctx.moveTo(w * 0.3, h * 0.5);
+  ctx.lineTo(w * 0.62, h * 0.46);
+  ctx.lineTo(w * 0.66, h - 10);
+  ctx.lineTo(w * 0.28, h - 10);
   ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = '#6a5a3f';
+  ctx.fillStyle = 'rgba(242,196,106,0.16)';
   ctx.beginPath();
-  ctx.moveTo(w / 2 - 30, 56);
-  ctx.lineTo(w / 2 - 8, h - 14);
-  ctx.lineTo(w / 2 - 34, h - 14);
+  ctx.moveTo(w * 0.3, h * 0.5);
+  ctx.lineTo(w * 0.62, h * 0.46);
+  ctx.lineTo(w * 0.62, h * 0.86);
+  ctx.lineTo(w * 0.3, h * 0.9);
   ctx.closePath();
   ctx.fill();
 
-  // Ridge pole and a little warmth spilling out.
-  ctx.strokeStyle = '#4a3a26';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(w / 2, 6);
-  ctx.lineTo(w / 2, 20);
-  ctx.stroke();
+  ctx.fillStyle = '#5a4a34';
+  ctx.fillRect(w * 0.26, h - 12, w * 0.42, 6);
 
-  ctx.fillStyle = 'rgba(242,196,106,0.18)';
+  // A drum and a crate stacked by the side.
+  ctx.fillStyle = '#3a3f45';
+  ctx.fillRect(w * 0.02, h * 0.66, 22, 30);
+  ctx.fillStyle = '#4a5058';
+  ctx.fillRect(w * 0.02, h * 0.66, 22, 4);
+  ctx.fillStyle = '#4a3a26';
+  ctx.fillRect(w * 0.9, h * 0.7, 18, 24);
+}
+
+function drawDumpster(ctx, w, h) {
+  // A green skip with the lid ajar and a little of somebody's week spilling out.
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
-  ctx.arc(w / 2, h - 16, 30, 0, Math.PI * 2);
+  ctx.ellipse(w / 2, h - 3, w / 2 - 4, 6, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  ctx.fillStyle = '#2f4a3a';
+  ctx.fillRect(4, 16, w - 8, h - 20);
+  ctx.fillStyle = '#3a5a46';
+  ctx.fillRect(4, 16, w - 8, 7);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(4, h - 12, w - 8, 8);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  for (let x = 10; x < w - 8; x += 12) ctx.fillRect(x, 20, 3, h - 34);
+
+  ctx.fillStyle = '#456a52';
+  ctx.beginPath();
+  ctx.moveTo(2, 18);
+  ctx.lineTo(w - 6, 8);
+  ctx.lineTo(w - 2, 18);
+  ctx.lineTo(6, 26);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#1d2a22';
+  ctx.fillRect(10, 4, 8, 8);
 }
 
 function drawPassage(ctx, w, h) {

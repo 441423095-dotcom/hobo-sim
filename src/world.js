@@ -27,7 +27,7 @@ export const STALL = { x: 200, y: 1330, vendorX: 252, vendorY: 1308 };
 
 // The workbench stands right at the tent door, in the camp; there is no bench
 // out on the street.
-export const WORKBENCH = { x: 250, y: 620 };
+export const WORKBENCH = { x: 292, y: 596 };
 export const PAWN = { x: 0, y: 700, width: 112, height: 176, doorX: 124, doorY: 786 };
 
 // Where pedestrians walk: one lane down each pavement.

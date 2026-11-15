@@ -481,6 +481,7 @@ export class StreetScene extends Phaser.Scene {
     this.buildBenches();
     if (this.strips.some((strip) => strip.district.shops)) this.buildShops();
     this.buildGangCamps();
+    this.buildAlleyCorners();
     this.buildBraziers();
     this.buildPrompt();
 
@@ -573,6 +574,101 @@ export class StreetScene extends Phaser.Scene {
     this.floatText(this.player.x, this.player.y - 46, '烤了会儿火，暖和过来', '#f2c46a');
     playSfx('eat');
     haptic('eat');
+  }
+
+  /// Corners where the gangs sit out of the way: a tipped dumpster, a stack of
+  /// flattened cardboard and a patch of shadow, with a couple of the boys
+  /// slumped against the bin or flat out on the boxes.
+  buildAlleyCorners() {
+    const corners = [
+      { district: 'alley', x: 446, y: 1040, gang: 'crow' },
+      { district: 'alley', x: 188, y: 302, gang: 'crow' },
+      { district: 'slum', x: 452, y: 640, gang: 'tin' }
+    ];
+
+    for (const corner of corners) {
+      const strip = this.stripFor(corner.district);
+      if (!strip) continue;
+
+      const x = strip.x0 + corner.x;
+      const y = strip.y0 + corner.y;
+
+      // The shadow the corner sits in.
+      this.add.rectangle(x, y - 40, 190, 150, 0x05060a, 0.4).setDepth(-23);
+
+      this.add.image(x + 34, y, 'dumpster').setOrigin(0.5, 1).setDepth(y);
+      this.add.image(x - 44, y - 4, 'cardboardpile').setOrigin(0.5, 1).setDepth(y - 2);
+      this.add.image(x + 82, y - 2, 'trashbags').setOrigin(0.5, 1).setDepth(y - 1);
+
+      // One slumped against the bin, one flat out on the cardboard.
+      this.add
+        .image(x - 8, y + 2, 'ped-gang')
+        .setOrigin(0.5, 1)
+        .setScale(1, 0.62)
+        .setAngle(-7)
+        .setDepth(y + 3);
+
+      this.add
+        .image(x - 52, y - 6, 'ped-gang')
+        .setOrigin(0.5, 0.5)
+        .setRotation(Math.PI / 2)
+        .setScale(0.86)
+        .setDepth(y + 4);
+
+      if (this.lightSpots) this.lightSpots.push({ x, y: y - 60 });
+
+      this.addInteractable({
+        x,
+        y: y - 26,
+        radius: 82,
+        label: '巷子里的帮派',
+        use: () => this.alleyGang(corner.gang)
+      });
+    }
+  }
+
+  /// The boys in the alley: a toll if they don't know him, a nod if they do.
+  alleyGang(id) {
+    const gang = GANGS[id];
+    const hud = this.scene.get('Hud');
+    if (!gang || !hud || !hud.showDialogue) return;
+
+    const standing = gangStanding(this.run, id);
+
+    if (standing >= 15) {
+      hud.showDialogue(gang.speaker, ['自己人。火还烧着，过去烤吧。']);
+      return;
+    }
+
+    const fee = 6;
+
+    hud.showDialogue(
+      gang.speaker,
+      [gang.story[0], `这条巷子是我们的。想从这儿过，留 ${fee} 块。`],
+      null,
+      [
+        { label: `给 ${fee} 块`, onPick: () => this.payToll(id, fee) },
+        { label: '绕开走' }
+      ]
+    );
+  }
+
+  payToll(id, fee) {
+    const hud = this.scene.get('Hud');
+
+    if (this.run.money < fee) {
+      if (hud && hud.showToast) hud.showToast('你身上没那么多钱，他们骂了一句让你滚。');
+      haptic('refuse');
+      return;
+    }
+
+    this.run.money -= fee;
+
+    const standing = addStanding(this.run, id, 2);
+
+    this.floatText(this.player.x, this.player.y - 46, `交了 ${fee} 块 · 声望 ${standing}`, '#f2c46a');
+    haptic('buy');
+    playSfx('buy');
   }
 
   // ----------------------------------------------------------------- the gangs
@@ -3111,16 +3207,18 @@ export class StreetScene extends Phaser.Scene {
     const strip = this.stripFor('camp');
     if (!strip) return;
 
-    const x = strip.x0 + 320;
+    // The shelter leans into the corner between the left buildings, half in the
+    // shadow of the wall, instead of standing out in the middle of the block.
+    const x = strip.x0 + 170;
     const oy = strip.y0;
 
-    this.add.image(x, 560 + oy, 'tent').setOrigin(0.5, 1).setDepth(560 + oy);
+    this.add.image(x, 540 + oy, 'tent').setOrigin(0.5, 1).setDepth(540 + oy);
 
     this.addInteractable({
       x,
-      y: 544 + oy,
-      radius: 84,
-      label: '进帐篷（家）',
+      y: 520 + oy,
+      radius: 88,
+      label: '进雨棚（家）',
       use: () => this.openHome()
     });
 

@@ -4303,7 +4303,7 @@ export class HudScene extends Phaser.Scene {
     this.homeRoomGfx = this.add.graphics();
 
     this.homeTitle = this.add
-      .text(0, 0, '城郊营地 · 帐篷里', {
+      .text(0, 0, '城郊营地 · 雨棚底下', {
         fontFamily: FONT,
         fontSize: '19px',
         color: UI.cream,
@@ -4511,30 +4511,94 @@ export class HudScene extends Phaser.Scene {
 
     if (!r) return;
 
-    // The tent itself.
-    rg.fillStyle(0x2a2119, 1);
+    // Under the lean-to: a sagging tarp for a roof, a sheet of rusty corrugated
+    // iron for a back wall, two posts holding it up, and a floor of packed dirt
+    // with flattened cardboard laid over it.
+    rg.fillStyle(0x120f0c, 1);
     rg.fillRoundedRect(r.x, r.y, r.w, r.h, 10);
-    rg.fillStyle(0x33281d, 1);
-    rg.fillRect(r.x + 3, r.y + 3, r.w - 6, r.h * 0.58);
 
-    rg.fillStyle(0x3b2f22, 0.7);
-    for (let x = r.x + 10; x < r.x + r.w - 8; x += 22) {
-      rg.fillRect(x, r.y + 4, 8, r.h * 0.56);
+    // The tarp overhead, with seams and a couple of patches sewn on.
+    rg.fillStyle(0x2c3a44, 1);
+    rg.fillRect(r.x + 3, r.y + 3, r.w - 6, r.h * 0.34);
+
+    rg.fillStyle(0x35454f, 1);
+    for (let i = 0; i < 5; i++) {
+      rg.fillRect(r.x + 14 + i * (r.w / 5), r.y + 6, 3, r.h * 0.28);
     }
 
-    // The plank floor.
-    rg.fillStyle(0x1d1710, 1);
-    rg.fillRect(r.x + 3, r.y + r.h * 0.58, r.w - 6, r.h * 0.38);
-    rg.lineStyle(1, 0x2b2318, 1);
-    for (let y = r.y + r.h * 0.62; y < r.y + r.h * 0.94; y += 12) {
+    rg.lineStyle(1, 0x1d272e, 0.9);
+    for (let y = r.y + 12; y < r.y + r.h * 0.3; y += 9) {
       rg.lineBetween(r.x + 4, y, r.x + r.w - 4, y);
     }
 
-    // The lamp on its cord.
+    rg.fillStyle(0x4a5a3a, 0.9);
+    rg.fillRect(r.x + r.w * 0.18, r.y + 14, 34, 26);
+    rg.fillStyle(0x3f4a5c, 0.9);
+    rg.fillRect(r.x + r.w * 0.62, r.y + 8, 40, 30);
+    rg.fillStyle(0x8a7a5a, 0.5);
+    rg.fillRect(r.x + r.w * 0.2, r.y + 16, 28, 2);
+
+    // The iron sheet behind, and the rust on it.
+    rg.fillStyle(0x3a3a38, 1);
+    rg.fillRect(r.x + 3, r.y + r.h * 0.3, r.w - 6, r.h * 0.34);
+
+    rg.fillStyle(0x45453f, 0.9);
+    for (let x = r.x + 8; x < r.x + r.w - 8; x += 9) {
+      rg.fillRect(x, r.y + r.h * 0.3 + 2, 4, r.h * 0.32);
+    }
+
+    rg.fillStyle(0x8a5a3a, 0.35);
+    for (let i = 0; i < 6; i++) {
+      rg.fillRect(
+        r.x + 12 + ((i * 37) % Math.max(1, r.w - 40)),
+        r.y + r.h * 0.32 + ((i * 23) % Math.max(1, r.h * 0.28)),
+        12,
+        8
+      );
+    }
+
+    // The floor: dirt, with two flattened cardboard sheets laid over it.
+    rg.fillStyle(0x241d16, 1);
+    rg.fillRect(r.x + 3, r.y + r.h * 0.64, r.w - 6, r.h * 0.34);
+
+    rg.fillStyle(0x4a3c2a, 0.85);
+    rg.fillRect(r.x + 10, r.y + r.h * 0.7, r.w * 0.4, r.h * 0.12);
+    rg.fillRect(r.x + r.w * 0.56, r.y + r.h * 0.78, r.w * 0.32, r.h * 0.1);
+
+    // The posts holding the roof up.
+    rg.fillStyle(0x4a3a26, 1);
+    rg.fillRect(r.x + 8, r.y + r.h * 0.05, 7, r.h * 0.93);
+    rg.fillRect(r.x + r.w - 15, r.y + r.h * 0.12, 7, r.h * 0.86);
+
+    rg.fillStyle(0x6a5538, 0.5);
+    rg.fillRect(r.x + 8, r.y + r.h * 0.05, 2, r.h * 0.93);
+    rg.fillRect(r.x + r.w - 15, r.y + r.h * 0.12, 2, r.h * 0.86);
+
+    // The lamp on its cord, and the crown of the tarp it hangs from.
     rg.fillStyle(0x3a2f24, 1);
     rg.fillRect(r.x + r.w * 0.5 - 1, r.y + 6, 2, 16);
     rg.fillStyle(fire ? 0xf2c46a : 0x8a8070, fire ? 0.9 : 0.5);
     rg.fillCircle(r.x + r.w * 0.5, r.y + 26, fire ? 5 : 4);
+
+    // Light leaking in from the street side of the shelter, and the rain
+    // running off the tarp when it is coming down out there.
+    rg.fillStyle(0xf2c46a, fire ? 0.14 : 0.07);
+    rg.fillTriangle(
+      r.x + r.w - 6,
+      r.y + r.h * 0.34,
+      r.x + r.w - 6,
+      r.y + r.h * 0.74,
+      r.x + r.w * 0.52,
+      r.y + r.h * 0.62
+    );
+
+    if (run && street.cityFx && street.cityFx.weather && street.cityFx.weather.id === 'rain') {
+      rg.lineStyle(1, 0x8ab4d9, 0.18);
+      for (let i = 0; i < 10; i++) {
+        const rx = r.x + 8 + i * (r.w / 10);
+        rg.lineBetween(rx, r.y + 2, rx - 3, r.y + r.h * 0.2);
+      }
+    }
 
     if (fire) {
       rg.fillStyle(0xf2c46a, 0.07);

@@ -5,7 +5,7 @@
 export const DISTRICT_ORDER = ['market', 'square', 'alley', 'park', 'camp', 'slum', 'commerce'];
 
 // The city map marks home, the tent out at the edge of town.
-export const QUEST_TARGET = { district: 'camp', x: 320, y: 520, label: '你的帐篷' };
+export const QUEST_TARGET = { district: 'camp', x: 168, y: 500, label: '你的雨棚' };
 
 export const DISTRICTS = {
   market: {
