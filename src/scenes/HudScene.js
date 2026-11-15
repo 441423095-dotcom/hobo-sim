@@ -35,6 +35,7 @@ const ROW_HEIGHT = 56;
 const STICK_RADIUS = 62;
 const KNOB_RADIUS = 26;
 const STICK_THROW = 46;
+const ACTION_RADIUS = 30;
 
 const TRADE_ROW_WIDTH = 300;
 const TRADE_ROW_HEIGHT = 42;
@@ -83,8 +84,10 @@ export class HudScene extends Phaser.Scene {
     this.vendingOpen = false;
     this.slotOpen = false;
     this.slotSpin = null;
-    this.mapOpen = false;
+      this.mapOpen = false;
     this.stealChoiceOpen = false;
+    this.panelOpen = false;
+    this.inputLockUntil = 0;
     this.qte = null;
     this.storeId = null;
     this.storeEntries = [];
@@ -139,6 +142,27 @@ export class HudScene extends Phaser.Scene {
     this.setLayerInput(this.overLayer, false);
     this.setLayerInput(this.stealChoiceLayer, false);
 
+    // Closing is the corner button's job now: the little crosses in the panel
+    // corners are gone, so there is nothing to catch by accident.
+    for (const btn of [
+      this.storeCloseBtn,
+      this.storeCloseIcon,
+      this.tradeCloseBtn,
+      this.tradeCloseIcon,
+      this.craftCloseBtn,
+      this.craftCloseIcon,
+      this.homeCloseBtn,
+      this.homeCloseIcon,
+      this.vendingCloseBtn,
+      this.vendingCloseIcon,
+      this.slotCloseBtn,
+      this.slotCloseIcon,
+      this.mapCloseBtn,
+      this.mapCloseIcon
+    ]) {
+      if (btn) btn.setVisible(false);
+    }
+
     this.input.on('pointerdown', this.onPointerDown, this);
     this.input.on('pointermove', this.onPointerMove, this);
     this.input.on('pointerup', this.onPointerUp, this);
@@ -189,6 +213,23 @@ export class HudScene extends Phaser.Scene {
       .setStrokeStyle(3, 0xffffff, 0.85)
       .setDepth(DEPTH.hud + 1)
       .setVisible(false);
+
+    // One button in the corner does both jobs: it closes whatever panel is
+    // open, and otherwise it acts on whatever is within reach. Faint until it
+    // is pressed, so it never fights the game for attention.
+    this.actionBtn = this.add
+      .circle(0, 0, ACTION_RADIUS, 0x1a1611, 0.18)
+      .setStrokeStyle(2, UI.amber, 0.3)
+      .setDepth(DEPTH.panel + 5)
+      .setInteractive();
+
+    this.actionIcon = this.add
+      .image(0, 0, 'icon-hand')
+      .setScale(32 / 96)
+      .setAlpha(0.4)
+      .setDepth(DEPTH.panel + 6);
+
+    this.actionBtn.on('pointerdown', () => this.pressAction());
   }
 
   buildHud() {
@@ -324,7 +365,7 @@ export class HudScene extends Phaser.Scene {
       .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
       .setOrigin(0, 0)
       .setInteractive();
-    this.storeBackdrop.on('pointerdown', () => this.closeStore());
+    this.storeBackdrop.on('pointerup', () => this.closeStore());
 
     this.storePanelGfx = this.add.graphics();
 
@@ -346,7 +387,7 @@ export class HudScene extends Phaser.Scene {
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.storeCloseIcon = this.add.image(0, 0, 'icon-x');
-    this.storeCloseBtn.on('pointerdown', () => this.closeStore());
+    this.storeCloseBtn.on('pointerup', () => this.closeStore());
 
     this.storeLayer.add([
       this.storeBackdrop,
@@ -394,7 +435,7 @@ export class HudScene extends Phaser.Scene {
       .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
       .setOrigin(0, 0)
       .setInteractive();
-    this.tradeBackdrop.on('pointerdown', () => this.closeTrade());
+    this.tradeBackdrop.on('pointerup', () => this.closeTrade());
 
     this.tradePanelGfx = this.add.graphics();
 
@@ -482,7 +523,7 @@ export class HudScene extends Phaser.Scene {
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.tradeCloseIcon = this.add.image(0, 0, 'icon-x');
-    this.tradeCloseBtn.on('pointerdown', () => this.closeTrade());
+    this.tradeCloseBtn.on('pointerup', () => this.closeTrade());
 
     this.tradeLayer.add([
       this.sellAllBtn,
@@ -501,7 +542,7 @@ export class HudScene extends Phaser.Scene {
       .rectangle(0, 0, 1, 1, 0x0b0906, 0.4)
       .setOrigin(0, 0)
       .setInteractive();
-    this.qteBackdrop.on('pointerdown', () => this.resolveQte());
+    this.qteBackdrop.on('pointerup', () => this.resolveQte());
 
     this.qteGfx = this.add.graphics();
 
@@ -546,7 +587,7 @@ export class HudScene extends Phaser.Scene {
       .rectangle(0, 0, 1, 1, 0x0b0906, 0.5)
       .setOrigin(0, 0)
       .setInteractive();
-    this.stealChoiceBackdrop.on('pointerdown', () => this.closeStealChoice());
+    this.stealChoiceBackdrop.on('pointerup', () => this.closeStealChoice());
 
     this.stealChoiceGfx = this.add.graphics();
 
@@ -1023,13 +1064,21 @@ export class HudScene extends Phaser.Scene {
   layoutControls() {
     this.releaseStick();
     if (this.edgeFlash) this.edgeFlash.setSize(this.w, this.h).setPosition(0, 0);
+
+    if (this.actionBtn) {
+      const ax = this.w - ACTION_RADIUS - 16;
+      const ay = this.h - ACTION_RADIUS - 64;
+
+      this.actionBtn.setPosition(ax, ay);
+      this.actionIcon.setPosition(ax, ay);
+    }
   }
 
   /// Panels live inside containers, and a hidden container's children can still
   /// answer taps, so their input is switched off with the panel.
   setLayerInput(layer, enabled) {
     layer.list.forEach((child) => {
-      if (child.input) child.input.enabled = enabled;
+      if (child.input) child.input.enabled = enabled && child.visible !== false;
     });
   }
 
@@ -1149,6 +1198,10 @@ export class HudScene extends Phaser.Scene {
   // -------------------------------------------------------------------- input
 
   onPointerDown(pointer) {
+    // A tap that belongs to a button, or that just closed a panel, must not
+    // also fall through into the world.
+    if (this.time.now < this.inputLockUntil) return;
+
     if (
       this.shopOpen ||
       this.overOpen ||
@@ -1305,8 +1358,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   /// A white ring where the tap landed.
-  tapFlash(x, y) {
-    const ring = this.add
+  tapFlash(x, y) {    const ring = this.add
       .circle(x, y, 18, 0xffffff, 0.12)
       .setStrokeStyle(2.5, 0xffffff, 0.9)
       .setDepth(DEPTH.hud + 2);
@@ -1336,6 +1388,94 @@ export class HudScene extends Phaser.Scene {
       ease: 'Quad.easeOut',
       onComplete: () => this.edgeFlash.setVisible(false)
     });
+  }
+
+  anyPanelOpen() {
+    return !!(
+      this.shopOpen ||
+      this.tradeOpen ||
+      this.mapOpen ||
+      this.craftOpen ||
+      this.homeOpen ||
+      this.vendingOpen ||
+      this.slotOpen ||
+      this.stealChoiceOpen
+    );
+  }
+
+  /// The one corner button: close what is open, or act on what is in reach.
+  pressAction() {
+    if (this.qte || this.overOpen) return;
+
+    this.inputLockUntil = this.time.now + 220;
+
+    this.actionBtn.setFillStyle(0x4a3a24, 0.95).setStrokeStyle(2, UI.amberBright, 0.95);
+    this.actionIcon.setAlpha(1);
+
+    this.tweens.killTweensOf(this.actionBtn);
+    this.tweens.add({
+      targets: this.actionBtn,
+      scaleX: 0.9,
+      scaleY: 0.9,
+      duration: 70,
+      yoyo: true,
+      ease: 'Quad.easeOut'
+    });
+
+    this.time.delayedCall(180, () => this.restoreActionBtn());
+
+    if (this.stealChoiceOpen) {
+      this.closeStealChoice();
+      return;
+    }
+
+    if (this.mapOpen) {
+      this.closeMap();
+      return;
+    }
+
+    if (this.shopOpen) {
+      this.closeStore();
+      return;
+    }
+
+    if (this.tradeOpen) {
+      this.closeTrade();
+      return;
+    }
+
+    if (this.craftOpen) {
+      this.closeCraft();
+      return;
+    }
+
+    if (this.homeOpen) {
+      this.closeHome();
+      return;
+    }
+
+    if (this.vendingOpen) {
+      this.closeVending();
+      return;
+    }
+
+    if (this.slotOpen) {
+      this.closeSlot();
+      return;
+    }
+
+    this.tapInteract({ x: this.actionBtn.x, y: this.actionBtn.y });
+  }
+
+  restoreActionBtn() {
+    if (!this.actionBtn) return;
+
+    const open = this.anyPanelOpen();
+
+    this.actionBtn
+      .setFillStyle(0x1a1611, open ? 0.26 : 0.18)
+      .setStrokeStyle(2, UI.amber, open ? 0.45 : 0.3);
+    this.actionIcon.setAlpha(open ? 0.6 : 0.4);
   }
 
   // --------------------------------------------------------------------- shop
@@ -1449,7 +1589,7 @@ export class HudScene extends Phaser.Scene {
       .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
       .setOrigin(0, 0)
       .setInteractive();
-    this.craftBackdrop.on('pointerdown', () => this.closeCraft());
+    this.craftBackdrop.on('pointerup', () => this.closeCraft());
 
     this.craftPanelGfx = this.add.graphics();
 
@@ -1471,7 +1611,7 @@ export class HudScene extends Phaser.Scene {
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.craftCloseIcon = this.add.image(0, 0, 'icon-x');
-    this.craftCloseBtn.on('pointerdown', () => this.closeCraft());
+    this.craftCloseBtn.on('pointerup', () => this.closeCraft());
 
     this.craftHint = this.add
       .text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: UI.creamDim })
@@ -1657,7 +1797,7 @@ export class HudScene extends Phaser.Scene {
       .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
       .setOrigin(0, 0)
       .setInteractive();
-    this.homeBackdrop.on('pointerdown', () => this.closeHome());
+    this.homeBackdrop.on('pointerup', () => this.closeHome());
 
     this.homePanelGfx = this.add.graphics();
     this.homeRoomGfx = this.add.graphics();
@@ -1680,7 +1820,7 @@ export class HudScene extends Phaser.Scene {
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.homeCloseIcon = this.add.image(0, 0, 'icon-x');
-    this.homeCloseBtn.on('pointerdown', () => this.closeHome());
+    this.homeCloseBtn.on('pointerup', () => this.closeHome());
 
     this.slotLabels = FURNITURE.map((item) =>
       this.add
@@ -1996,7 +2136,7 @@ export class HudScene extends Phaser.Scene {
       .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
       .setOrigin(0, 0)
       .setInteractive();
-    this.vendingBackdrop.on('pointerdown', () => this.closeVending());
+    this.vendingBackdrop.on('pointerup', () => this.closeVending());
 
     this.vendingPanelGfx = this.add.graphics();
 
@@ -2022,7 +2162,7 @@ export class HudScene extends Phaser.Scene {
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.vendingCloseIcon = this.add.image(0, 0, 'icon-x');
-    this.vendingCloseBtn.on('pointerdown', () => this.closeVending());
+    this.vendingCloseBtn.on('pointerup', () => this.closeVending());
 
     this.vendingLayer.add([
       this.vendingBackdrop,
@@ -2201,7 +2341,7 @@ export class HudScene extends Phaser.Scene {
       .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
       .setOrigin(0, 0)
       .setInteractive();
-    this.slotBackdrop.on('pointerdown', () => this.closeSlot());
+    this.slotBackdrop.on('pointerup', () => this.closeSlot());
 
     this.slotPanelGfx = this.add.graphics();
 
@@ -2227,7 +2367,7 @@ export class HudScene extends Phaser.Scene {
       .setStrokeStyle(2, UI.amber, 0.8)
       .setInteractive();
     this.slotCloseIcon = this.add.image(0, 0, 'icon-x');
-    this.slotCloseBtn.on('pointerdown', () => this.closeSlot());
+    this.slotCloseBtn.on('pointerup', () => this.closeSlot());
 
     this.slotLayer.add([
       this.slotBackdrop,
@@ -2415,7 +2555,7 @@ export class HudScene extends Phaser.Scene {
       .rectangle(0, 0, 1, 1, 0x050403, 0.82)
       .setOrigin(0, 0)
       .setInteractive();
-    this.mapBackdrop.on('pointerdown', () => this.closeMap());
+    this.mapBackdrop.on('pointerup', () => this.closeMap());
 
     this.mapGfx = this.add.graphics();
 
@@ -2441,7 +2581,7 @@ export class HudScene extends Phaser.Scene {
       .setStrokeStyle(1.5, 0xd8c8a8, 0.6)
       .setInteractive();
     this.mapCloseIcon = this.add.image(0, 0, 'icon-x');
-    this.mapCloseBtn.on('pointerdown', () => this.closeMap());
+    this.mapCloseBtn.on('pointerup', () => this.closeMap());
 
     this.mapLayer.add([
       this.mapBackdrop,
@@ -3152,6 +3292,21 @@ export class HudScene extends Phaser.Scene {
     if (edge !== this.shown.edge) {
       this.shown.edge = edge;
       this.edgeText.setText(edge).setVisible(edge.length > 0);
+    }
+
+    if (this.actionBtn) {
+      const show = !this.qte;
+      if (this.actionBtn.visible !== show) {
+        this.actionBtn.setVisible(show);
+        this.actionIcon.setVisible(show);
+      }
+
+      const open = this.anyPanelOpen();
+      if (open !== this.shown.panelOpen) {
+        this.shown.panelOpen = open;
+        this.actionIcon.setTexture(open ? 'icon-x' : 'icon-hand');
+        this.restoreActionBtn();
+      }
     }
 
     if (this.tradeOpen) {
