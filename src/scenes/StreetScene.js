@@ -15,7 +15,15 @@ import { RECIPES, recipeById, amountOf, spendMaterial } from '../craft.js';
 import { makeGoalsForDay } from '../goals.js';
 import { saveGame, loadGame, clearGame } from '../save.js';
 import { KING, patronById, favorOf, kingProgress } from '../king.js';
-import { GANGS, GANG_CROWN, gangStanding, addStanding, pickGangQuest } from '../gangs.js';
+import {
+  GANGS,
+  GANG_CROWN,
+  gangStanding,
+  addStanding,
+  addDailyStanding,
+  gangGainLeft,
+  pickGangQuest
+} from '../gangs.js';
 import { SKILLS, addSkill, skillLevel, skillBonus, bookBonus } from '../skill.js';
 import { zhouGreeting } from '../dialogue.js';
 import {
@@ -634,9 +642,16 @@ export class StreetScene extends Phaser.Scene {
     if (!gang || !hud || !hud.showDialogue) return;
 
     const standing = gangStanding(this.run, id);
+    this.run.tollPaid = this.run.tollPaid || {};
 
     if (standing >= 15) {
       hud.showDialogue(gang.speaker, ['自己人。火还烧着，过去烤吧。']);
+      return;
+    }
+
+    // Paid already today: the corner is open to him for the rest of the day.
+    if (this.run.tollPaid[id] === this.run.day) {
+      hud.showDialogue(gang.speaker, ['今天交过了。过去吧，别惹事。']);
       return;
     }
 
@@ -654,7 +669,11 @@ export class StreetScene extends Phaser.Scene {
   }
 
   payToll(id, fee) {
+    const gang = GANGS[id];
     const hud = this.scene.get('Hud');
+
+    this.run.tollPaid = this.run.tollPaid || {};
+    if (this.run.tollPaid[id] === this.run.day) return;
 
     if (this.run.money < fee) {
       if (hud && hud.showToast) hud.showToast('你身上没那么多钱，他们骂了一句让你滚。');
@@ -663,10 +682,23 @@ export class StreetScene extends Phaser.Scene {
     }
 
     this.run.money -= fee;
+    this.run.tollPaid[id] = this.run.day;
 
-    const standing = addStanding(this.run, id, 2);
+    const before = gangStanding(this.run, id);
+    const standing = addDailyStanding(this.run, id, 1);
+    const gained = standing > before;
 
-    this.floatText(this.player.x, this.player.y - 46, `交了 ${fee} 块 · 声望 ${standing}`, '#f2c46a');
+    this.floatText(
+      this.player.x,
+      this.player.y - 46,
+      gained ? `交了 ${fee} 块 · 声望 ${standing}` : `交了 ${fee} 块，今天他们不会再记什么了`,
+      '#f2c46a'
+    );
+
+    if (hud && hud.showToast && !gained && gangGainLeft(this.run, id) <= 0) {
+      hud.showToast(`${gang.leader} 今天已经记了不少，明天再来吧。`);
+    }
+
     haptic('buy');
     playSfx('buy');
   }
@@ -838,12 +870,26 @@ export class StreetScene extends Phaser.Scene {
     if (quest.kind === 'item') this.run.items[quest.id] = Math.max(0, (this.run.items[quest.id] || 0) - quest.need);
 
     this.refreshBagCount();
-    const standing = addStanding(this.run, id, quest.reward);
+    const before = gangStanding(this.run, id);
+    const standing = addDailyStanding(this.run, id, quest.reward);
+    const gained = standing > before;
     this.run.gangQuest[id] = null;
 
-    this.floatText(this.player.x, this.player.y - 50, `${gang.name} 声望 +${quest.reward}`, '#f2c46a');
+    this.floatText(
+      this.player.x,
+      this.player.y - 50,
+      gained ? `${gang.name} 声望 +${standing - before}` : `${gang.name} 今天记不了了`,
+      '#f2c46a'
+    );
+
     const hud = this.scene.get('Hud');
-    if (hud && hud.showToast) hud.showToast(`${gang.leader} 记下了你 · 声望 ${standing}/100`);
+    if (hud && hud.showToast) {
+      hud.showToast(
+        gained
+          ? `${gang.leader} 记下了你 · 声望 ${standing}/100`
+          : `${gang.leader} 摆摆手：今天的事我记下了，再多也记不住。`
+      );
+    }
     haptic('buy');
     playSfx('buy');
   }

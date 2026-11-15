@@ -110,6 +110,35 @@ export function gangHonour(run, id) {
   return '陌生人';
 }
 
+// A gang only has so much face to give out in one day: past this, another
+// envelope of cash is just money, and the street notices nothing new.
+export const GANG_DAILY_CAP = 20;
+
+/// Standing with a ceiling on how much of it one day can buy.
+export function addDailyStanding(run, id, n) {
+  if (!run) return 0;
+
+  run.gangDay = run.gangDay || {};
+
+  const today = run.gangDay[id];
+  if (!today || today.day !== run.day) run.gangDay[id] = { day: run.day, gain: 0 };
+
+  const used = run.gangDay[id].gain;
+  const add = Math.min(Math.max(0, GANG_DAILY_CAP - used), Math.max(0, n || 0));
+
+  run.gangDay[id].gain = used + add;
+
+  return addStanding(run, id, add);
+}
+
+/// How much more this gang will think of the beggar today.
+export function gangGainLeft(run, id) {
+  const today = run.gangDay && run.gangDay[id];
+  if (!today || today.day !== run.day) return GANG_DAILY_CAP;
+
+  return Math.max(0, GANG_DAILY_CAP - today.gain);
+}
+
 /// One job from the gang's list, ready to be written onto the run.
 export function pickGangQuest(gang) {
   if (!gang || !gang.quests || !gang.quests.length) return null;
