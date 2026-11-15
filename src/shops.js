@@ -339,6 +339,28 @@ export function stockFor(shopId, run) {
       owned: !!(run && run.booze > 0)
     });
 
+    items.push({
+      key: 'charm:cigarettes',
+      kind: 'charm',
+      refId: 'cigarettes',
+      name: '香烟（一包）',
+      desc: '兜售时递一根：成功率 +18%',
+      icon: 'item-cigarettes',
+      price: 18,
+      owned: false
+    });
+
+    items.push({
+      key: 'charm:ticket',
+      kind: 'charm',
+      refId: 'ticket',
+      name: '刮刮乐票',
+      desc: '兜售时塞一张：成功率 +12%',
+      icon: 'item-blueprint',
+      price: 12,
+      owned: false
+    });
+
     return items;
   }
 

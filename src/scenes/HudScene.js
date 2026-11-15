@@ -42,6 +42,8 @@ const TRADE_ROW_WIDTH = 300;
 const TRADE_ROW_HEIGHT = 54;
 const TRADE_MAX_ROWS = 10;
 
+const PEDDLE_ROWS = 4;
+
 const CRAFT_ROW_HEIGHT = 66;
 
 export class HudScene extends Phaser.Scene {
@@ -88,6 +90,7 @@ export class HudScene extends Phaser.Scene {
     this.slotSpin = null;
       this.mapOpen = false;
     this.stealChoiceOpen = false;
+    this.peddleOpen = false;
     this.panelOpen = false;
     this.inputLockUntil = 0;
     this.uiSettleAt = 0;
@@ -131,6 +134,7 @@ export class HudScene extends Phaser.Scene {
     this.buildMap();
     this.buildQte();
     this.buildStealChoice();
+    this.buildPeddle();
     this.buildOverlay();
 
     // The panels start closed: a hidden container can still answer taps, so
@@ -145,6 +149,7 @@ export class HudScene extends Phaser.Scene {
     this.setLayerInput(this.qteLayer, false);
     this.setLayerInput(this.overLayer, false);
     this.setLayerInput(this.stealChoiceLayer, false);
+    this.setLayerInput(this.peddleLayer, false);
 
     // Closing is the corner button's job now: the little crosses in the panel
     // corners are gone, so there is nothing to catch by accident.
@@ -665,18 +670,15 @@ export class HudScene extends Phaser.Scene {
 
     this.stealChoiceRows = [];
 
-    const modes = ['money', 'item'];
+    const modes = ['money', 'item', 'peddle'];
+    const modeIcons = ['icon-hand-coins', 'icon-hand', 'icon-backpack'];
 
     for (let i = 0; i < modes.length; i++) {
       const bg = this.add
         .rectangle(0, 0, 1, 1, UI.panelRow, 1)
         .setOrigin(0, 0.5)
         .setInteractive();
-      const icon = this.add.image(
-        0,
-        0,
-        i === 0 ? 'icon-hand-coins' : i === 1 ? 'icon-hand' : 'icon-zap'
-      );
+      const icon = this.add.image(0, 0, modeIcons[i]);
       const name = this.add
         .text(0, 0, '', {
           fontFamily: FONT,
@@ -740,6 +742,8 @@ export class HudScene extends Phaser.Scene {
   refreshStealChoice() {
     const options =
       this.street && this.street.stealOptions ? this.street.stealOptions() : null;
+    const goods =
+      this.street && this.street.peddleItems ? this.street.peddleItems() : [];
 
     const purse = options ? options.purse : 0;
     const loot = options && options.loot ? LOOT_ITEMS[options.loot] : null;
@@ -756,6 +760,12 @@ export class HudScene extends Phaser.Scene {
         name: '顺口袋',
         info: loot ? `${loot.name} · 绿区宽，被抓住会拖住你` : '口袋里没什么了',
         ok: !!loot
+      },
+      {
+        icon: 'icon-backpack',
+        name: '兜售背包里的货',
+        info: goods.length ? `${goods.length} 件能卖的 · 自己开价` : '包里没有能卖的货',
+        ok: goods.length > 0
       }
     ];
 
@@ -781,14 +791,20 @@ export class HudScene extends Phaser.Scene {
       this.vendingOpen ||
       this.slotOpen ||
       this.qte ||
-      this.stealChoiceOpen
+      this.stealChoiceOpen ||
+      this.peddleOpen
     )
       return;
 
     const options =
       this.street && this.street.stealOptions ? this.street.stealOptions() : null;
+    const goods =
+      this.street && this.street.peddleItems ? this.street.peddleItems() : [];
 
-    if (!options || (options.purse <= 0 && !options.loot)) {
+    const purse = options ? options.purse : 0;
+    const loot = options ? options.loot : null;
+
+    if (purse <= 0 && !loot && !goods.length) {
       haptic('refuse');
       return;
     }
@@ -821,7 +837,352 @@ export class HudScene extends Phaser.Scene {
     this.uiSettleAt = 0;
     this.closeStealChoice();
 
+    if (mode === 'peddle') {
+      this.uiSettleAt = 0;
+      this.openPeddle();
+      return;
+    }
+
     if (this.street) this.street.trySteal(mode);
+  }
+
+  // ------------------------------------------------------------ peddling
+
+  /// The panel the beggar talks a passer-by into buying from: the pick of the
+  /// bag, a price to ask, and the odds of it working.
+  buildPeddle() {
+    this.peddleLayer = this.add.container(0, 0).setDepth(DEPTH.panel + 2).setVisible(false);
+
+    this.peddleBackdrop = this.add
+      .rectangle(0, 0, 1, 1, 0x0b0906, 0.55)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.peddleBackdrop.on('pointerup', () => this.closePeddle());
+
+    this.peddleGfx = this.add.graphics();
+
+    this.peddleTitle = this.add
+      .text(0, 0, '兜售', {
+        fontFamily: FONT,
+        fontSize: '18px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.peddleSub = this.add
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
+      .setOrigin(0.5, 0.5);
+
+    this.peddleLayer.add([this.peddleBackdrop, this.peddleGfx, this.peddleTitle, this.peddleSub]);
+
+    this.peddleRows = [];
+    this.peddleRowCount = 1;
+
+    for (let i = 0; i < PEDDLE_ROWS; i++) {
+      const bg = this.add
+        .rectangle(0, 0, 1, 1, UI.panelRow, 1)
+        .setOrigin(0, 0.5)
+        .setInteractive();
+      const name = this.add
+        .text(0, 0, '', {
+          fontFamily: FONT,
+          fontSize: '15px',
+          color: UI.cream,
+          fontStyle: 'bold'
+        })
+        .setOrigin(0, 0.5);
+      const info = this.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: UI.creamDim })
+        .setOrigin(0, 0.5);
+      const value = this.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: UI.gold })
+        .setOrigin(1, 0.5);
+
+      const row = { bg, name, info, value, item: null };
+      bg.on('pointerdown', () => this.pickPeddleRow(row));
+
+      this.peddleLayer.add([bg, name, info, value]);
+      this.peddleRows.push(row);
+    }
+
+    this.peddleMinusBtn = this.add
+      .rectangle(0, 0, 46, 40, UI.panelRow, 1)
+      .setStrokeStyle(1.5, UI.amber, 0.6)
+      .setInteractive();
+    this.peddleMinusText = this.add
+      .text(0, 0, '－', { fontFamily: FONT, fontSize: '20px', color: UI.cream })
+      .setOrigin(0.5, 0.5);
+    this.peddleMinusBtn.on('pointerdown', () => this.bumpPeddlePrice(-1));
+
+    this.peddlePlusBtn = this.add
+      .rectangle(0, 0, 46, 40, UI.panelRow, 1)
+      .setStrokeStyle(1.5, UI.amber, 0.6)
+      .setInteractive();
+    this.peddlePlusText = this.add
+      .text(0, 0, '＋', { fontFamily: FONT, fontSize: '20px', color: UI.cream })
+      .setOrigin(0.5, 0.5);
+    this.peddlePlusBtn.on('pointerdown', () => this.bumpPeddlePrice(1));
+
+    this.peddlePriceText = this.add
+      .text(0, 0, '', {
+        fontFamily: FONT,
+        fontSize: '22px',
+        color: UI.gold,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.peddleRateText = this.add
+      .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: UI.creamDim })
+      .setOrigin(0.5, 0.5);
+
+    this.peddleSellBtn = this.add
+      .rectangle(0, 0, 200, 44, 0x4a3a24, 1)
+      .setStrokeStyle(2, UI.amberBright, 0.9)
+      .setInteractive();
+    this.peddleSellText = this.add
+      .text(0, 0, '开口兜售', {
+        fontFamily: FONT,
+        fontSize: '17px',
+        color: UI.cream,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5, 0.5);
+    this.peddleSellBtn.on('pointerdown', () => this.doPeddle());
+
+    this.peddleLayer.add([
+      this.peddleMinusBtn,
+      this.peddleMinusText,
+      this.peddlePlusBtn,
+      this.peddlePlusText,
+      this.peddlePriceText,
+      this.peddleRateText,
+      this.peddleSellBtn,
+      this.peddleSellText
+    ]);
+
+    this.peddleSel = null;
+    this.peddlePrice = 0;
+    this.peddlePed = null;
+  }
+
+  layoutPeddle() {
+    const w = this.w;
+    const pw = Math.min(w - 32, 330);
+    const rows = Math.max(1, this.peddleRowCount || 1);
+    const ph = 70 + rows * 44 + 84;
+    const px = (w - pw) / 2;
+    const py = Math.max(48, (this.playH - ph) / 2);
+
+    this.peddleBackdrop.setScale(w, this.h).setPosition(0, 0);
+
+    const g = this.peddleGfx;
+    g.clear();
+    g.fillStyle(UI.panel, 0.97);
+    g.fillRoundedRect(px, py, pw, ph, 16);
+    g.lineStyle(2, UI.amber, 0.6);
+    g.strokeRoundedRect(px, py, pw, ph, 16);
+
+    this.peddleTitle.setPosition(w / 2, py + 20);
+    this.peddleSub.setPosition(w / 2, py + 42);
+
+    const rowW = pw - 24;
+    const rowX = px + 12;
+
+    this.peddleRows.forEach((row, i) => {
+      const ry = py + 64 + 44 * i + 20;
+
+      row.bg.setScale(rowW, 40).setPosition(rowX, ry);
+      row.name.setPosition(rowX + 12, ry - 8);
+      row.info.setPosition(rowX + 12, ry + 9);
+      row.value.setPosition(rowX + rowW - 12, ry);
+    });
+
+    const priceY = py + 64 + rows * 44 + 22;
+
+    this.peddleMinusBtn.setPosition(px + 40, priceY);
+    this.peddleMinusText.setPosition(px + 40, priceY);
+    this.peddlePlusBtn.setPosition(px + pw - 40, priceY);
+    this.peddlePlusText.setPosition(px + pw - 40, priceY);
+    this.peddlePriceText.setPosition(w / 2, priceY - 2);
+    this.peddleRateText.setPosition(w / 2, priceY + 26);
+
+    const btnY = py + ph - 34;
+    this.peddleSellBtn.setScale((pw - 48) / 200, 1).setPosition(w / 2, btnY);
+    this.peddleSellText.setPosition(w / 2, btnY);
+  }
+
+  peddleItemList() {
+    return this.street && this.street.peddleItems ? this.street.peddleItems() : [];
+  }
+
+  refreshPeddle() {
+    const street = this.street;
+    const items = this.peddleItemList();
+
+    this.peddleRowCount = Math.min(PEDDLE_ROWS, Math.max(1, items.length));
+
+    const stillThere =
+      this.peddleSel &&
+      items.some((item) => item.id === this.peddleSel.id && item.kind === this.peddleSel.kind);
+
+    if (!stillThere) {
+      this.peddleSel = items[0] || null;
+      this.peddlePrice = this.peddleSel ? this.peddleSel.value : 0;
+    }
+
+    const ped = this.peddlePed;
+    const name = ped && ped.kind && ped.kind.label ? ped.kind.label : '路人';
+
+    this.peddleTitle.setText(`兜售 · ${name}`);
+
+    this.peddleRows.forEach((row, i) => {
+      const item = items[i];
+
+      if (!item || i >= PEDDLE_ROWS) {
+        row.item = null;
+        row.bg.setVisible(false);
+        row.name.setVisible(false);
+        row.info.setVisible(false);
+        row.value.setVisible(false);
+        return;
+      }
+
+      const picked =
+        this.peddleSel && this.peddleSel.id === item.id && this.peddleSel.kind === item.kind;
+
+      row.item = item;
+      row.bg.setVisible(true).setFillStyle(picked ? 0x4a3a24 : UI.panelRow, 1);
+      row.name
+        .setVisible(true)
+        .setText(`${item.name}${item.count > 1 ? `×${item.count}` : ''}`)
+        .setColor(picked ? UI.cream : UI.creamDim);
+      row.info.setVisible(true).setText(item.kind === 'good' ? '自己做的' : '顺来的');
+      row.value.setVisible(true).setText(`${item.value} 元`);
+    });
+
+    const item = this.peddleSel;
+
+    if (!item) {
+      this.peddleSub.setText('包里没有能卖的货');
+      this.peddlePriceText.setText('—');
+      this.peddleRateText.setText('').setColor(UI.creamDim);
+      this.peddleSellBtn.setFillStyle(0x2a241c, 1).setStrokeStyle(1.5, UI.amber, 0.3);
+      this.peddleSellText.setColor('#8a8070');
+      this.layoutPeddle();
+      return;
+    }
+
+    const info = street.peddleRate
+      ? street.peddleRate(item.value, this.peddlePrice, this.peddlePed)
+      : { rate: 0, charm: null };
+    const pct = Math.round(info.rate * 100);
+    const charmNote =
+      info.charm === 'cigarettes' ? ' · 递根烟' : info.charm === 'ticket' ? ' · 塞张彩票' : '';
+
+    this.peddleSub.setText(`${item.name} · 值 ${item.value} 元`);
+    this.peddlePriceText.setText(`${this.peddlePrice} 元`);
+    this.peddleRateText
+      .setText(`成算 ${pct}%${charmNote}`)
+      .setColor(pct >= 60 ? '#a8d98a' : pct >= 35 ? UI.creamDim : '#f0a08a');
+
+    this.peddleSellBtn.setFillStyle(0x4a3a24, 1).setStrokeStyle(2, UI.amberBright, 0.9);
+    this.peddleSellText.setColor(UI.cream);
+
+    this.layoutPeddle();
+  }
+
+  openPeddle() {
+    if (
+      this.overOpen ||
+      this.shopOpen ||
+      this.tradeOpen ||
+      this.mapOpen ||
+      this.craftOpen ||
+      this.homeOpen ||
+      this.vendingOpen ||
+      this.slotOpen ||
+      this.qte ||
+      this.peddleOpen
+    )
+      return;
+
+    if (!this.peddleItemList().length) {
+      haptic('refuse');
+      return;
+    }
+
+    this.peddlePed = this.street
+      ? this.street.peddleTarget || this.street.stealTarget || null
+      : null;
+
+    if (!this.peddlePed) {
+      haptic('refuse');
+      return;
+    }
+
+    this.peddleOpen = true;
+    this.peddleLayer.setVisible(true);
+    this.setLayerInput(this.peddleLayer, true);
+    this.releaseStick();
+    this.peddleSel = null;
+    this.layoutPeddle();
+    this.refreshPeddle();
+    haptic('ui');
+  }
+
+  closePeddle() {
+    if (this.time.now < this.uiSettleAt) return;
+    if (!this.peddleOpen) return;
+
+    this.peddleOpen = false;
+    this.peddleLayer.setVisible(false);
+    this.setLayerInput(this.peddleLayer, false);
+    haptic('ui');
+  }
+
+  pickPeddleRow(row) {
+    if (!row.item) return;
+
+    this.peddleSel = row.item;
+    this.peddlePrice = row.item.value;
+    haptic('tick');
+    this.refreshPeddle();
+  }
+
+  bumpPeddlePrice(dir) {
+    const item = this.peddleSel;
+    if (!item) return;
+
+    const step = item.value >= 30 ? 5 : item.value >= 12 ? 2 : 1;
+    const max = Math.max(item.value * 3, item.value + 10);
+
+    this.peddlePrice = Phaser.Math.Clamp(this.peddlePrice + dir * step, 1, max);
+    haptic('tick');
+    this.refreshPeddle();
+  }
+
+  doPeddle() {
+    const item = this.peddleSel;
+    if (!item || !this.street) {
+      haptic('refuse');
+      return;
+    }
+
+    const result = this.street.sellToPed(item.id, item.kind, this.peddlePrice, this.peddlePed);
+
+    if (result === 'none') {
+      haptic('refuse');
+      this.uiSettleAt = 0;
+      this.closePeddle();
+      return;
+    }
+
+    haptic(result === 'ok' ? 'sell' : 'refuse');
+
+    this.uiSettleAt = 0;
+    this.closePeddle();
   }
 
   startQte(zone) {
@@ -1029,6 +1390,7 @@ export class HudScene extends Phaser.Scene {
     if (this.mapOpen) this.refreshMap();
     if (this.qte) this.layoutQte();
     if (this.stealChoiceOpen) this.layoutStealChoice();
+    if (this.peddleOpen) this.layoutPeddle();
     this.layoutOverlay();
   }
 
@@ -1376,7 +1738,8 @@ export class HudScene extends Phaser.Scene {
       this.vendingOpen ||
       this.slotOpen ||
       this.qte ||
-      this.stealChoiceOpen
+      this.stealChoiceOpen ||
+      this.peddleOpen
     )
       return;
     // Left half: a thumb summons the movement plate. Right half: a tap does
@@ -1486,7 +1849,8 @@ export class HudScene extends Phaser.Scene {
       this.vendingOpen ||
       this.slotOpen ||
       this.qte ||
-      this.stealChoiceOpen
+      this.stealChoiceOpen ||
+      this.peddleOpen
     )
       return;
 
@@ -1507,14 +1871,14 @@ export class HudScene extends Phaser.Scene {
       this.street.benchSpot ||
       (this.street.run && this.street.run.sitting);
 
-    if (!reachable && !this.street.stealTarget) {
+    if (!reachable && !this.street.stealTarget && !this.street.peddleTarget) {
       haptic('refuse');
       return;
     }
 
     this.tapFlash(pointer.x, pointer.y);
 
-    if (!this.street.nearest && this.street.stealTarget) {
+    if (!this.street.nearest && (this.street.stealTarget || this.street.peddleTarget)) {
       this.openStealChoice();
       return;
     }
@@ -1593,6 +1957,11 @@ export class HudScene extends Phaser.Scene {
 
     if (this.stealChoiceOpen) {
       this.closeStealChoice();
+      return;
+    }
+
+    if (this.peddleOpen) {
+      this.closePeddle();
       return;
     }
 
@@ -3437,6 +3806,9 @@ export class HudScene extends Phaser.Scene {
     this.mapOpen = false;
     this.mapLayer.setVisible(false);
     this.setLayerInput(this.mapLayer, false);
+    this.peddleOpen = false;
+    this.peddleLayer.setVisible(false);
+    this.setLayerInput(this.peddleLayer, false);
     this.releaseStick();
 
     const minutes = Math.floor(run.survived / 60);
@@ -3478,6 +3850,7 @@ export class HudScene extends Phaser.Scene {
     this.closeVending();
     this.closeSlot();
     this.closeMap();
+    this.closePeddle();
 
     this.shown.money = null;
     this.shown.bag = null;

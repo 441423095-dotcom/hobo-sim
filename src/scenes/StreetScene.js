@@ -146,6 +146,7 @@ const EXIT_ZONES = {
 const PED_KINDS = {
   suit: {
     id: 'suit',
+    label: '上班族',
     tex: 'ped-suit',
     purse: [6, 16],
     base: 0.45,
@@ -155,6 +156,7 @@ const PED_KINDS = {
   },
   lady: {
     id: 'lady',
+    label: '阿姨',
     tex: 'ped-lady',
     purse: [4, 12],
     base: 0.5,
@@ -164,6 +166,7 @@ const PED_KINDS = {
   },
   drunk: {
     id: 'drunk',
+    label: '醉汉',
     tex: 'ped-drunk',
     purse: [2, 8],
     base: 0.7,
@@ -173,6 +176,7 @@ const PED_KINDS = {
   },
   rich: {
     id: 'rich',
+    label: '有钱人',
     tex: 'ped-rich',
     purse: [18, 42],
     base: 0.3,
@@ -182,6 +186,7 @@ const PED_KINDS = {
   },
   gang: {
     id: 'gang',
+    label: '混子',
     tex: 'ped-gang',
     purse: [3, 9],
     base: 0.35,
@@ -255,6 +260,7 @@ export class StreetScene extends Phaser.Scene {
         tools: { lockpick: false, coat: false, glove: false, blade: false },
         booze: 0,
         perfume: 0,
+        charm: { cigarettes: 0, ticket: 0 },
         beggingIncome: 0,
         scavengeIncome: 0,
         stolenIncome: 0,
@@ -285,6 +291,7 @@ export class StreetScene extends Phaser.Scene {
     }
     if (typeof this.run.booze !== 'number') this.run.booze = 0;
     if (typeof this.run.perfume !== 'number') this.run.perfume = 0;
+    if (!this.run.charm) this.run.charm = { cigarettes: 0, ticket: 0 };
     if (!this.run.blueprints) this.run.blueprints = {};
     if (!this.run.outfit) this.run.outfit = 'rags';
     if (typeof this.run.day !== 'number') this.run.day = 1;
@@ -1221,6 +1228,11 @@ export class StreetScene extends Phaser.Scene {
     if (this.run.sitting) return '起身';
     if (this.nearest) return this.nearest.label;
     if (this.seenByPolice()) return '警察正看着你，别动手';
+
+    // Close enough to talk a passer-by into buying something.
+    if (this.peddleTarget && this.peddleItems().length) {
+      return `兜售：${this.peddleTarget.kind.label || '路人'}`;
+    }
 
     if (this.stealTarget) {
       if (this.run.energy <= 0) return '累得手都在抖，先歇会儿';
@@ -2756,6 +2768,14 @@ export class StreetScene extends Phaser.Scene {
         return true;
       }
 
+      case 'charm': {
+        this.run.money -= entry.price;
+        this.run.charm = this.run.charm || {};
+        this.run.charm[entry.refId] = (this.run.charm[entry.refId] || 0) + 1;
+        this.floatText(this.player.x, this.player.y - 46, `买下${entry.name}`, '#a8d98a');
+        return true;
+      }
+
       case 'blueprint': {
         const rec = recipeById(entry.refId);
         if (!rec || this.run.blueprints[entry.refId]) return false;
@@ -3389,10 +3409,158 @@ export class StreetScene extends Phaser.Scene {
     return best;
   }
 
+  /// Anyone close enough to be talked into buying something, whether or not
+  /// they still have a wallet worth lifting.
+  findPeddleTarget() {
+    if (this.run.over || this.run.sitting) return null;
+
+    let best = null;
+    let bestD = STEAL_RANGE;
+
+    for (const ped of this.peds) {
+      if (ped.startled) continue;
+
+      const d = Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        ped.sprite.x,
+        ped.sprite.y
+      );
+      if (d < bestD) {
+        best = ped;
+        bestD = d;
+      }
+    }
+
+    return best;
+  }
+
+  /// What the beggar could offer a passer-by: the things he made at the bench and
+  /// the things he lifted, never the scrap itself.
+  peddleItems() {
+    if (!this.run) return [];
+
+    const items = [];
+
+    for (const rec of RECIPES) {
+      const count = this.run.goods[rec.id] || 0;
+      if (count <= 0) continue;
+
+      items.push({ id: rec.id, kind: 'good', name: rec.name, count, value: rec.value, tex: rec.tex });
+    }
+
+    for (const id of LOOT_ORDER) {
+      const count = this.run.loot[id] || 0;
+      if (count <= 0) continue;
+
+      const item = LOOT_ITEMS[id];
+      items.push({ id, kind: 'loot', name: item.name, count, value: item.price, tex: item.tex });
+    }
+
+    return items.sort((a, b) => b.value - a.value);
+  }
+
+  /// A cigarette or a lottery ticket in the pocket is worth a lot more than it
+  /// costs: it gives the passer-by a reason to stop and listen.
+  pickCharm() {
+    const charm = this.run.charm || {};
+    if ((charm.cigarettes || 0) > 0) return 'cigarettes';
+    if ((charm.ticket || 0) > 0) return 'ticket';
+
+    return null;
+  }
+
+  /// How likely the walker in front of the beggar is to buy at this price. The
+  /// beggar starts out bad at this: a fair price is a coin toss at best, and
+  /// asking too much sends them off.
+  peddleRate(value, price, who) {
+    const ped = who || this.peddleTarget || this.stealTarget;
+    if (!ped) return { rate: 0, charm: null };
+
+    const worth = Math.max(1, value);
+    const over = (price - worth) / worth;
+
+    let rate = 0.24;
+
+    if (over <= 0) rate += Math.min(0.16, -over * 0.5);
+    else rate -= Math.min(0.5, over * 0.45);
+
+    const kind = ped.kind ? ped.kind.id : 'suit';
+    if (kind === 'rich') rate += 0.1;
+    else if (kind === 'suit') rate += 0.05;
+    else if (kind === 'drunk') rate -= 0.06;
+    else if (kind === 'gang') rate -= 0.16;
+
+    rate += this.cleanLevel() * 0.12;
+    rate -= Math.max(0, ped.alert || 0) * 0.2;
+
+    const charm = this.pickCharm();
+    if (charm === 'cigarettes') rate += 0.18;
+    else if (charm === 'ticket') rate += 0.12;
+
+    return { rate: Phaser.Math.Clamp(rate, 0.05, 0.92), charm };
+  }
+
+  /// One attempt at selling: the price is set by the panel. Returns 'ok', 'no'
+  /// or 'none' when there is nothing to sell or nobody to sell it to.
+  sellToPed(id, kind, price, who) {
+    const ped = who || this.peddleTarget || this.stealTarget;
+    if (!ped || this.run.over) return 'none';
+
+    const item = kind === 'good' ? recipeById(id) : LOOT_ITEMS[id];
+    if (!item) return 'none';
+
+    const have = kind === 'good' ? this.run.goods[id] || 0 : this.run.loot[id] || 0;
+    if (have <= 0) return 'none';
+
+    const worth = kind === 'good' ? item.value : item.price;
+    const { rate, charm } = this.peddleRate(worth, price, ped);
+
+    if (charm) {
+      this.run.charm = this.run.charm || {};
+      this.run.charm[charm] = Math.max(0, (this.run.charm[charm] || 0) - 1);
+    }
+
+    this.advanceTime(10);
+
+    if (Math.random() < rate) {
+      if (kind === 'good') this.run.goods[id] -= 1;
+      else this.run.loot[id] -= 1;
+
+      this.run.money += price;
+      this.run.soldIncome += price;
+      this.progressGoal('sell', price);
+      this.refreshBagCount();
+
+      this.floatText(ped.sprite.x, ped.sprite.y - 34, `卖出去 +${price} 元`, UI.gold);
+      haptic('sell');
+      playSfx('sell');
+      ped.alert = Math.max(0, ped.alert - 0.15);
+
+      return 'ok';
+    }
+
+    // Turned down: the walker says what they think and moves on, and the street
+    // hears it.
+    ped.alert = 1;
+    ped.startled = true;
+
+    for (const other of this.peds) {
+      if (other !== ped) other.alert = Math.min(1, other.alert + 0.18);
+    }
+
+    this.floatText(ped.sprite.x, ped.sprite.y - 34, '“谁要你这破玩意！”', '#f0b0a0');
+    haptic('stealFail');
+    playSfx('stealFail');
+
+    return 'no';
+  }
+
   updateNearest() {
     if (this.run.over || this.run.sitting || this.qtePed || this.searching || this.benchSpot) {
       this.nearest = null;
       this.stealTarget = null;
+      this.peddleTarget = null;
       this.prompt.setVisible(false);
       return;
     }
@@ -3411,6 +3579,7 @@ export class StreetScene extends Phaser.Scene {
 
     this.nearest = best;
     this.stealTarget = best ? null : this.findStealTarget();
+    this.peddleTarget = best ? null : this.findPeddleTarget();
 
     if (best) {
       if (this.prompt.text !== best.label) this.prompt.setText(best.label);
@@ -3426,6 +3595,14 @@ export class StreetScene extends Phaser.Scene {
       if (ped.loot && !ped.lootTaken) parts.push(LOOT_ITEMS[ped.loot].name);
 
       const label = `偷：${parts.join(' · ')}`;
+      if (this.prompt.text !== label) this.prompt.setText(label);
+      this.prompt.setPosition(ped.sprite.x, ped.sprite.y - 40).setVisible(true);
+      return;
+    }
+
+    if (this.peddleTarget) {
+      const ped = this.peddleTarget;
+      const label = `兜售：${ped.kind.label || '路人'}`;
       if (this.prompt.text !== label) this.prompt.setText(label);
       this.prompt.setPosition(ped.sprite.x, ped.sprite.y - 40).setVisible(true);
       return;
