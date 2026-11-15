@@ -759,7 +759,9 @@ export class StreetScene extends Phaser.Scene {
     }
 
     if (quest && this.questDone(quest)) {
-      lines.push(`要的东西齐了：${this.questText(quest)}。`);
+      lines.push(
+        quest.kind === 'tell' ? '话带到了。' : `要的东西齐了：${this.questText(quest)}。`
+      );
       hud.showDialogue(gang.speaker, lines, null, [
         { label: '交差', onPick: () => this.finishGangQuest(id) },
         { label: '再等等' }
@@ -776,7 +778,10 @@ export class StreetScene extends Phaser.Scene {
       return;
     }
 
-    lines.push(`要的东西：${this.questText(quest)}（${this.questProgress(quest)}/${quest.need}）`);
+    const detail = quest.kind === 'tell' && quest.message ? `（“${quest.message}”）` : '';
+    lines.push(
+      `要办的事：${this.questText(quest)}${detail}（${this.questProgress(quest)}/${quest.need}）`
+    );
     hud.showDialogue(gang.speaker, lines);
   }
 
@@ -787,10 +792,41 @@ export class StreetScene extends Phaser.Scene {
     this.run.gangQuest = this.run.gangQuest || {};
     this.run.gangQuest[id] = pickGangQuest(gang);
 
+    const quest = this.run.gangQuest[id];
     const hud = this.scene.get('Hud');
-    if (hud && hud.showToast) hud.showToast(`接了${gang.name}的活：${this.questText(this.run.gangQuest[id])}`);
+    const detail = quest && quest.kind === 'tell' && quest.message ? ` —— “${quest.message}”` : '';
+
+    if (hud && hud.showToast) {
+      hud.showToast(`接了${gang.name}的活：${this.questText(quest)}${detail}`);
+    }
     haptic('ui');
     playSfx('ui');
+  }
+
+  /// A message carried to another district is delivered the moment the beggar
+  /// walks in: the line is said, and the job is that much closer to done.
+  checkTellQuests() {
+    const book = this.run.gangQuest;
+    if (!book || !this.district) return;
+
+    for (const id of Object.keys(book)) {
+      const quest = book[id];
+
+      if (!quest || quest.kind !== 'tell' || quest.delivered) continue;
+      if (quest.district !== this.district.id) continue;
+
+      quest.delivered = true;
+
+      const hud = this.scene.get('Hud');
+      if (hud && hud.showToast) {
+        hud.showToast(
+          `你把话带到了${this.gangZoneName(quest.district)}：${quest.message || '话带到了'}`
+        );
+      }
+
+      haptic('ui');
+      playSfx('voice');
+    }
   }
 
   finishGangQuest(id) {
@@ -4987,6 +5023,8 @@ export class StreetScene extends Phaser.Scene {
   }
 
   updateNearest() {
+    this.checkTellQuests();
+
     if (this.run.over || this.run.sitting || this.qtePed || this.searching || this.benchSpot) {
       this.nearest = null;
       this.stealTarget = null;

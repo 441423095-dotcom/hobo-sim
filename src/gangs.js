@@ -20,7 +20,13 @@ export const GANGS = {
     quests: [
       { kind: 'item', id: 'wire', need: 3, reward: 16 },
       { kind: 'money', need: 12, reward: 12 },
-      { kind: 'tell', district: 'market', need: 1, reward: 15 }
+      {
+        kind: 'tell',
+        district: 'market',
+        need: 1,
+        reward: 15,
+        message: '东头那车纸板是我老鸦先看见的，让老刘别动。'
+      }
     ]
   },
   tin: {
@@ -41,7 +47,14 @@ export const GANGS = {
     quests: [
       { kind: 'item', id: 'pipe', need: 2, reward: 18 },
       { kind: 'money', need: 15, reward: 14 },
-      { kind: 'item', id: 'battery', need: 3, reward: 16 }
+      { kind: 'item', id: 'battery', need: 3, reward: 16 },
+      {
+        kind: 'tell',
+        district: 'park',
+        need: 1,
+        reward: 14,
+        message: '黑街这批货不往你们公园过，让老刘别多问。'
+      }
     ]
   },
   bench: {
@@ -56,7 +69,13 @@ export const GANGS = {
     quests: [
       { kind: 'item', id: 'newspaper', need: 3, need2: 2, needId2: 'cardboard', reward: 15 },
       { kind: 'money', need: 9, reward: 12 },
-      { kind: 'tell', district: 'alley', need: 1, reward: 13 }
+      {
+        kind: 'tell',
+        district: 'alley',
+        need: 1,
+        reward: 13,
+        message: '公园这几张椅子我们不挪，人也别往这边带。'
+      }
     ]
   }
 };
@@ -102,6 +121,7 @@ export function pickGangQuest(gang) {
     kind: pick.kind,
     id: pick.id || null,
     district: pick.district || null,
+    message: pick.message || null,
     need: pick.need,
     reward: pick.reward
   };
