@@ -4160,7 +4160,8 @@ export class HudScene extends Phaser.Scene {
         .join(' · ');
 
       this.craftSub.setFontSize(12);
-      const held1 = foldText(held || '包里没有废品', pw - 44, 12).split('\n')[0];
+      const subW = Math.min(this.w - 32, ROW_WIDTH + 24) - 44;
+      const held1 = foldText(held || '包里没有废品', subW, 12).split('\n')[0];
       this.craftSub.setText(held && held1.length < held.length ? `${held1}…` : held1);
       this.shown.craftSig = `${run.bag}|${Object.values(run.goods).join(',')}|${
         Object.keys(run.blueprints).length
