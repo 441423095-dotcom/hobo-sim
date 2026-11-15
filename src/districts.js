@@ -20,7 +20,7 @@ export const DISTRICTS = {
     shops: true,
     unlockAfter: null,
     cops: 1,
-    pedKinds: ['suit', 'lady', 'drunk'],
+    pedKinds: ['suit', 'lady', 'student', 'kid', 'worker'],
     pedMs: 1700,
     junk: ['cardboard', 'bottle', 'veg'],
     bins: [
@@ -68,7 +68,7 @@ export const DISTRICTS = {
     shops: false,
     unlockAfter: null,
     cops: 1,
-    pedKinds: ['suit', 'lady'],
+    pedKinds: ['suit', 'student', 'lady', 'kid'],
     pedMs: 1250,
     junk: ['can', 'flyer', 'snack'],
     bins: [
@@ -110,7 +110,7 @@ export const DISTRICTS = {
     shops: false,
     unlockAfter: 'square',
     cops: 0,
-    pedKinds: ['drunk'],
+    pedKinds: ['drunk', 'worker', 'oldlady'],
     pedMs: 2500,
     junk: ['wire', 'cloth', 'wine'],
     bins: [
@@ -161,7 +161,7 @@ export const DISTRICTS = {
     shops: false,
     unlockAfter: 'alley',
     cops: 1,
-    pedKinds: ['lady', 'suit'],
+    pedKinds: ['lady', 'oldlady', 'kid', 'suit'],
     pedMs: 1900,
     junk: ['newspaper', 'water'],
     bins: [
@@ -213,7 +213,7 @@ export const DISTRICTS = {
     shops: false,
     unlockAfter: null,
     cops: 0,
-    pedKinds: ['drunk'],
+    pedKinds: ['drunk', 'worker', 'oldlady'],
     pedMs: 3200,
     junk: ['stick', 'brick'],
     bins: [
@@ -254,7 +254,7 @@ export const DISTRICTS = {
     stealZone: 0.95,
     stealSpeed: 1,
     begBoost: 0.6,
-    pedKinds: ['drunk'],
+    pedKinds: ['drunk', 'worker'],
     pedMs: 2400,
     junk: ['pipe', 'battery'],
     bins: [
@@ -308,7 +308,7 @@ export const DISTRICTS = {
     stealZone: 0.62,
     stealSpeed: 1.3,
     begBoost: 2.2,
-    pedKinds: ['rich', 'rich', 'suit', 'lady'],
+    pedKinds: ['rich', 'rich', 'suit', 'student', 'lady'],
     pedMs: 950,
     junk: ['receipt', 'cup'],
     bins: [

@@ -198,6 +198,48 @@ const PED_KINDS = {
     speed: [20, 29],
     loot: ['watch', 'phone', 'perfume', 'earbuds']
   },
+  student: {
+    id: 'student',
+    label: '学生',
+    tex: 'ped-student',
+    purse: [3, 9],
+    base: 0.52,
+    watch: 0.24,
+    speed: [16, 25],
+    loot: ['gum', 'earbuds', 'phone']
+  },
+  kid: {
+    id: 'kid',
+    label: '小孩',
+    tex: 'ped-kid',
+    purse: [1, 5],
+    base: 0.8,
+    watch: 0.1,
+    speed: [20, 30],
+    loot: ['gum', 'snackbar'],
+    scale: 0.82
+  },
+  oldlady: {
+    id: 'oldlady',
+    label: '老太太',
+    tex: 'ped-oldlady',
+    purse: [3, 10],
+    base: 0.5,
+    watch: 0.2,
+    speed: [10, 17],
+    loot: ['gum', 'snackbar', 'watch'],
+    scale: 0.94
+  },
+  worker: {
+    id: 'worker',
+    label: '环卫工',
+    tex: 'ped-worker',
+    purse: [2, 7],
+    base: 0.66,
+    watch: 0.16,
+    speed: [11, 18],
+    loot: ['lighter', 'cigarettes']
+  },
   gang: {
     id: 'gang',
     label: '混子',
@@ -217,7 +259,11 @@ const PED_THOUGHTS = {
   lady: ['这双鞋磨脚。', '晚上吃什么好呢。', '他昨天没回我消息。'],
   drunk: ['再来一瓶……', '我当年也阔过。', '这地怎么在晃。'],
   rich: ['又是没意义的一天。', '该换辆车了。', '这条街真脏。'],
-  gang: ['这条街归我管。', '看什么看。', '今晚得收点东西。']
+  gang: ['这条街归我管。', '看什么看。', '今晚得收点东西。'],
+  student: ['作业一个字没写。', '食堂今天有红烧肉。', '耳机又丢了一只。'],
+  kid: ['妈妈呢……', '我想吃那个。', '学校明天体检。'],
+  oldlady: ['菜又贵了两毛。', '给孙子织的毛衣还差袖子。', '腿又疼了。'],
+  worker: ['这一片一天扫三遍。', '谁又把汤泼地上了。', '下班去买两斤白菜。']
 };
 
 export class StreetScene extends Phaser.Scene {
@@ -3967,7 +4013,7 @@ export class StreetScene extends Phaser.Scene {
     const source = giver ? giver.sprite : from;
 
     if (giver) {
-      this.sayBubble(giver, begGiveLine(this.district.id, segmentOf(this.run.step)));
+      this.sayBubble(giver, begGiveLine(this.district.id, segmentOf(this.run.step), giver.kind ? giver.kind.id : null));
     }
 
     const boost = this.district.begBoost || 1;
@@ -4111,11 +4157,12 @@ export class StreetScene extends Phaser.Scene {
   /// when the player arrived.
   makePed(strip, x, y, kindId) {
     const kind = PED_KINDS[kindId] || PED_KINDS.suit;
-    const sprite = this.add.image(x, y, kind.tex).setDepth(y);
+    const scale = kind.scale || 1;
+    const sprite = this.add.image(x, y, kind.tex).setScale(scale).setDepth(y);
 
     this.tweens.add({
       targets: sprite,
-      scaleY: 0.97,
+      scaleY: scale * 0.97,
       duration: 260,
       yoyo: true,
       repeat: -1,
@@ -4357,7 +4404,7 @@ export class StreetScene extends Phaser.Scene {
         near < BEG_RADIUS
       ) {
         ped.refusedShown = true;
-        this.sayBubble(ped, begRefuseLine(this.district.id, segmentOf(this.run.step)));
+        this.sayBubble(ped, begRefuseLine(this.district.id, segmentOf(this.run.step), ped.kind ? ped.kind.id : null));
       }
     }
 

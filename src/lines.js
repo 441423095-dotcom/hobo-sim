@@ -106,13 +106,39 @@ const PEDDLE_REFUSE = [
   '走开，我不买。'
 ];
 
-/// A passer-by dropping a coin, in the voice of the district and the hour.
-export function begGiveLine(districtId, segment) {
+// Who is in front of the beggar matters as much as where and when: a child, a
+// student, an old woman and a street sweeper do not hand over a coin the same
+// way, and they do not turn him down the same way either.
+const GIVE_KIND = {
+  kid: ['给你糖，别哭。', '我把钢镚都给你了。', '妈妈说要做好事。'],
+  student: ['学生没什么钱，就这几块。', '刚买完饭卡，就剩这些了。', '给你，别让人看见。'],
+  oldlady: ['哎哟，这么年轻就……拿着吧。', '我孙子也这么大了。', '钱不多，买个馒头。'],
+  worker: ['我也是苦人，拿去。', '别捡我车上的。', '扫一天街，就这点零碎。'],
+  rich: ['拿远点。', '别碰我衣服。']
+};
+
+const REFUSE_KIND = {
+  kid: ['妈妈说不能跟陌生人说话。', '走开！'],
+  student: ['赶上课呢。', '没钱没钱。', '我还有自习。'],
+  oldlady: ['造孽哦。', '年纪轻轻不干活。', '我哪有钱给你。'],
+  worker: ['闪开点，推车呢。', '别挡着我扫地。'],
+  rich: ['保安！', '离我远点。']
+};
+
+/// A passer-by dropping a coin, in the voice of the district, the hour and the
+/// person.
+export function begGiveLine(districtId, segment, kindId) {
+  const personal = kindId ? GIVE_KIND[kindId] : null;
+  if (personal && personal.length && Math.random() < 0.55) return pick(personal);
+
   return flavour(GIVE_GENERIC, GIVE_DISTRICT, GIVE_TIME, districtId, segment);
 }
 
 /// A passer-by who is not stopping.
-export function begRefuseLine(districtId, segment) {
+export function begRefuseLine(districtId, segment, kindId) {
+  const personal = kindId ? REFUSE_KIND[kindId] : null;
+  if (personal && personal.length && Math.random() < 0.55) return pick(personal);
+
   return flavour(REFUSE_GENERIC, REFUSE_DISTRICT, REFUSE_TIME, districtId, segment);
 }
 

@@ -77,6 +77,53 @@ export const PAL_RICH = {
   B: '#121214'
 };
 
+// A student with a backpack and a bright hoodie; a kid in a school jacket and
+// shorts; an old woman in a faded cardigan; and a street sweeper in a hi-vis
+// vest. Same figure, different people.
+export const PAL_STUDENT = {
+  k: '#171310',
+  h: '#2a2118',
+  s: SKIN,
+  S: SKIN_SHADOW,
+  c: '#4d7a8a',
+  d: '#365a67',
+  p: '#2d3a44',
+  B: '#1a2630'
+};
+
+export const PAL_KID = {
+  k: '#171310',
+  h: '#1f1a16',
+  s: '#e8bd97',
+  S: '#c2946c',
+  c: '#c86a4e',
+  d: '#9a4c36',
+  p: '#3a4a6a',
+  B: '#241a16'
+};
+
+export const PAL_OLDLADY = {
+  k: '#171310',
+  h: '#d8d2c6',
+  s: '#dcb693',
+  S: '#bb9169',
+  c: '#7d6f5e',
+  d: '#5f5446',
+  p: '#4a443c',
+  B: '#221f1a'
+};
+
+export const PAL_WORKER = {
+  k: '#171310',
+  h: '#3a2f22',
+  s: '#cf9a72',
+  S: '#a8724f',
+  c: '#d08a2a',
+  d: '#a86a1c',
+  p: '#3c4038',
+  B: '#1c1a16'
+};
+
 // The gang members of the black street: a dark hood and a red bandana.
 export const PAL_GANG = {
   k: '#141110',

@@ -51,7 +51,11 @@ import {
   PAL_ITEM_SUIT,
   PAL_ITEM_COAT,
   PAL_ITEM_DRUG,
-  PAL_ITEM_BLUEPRINT
+  PAL_ITEM_BLUEPRINT,
+  PAL_STUDENT,
+  PAL_KID,
+  PAL_OLDLADY,
+  PAL_WORKER
 } from './palette.js';
 
 const PLAYER_IDLE = [
@@ -663,6 +667,10 @@ export function buildSpriteArt(scene) {
   pixelTexture(scene, 'ped-lady', PED, PAL_LADY);
   pixelTexture(scene, 'ped-drunk', PED, PAL_DRUNK);
   pixelTexture(scene, 'ped-rich', PED, PAL_RICH);
+  pixelTexture(scene, 'ped-student', PED, PAL_STUDENT);
+  pixelTexture(scene, 'ped-kid', PED, PAL_KID);
+  pixelTexture(scene, 'ped-oldlady', PED, PAL_OLDLADY);
+  pixelTexture(scene, 'ped-worker', PED, PAL_WORKER);
   pixelTexture(scene, 'ped-gang', GANG, PAL_GANG);
   pixelTexture(scene, 'ped-patrol', PED, PAL_PATROL);
   pixelTexture(scene, 'guard', GUARD, PAL_GUARD);
