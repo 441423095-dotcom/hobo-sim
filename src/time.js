@@ -1,8 +1,8 @@
-// The shape of a day: four segments of four steps, and big actions push the
-// clock forward one step at a time.
-
+// The shape of a day: four segments of eight steps, and big actions push the
+// clock forward one step at a time. A day is long enough to cross the city,
+// work a bin or two and still get home before dark.
 export const SEGMENTS = ['清晨', '白天', '傍晚', '深夜'];
-export const STEPS_PER_DAY = 16;
+export const STEPS_PER_DAY = 32;
 export const STEPS_PER_SEGMENT = STEPS_PER_DAY / SEGMENTS.length;
 
 export function segmentOf(step) {

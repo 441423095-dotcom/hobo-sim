@@ -1895,14 +1895,41 @@ export class StreetScene extends Phaser.Scene {
     return 'ok';
   }
 
-  /// Sleeping is the only way to get real rest: comfort decides how much.
-  sleepAtHome() {
-    const comfort = this.homeComfort();
-    const energy = 35 + comfort * 7;
-    const hunger = 20 + comfort * 4;
+  /// True once the evening sets in: that is when the cold bites.
+  isColdNight() {
+    return segmentOf(this.run.step) >= 2;
+  }
 
-    this.run.energy = Math.min(ENERGY_MAX, this.run.energy + energy);
-    this.run.hunger = Math.min(HUNGER_MAX, this.run.hunger + hunger);
+  hasFire() {
+    return this.homePlaced.fireplace === 'fireplace';
+  }
+
+  /// What a night in the tent would do right now. Cold nights without a fire
+  /// are the whole point of the fireplace: rest barely helps and hunger gets
+  /// worse.
+  sleepPreview() {
+    const comfort = this.homeComfort();
+    const fire = this.hasFire();
+    const cold = this.isColdNight() && !fire;
+
+    let energy = 30 + comfort * 6;
+    let hunger = 18 + comfort * 3;
+
+    if (cold) {
+      energy = Math.min(energy, 8 + comfort * 2);
+      hunger -= 12;
+    }
+
+    return { energy: Math.round(energy), hunger: Math.round(hunger), comfort, fire, cold };
+  }
+
+  /// Sleeping is the only way to get real rest: comfort decides how much, and a
+  /// cold tent without a fire takes most of it back.
+  sleepAtHome() {
+    const rest = this.sleepPreview();
+
+    this.run.energy = Math.min(ENERGY_MAX, this.run.energy + rest.energy);
+    this.run.hunger = Math.max(0, Math.min(HUNGER_MAX, this.run.hunger + rest.hunger));
     this.run.sitting = false;
 
     // Settle the day's books, then start the next morning.
@@ -1926,10 +1953,20 @@ export class StreetScene extends Phaser.Scene {
     this.lastSegment = 0;
     this.applyNight();
 
-    haptic('sleep');
-    this.floatText(this.player.x, this.player.y - 46, '睡了一觉', '#a8d98a');
+    if (rest.cold) {
+      haptic('refuse');
+      this.floatText(this.player.x, this.player.y - 46, '冻醒了好几次', '#8ab4d9');
 
-    return { energy, hunger, comfort, summary, day: this.run.day };
+      const hud = this.scene.get('Hud');
+      if (hud && hud.showToast) {
+        hud.showToast('没有火，寒气顺着地面爬上来，这一夜几乎没睡着。');
+      }
+    } else {
+      haptic('sleep');
+      this.floatText(this.player.x, this.player.y - 46, '睡了一觉', '#a8d98a');
+    }
+
+    return { ...rest, summary, day: this.run.day };
   }
 
   /// Big actions push the clock forward: bins, begging, theft, a morning of work.
@@ -1961,7 +1998,7 @@ export class StreetScene extends Phaser.Scene {
       if (hud && hud.showToast) hud.showToast(text);
     };
 
-    if (segment === 2) toast('天快黑了，该回桥洞睡觉了');
+    if (segment === 2) toast('天快黑了，该回营地的帐篷睡觉了');
     if (segment === 3) {
       toast('街上没人了，再待下去会冻僵');
       this.nightDeadline = this.time.now + NIGHT_GRACE;
