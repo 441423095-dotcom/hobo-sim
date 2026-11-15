@@ -39,6 +39,19 @@ import {
   pickGangQuest
 } from '../gangs.js';
 import { SKILLS, addSkill, skillLevel, skillBonus, bookBonus } from '../skill.js';
+import {
+  GANG_LINES,
+  gangLineForGang,
+  gangLineState,
+  gangLineStep,
+  gangLineReady,
+  gangLineHandIn,
+  takeGangStep,
+  markGangLineStarted,
+  advanceGangLine,
+  gangLineHook,
+  gangLineAsk
+} from '../ganglines.js';
 import { zhouGreeting } from '../dialogue.js';
 import { STORY_LINES } from '../story.js';
 import {
@@ -438,6 +451,7 @@ export class StreetScene extends Phaser.Scene {
     // The shopkeepers' private business: what has been done for them, and how
     // much wear the clothes on the beggar's back have taken.
     if (!this.run.errands) this.run.errands = emptyErrands();
+    if (!this.run.gangLines) this.run.gangLines = {};
     if (typeof this.run.outfitWear !== 'number') this.run.outfitWear = 0;
     if (typeof this.run.noodleDay !== 'number') this.run.noodleDay = 0;
 
@@ -469,6 +483,7 @@ export class StreetScene extends Phaser.Scene {
     this.passerbyAt = 0;
     this.mugAt = 0;
     this.errandAt = 0;
+    this.storyAt = 0;
     this.snowFires = false;
     this.warnedWeather = null;
     this.awnings = [];
@@ -956,7 +971,176 @@ export class StreetScene extends Phaser.Scene {
     return !!quest && this.questProgress(quest) >= quest.need;
   }
 
+  /// The leader has a story of his own before he has any odd jobs: three or
+  /// four steps, and the last one is the gang's vote.
   talkGang(id) {
+    const gang = GANGS[id];
+    const hud = this.scene.get('Hud');
+    if (!gang || !hud || !hud.showDialogue) return;
+
+    const line = gangLineForGang(id);
+    const state = line ? gangLineState(this.run, line.id) : null;
+
+    if (line && !state.done) {
+      const step = gangLineStep(this.run, line.id);
+      const standing = gangStanding(this.run, id);
+      const tier = standing >= GANG_CROWN ? 3 : standing >= 30 ? 2 : standing >= 12 ? 1 : 0;
+
+      hud.showDialogue(
+        gang.speaker,
+        [gang.story[Math.min(tier, gang.story.length - 1)], gangLineHook(line, state, step)],
+        null,
+        [
+          {
+            label: state.started ? '那件事' : '听听他的事',
+            onPick: () => this.openGangLine(id)
+          },
+          { label: '别的事', onPick: () => this.talkGangNews(id) }
+        ]
+      );
+      return;
+    }
+
+    this.talkGangNews(id);
+  }
+
+  /// The story in hand: what the leader wants, and whether it is ready to hand
+  /// over.
+  openGangLine(id) {
+    const gang = GANGS[id];
+    const line = gangLineForGang(id);
+    if (!gang || !line) return;
+
+    let state = gangLineState(this.run, line.id);
+
+    if (!state.started) {
+      markGangLineStarted(this.run, line.id);
+      state = gangLineState(this.run, line.id);
+      this.saveNow();
+    }
+
+    const step = gangLineStep(this.run, line.id);
+    const ready = gangLineReady(this.run, line.id);
+    const hud = this.scene.get('Hud');
+    if (!hud || !hud.showDialogue) return;
+
+    const options = [];
+
+    if (gangLineHandIn(step)) {
+      options.push({
+        label: ready ? '把东西给他' : '还没凑齐',
+        onPick: () => this.handGangLine(id)
+      });
+    } else {
+      options.push({ label: '知道了' });
+    }
+
+    options.push({ label: '先走了' });
+
+    hud.showDialogue(gang.speaker, gangLineAsk(line, state, step), null, options);
+  }
+
+  handGangLine(id) {
+    const line = gangLineForGang(id);
+    const step = gangLineStep(this.run, id);
+
+    if (!line || !step || !gangLineHandIn(step)) return;
+
+    const hud = this.scene.get('Hud');
+
+    if (!gangLineReady(this.run, id)) {
+      haptic('refuse');
+      if (hud && hud.showToast) hud.showToast(`${line.owner}：东西还没到齐呢。`);
+      return;
+    }
+
+    if (!takeGangStep(this.run, step)) return;
+
+    this.refreshBagCount();
+    this.completeGangLineStep(id);
+
+    // Straight back into his mouth: the next step, or the thanks.
+    this.time.delayedCall(320, () => this.openGangLine(id));
+  }
+
+  /// Walking somewhere at the right hour is the whole of some steps: the street
+  /// watches for them so the leader does not have to be stood next to.
+  updateGangStories() {
+    const run = this.run;
+    if (!run || run.over) return;
+
+    if (this.time.now < (this.storyAt || 0)) return;
+    this.storyAt = this.time.now + 500;
+
+    const ctx = this.errandContext();
+
+    for (const line of GANG_LINES) {
+      const state = gangLineState(run, line.id);
+      if (!state.started || state.done) continue;
+
+      const step = gangLineStep(run, line.id);
+      if (!step || (step.kind !== 'go' && step.kind !== 'wanted')) continue;
+      if (!errandMet(step, ctx)) continue;
+
+      this.completeGangLineStep(line.id);
+      return;
+    }
+  }
+
+  completeGangLineStep(id) {
+    const gang = GANGS[id];
+    const line = gangLineForGang(id);
+    if (!gang || !line) return;
+
+    const state = advanceGangLine(this.run, id);
+    if (!state) return;
+
+    playSfx('unlock');
+    haptic('unlock');
+
+    if (state.done) {
+      this.grantGangLineReward(id, line);
+      return;
+    }
+
+    addStanding(this.run, id, 5);
+
+    const next = gangLineStep(this.run, id);
+
+    this.floatText(
+      this.player.x,
+      this.player.y - 50,
+      `${line.title} ${state.step}/${line.steps.length}`,
+      '#f2c46a'
+    );
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast && next) hud.showToast(`${line.owner}：${next.short}。`);
+
+    this.saveNow();
+  }
+
+  grantGangLineReward(id, line) {
+    const gang = GANGS[id];
+    if (!gang) return;
+
+    // The last step is the vote: the gang counts as one of the beggar's backers
+    // from here on.
+    const standing = gangStanding(this.run, id);
+    if (standing < GANG_CROWN) addStanding(this.run, id, GANG_CROWN - standing);
+
+    this.floatText(this.player.x, this.player.y - 56, `办成了 · ${line.reward}`, '#a8d98a');
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast) hud.showToast(`${line.owner}：${line.done}`);
+
+    playSfx('jackpot');
+    haptic('jackpot');
+    this.saveNow();
+  }
+
+  /// Everything the gangs had to say before they had a story.
+  talkGangNews(id) {
     const gang = GANGS[id];
     const hud = this.scene.get('Hud');
     if (!gang || !hud || !hud.showDialogue) return;
@@ -6159,6 +6343,7 @@ export class StreetScene extends Phaser.Scene {
     this.updateBraziers(dt);
     this.checkKing();
     this.updateErrands();
+    this.updateGangStories();
 
     if (!run.over) {
       run.hunger = Math.max(0, run.hunger - HUNGER_DRAIN * dt);
