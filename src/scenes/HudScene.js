@@ -2876,7 +2876,11 @@ export class HudScene extends Phaser.Scene {
         ? `街上的乞丐、摊主和店家都认了你。\n老周把碗一放：以后这条街，你说了算。\n\n站在你这边的人：${backers
             .map((p) => p.name)
             .join('、')}`
-        : '你把攒下的十万块拍在桌上。\n没有人再问你昨天睡在哪儿。\n\n这条街，从今天起姓你的姓。'
+        : king.how === 'gang'
+          ? `${king.gang || '街上那帮流浪汉'}的人把你推了上去。\n${
+              king.leader || '他们'
+            }把碗一放：以后这条街，你说了算。\n\n再没人问你昨天睡在哪儿。`
+          : '你把攒下的十万块拍在桌上。\n没有人再问你昨天睡在哪儿。\n\n这条街，从今天起姓你的姓。'
     );
 
     this.winStats.setText(
@@ -6100,7 +6104,7 @@ export class HudScene extends Phaser.Scene {
       if (sig !== this.shown.homeSig) this.refreshHome();
     }
 
-    if (run.over && !this.overOpen) this.showOverlay(run);
+    if (run.over && !run.won && !this.overOpen) this.showOverlay(run);
     else if (!run.over && this.overOpen) this.hideOverlay();
 
     if (this.shopOpen) {

@@ -15,6 +15,7 @@ import { RECIPES, recipeById, amountOf, spendMaterial } from '../craft.js';
 import { makeGoalsForDay } from '../goals.js';
 import { saveGame, loadGame, clearGame } from '../save.js';
 import { KING, patronById, favorOf, kingProgress } from '../king.js';
+import { GANGS, GANG_CROWN, gangStanding, addStanding, pickGangQuest } from '../gangs.js';
 import { SKILLS, addSkill, skillLevel, skillBonus, bookBonus } from '../skill.js';
 import { zhouGreeting } from '../dialogue.js';
 import {
@@ -477,6 +478,7 @@ export class StreetScene extends Phaser.Scene {
     this.buildSlotMachines();
     this.buildBenches();
     if (this.strips.some((strip) => strip.district.shops)) this.buildShops();
+    this.buildGangCamps();
     this.buildPrompt();
 
     this.nightDeadline = 0;
@@ -521,6 +523,172 @@ export class StreetScene extends Phaser.Scene {
 
     // Old Zhou says what the day's list is once the screen has settled.
     this.time.delayedCall(700, () => this.announceGoals());
+  }
+
+  // ----------------------------------------------------------------- the gangs
+
+  /// The camps: a burning barrel, a pile of cardboard and two people sitting
+  /// close to it, in the alley, on the black street and in the park.
+  buildGangCamps() {
+    for (const gang of Object.values(GANGS)) {
+      const strip = this.stripFor(gang.district);
+      if (!strip) continue;
+
+      const x = strip.x0 + gang.spot.x;
+      const y = strip.y0 + gang.spot.y;
+
+      this.add.image(x, y, 'furn-fire').setOrigin(0.5, 1).setDepth(y);
+      this.add.image(x - 44, y - 2, 'cardboardpile').setOrigin(0.5, 1).setDepth(y - 1);
+      this.add.image(x - 26, y + 4, 'ped-drunk').setDepth(y + 1);
+      this.add.image(x + 34, y + 2, 'ped-drunk').setDepth(y + 2);
+
+      if (this.lightSpots) this.lightSpots.push({ x, y: y - 40 });
+
+      this.addInteractable({
+        x,
+        y: y - 12,
+        radius: 84,
+        label: `${gang.name}·营地`,
+        use: () => this.talkGang(gang.id)
+      });
+    }
+  }
+
+  gangQuestOf(id) {
+    this.run.gangQuest = this.run.gangQuest || {};
+    return this.run.gangQuest[id] || null;
+  }
+
+  gangZoneName(id) {
+    const names = {
+      market: '市场街',
+      square: '火车站广场',
+      alley: '后巷',
+      park: '小公园',
+      camp: '城郊营地',
+      slum: '黑街',
+      commerce: '商业区'
+    };
+
+    return names[id] || '街上';
+  }
+
+  questText(quest) {
+    if (!quest) return '';
+    if (quest.kind === 'money') return `${quest.need} 元`;
+    if (quest.kind === 'tell') return `去${this.gangZoneName(quest.district)}传个话`;
+
+    const item = JUNK_ITEMS[quest.id];
+    return `${item ? item.name : '东西'} ${quest.need} 件`;
+  }
+
+  questProgress(quest) {
+    if (!quest) return 0;
+    if (quest.kind === 'money') return Math.min(quest.need, this.run.money);
+    if (quest.kind === 'tell') return this.district && this.district.id === quest.district ? 1 : 0;
+
+    return Math.min(quest.need, this.run.items[quest.id] || 0);
+  }
+
+  questDone(quest) {
+    return !!quest && this.questProgress(quest) >= quest.need;
+  }
+
+  talkGang(id) {
+    const gang = GANGS[id];
+    const hud = this.scene.get('Hud');
+    if (!gang || !hud || !hud.showDialogue) return;
+
+    const standing = gangStanding(this.run, id);
+    const tier = standing >= GANG_CROWN ? 3 : standing >= 30 ? 2 : standing >= 12 ? 1 : 0;
+    const lines = [gang.story[Math.min(tier, gang.story.length - 1)]];
+    const quest = this.gangQuestOf(id);
+
+    if (standing >= GANG_CROWN) {
+      lines.push(`（声望 ${standing}）街面上都认你了。要不要我们把你推上去？`);
+      hud.showDialogue(gang.speaker, lines, null, [
+        { label: '现在就选', onPick: () => this.gangCrown(id) },
+        { label: '再等等' }
+      ]);
+      return;
+    }
+
+    if (quest && this.questDone(quest)) {
+      lines.push(`要的东西齐了：${this.questText(quest)}。`);
+      hud.showDialogue(gang.speaker, lines, null, [
+        { label: '交差', onPick: () => this.finishGangQuest(id) },
+        { label: '再等等' }
+      ]);
+      return;
+    }
+
+    if (!quest) {
+      lines.push(`（声望 ${standing}）帮里有点事要人跑一趟。`);
+      hud.showDialogue(gang.speaker, lines, null, [
+        { label: '我接了', onPick: () => this.startGangQuest(id) },
+        { label: '回头再说' }
+      ]);
+      return;
+    }
+
+    lines.push(`要的东西：${this.questText(quest)}（${this.questProgress(quest)}/${quest.need}）`);
+    hud.showDialogue(gang.speaker, lines);
+  }
+
+  startGangQuest(id) {
+    const gang = GANGS[id];
+    if (!gang) return;
+
+    this.run.gangQuest = this.run.gangQuest || {};
+    this.run.gangQuest[id] = pickGangQuest(gang);
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast) hud.showToast(`接了${gang.name}的活：${this.questText(this.run.gangQuest[id])}`);
+    haptic('ui');
+    playSfx('ui');
+  }
+
+  finishGangQuest(id) {
+    const gang = GANGS[id];
+    const quest = this.gangQuestOf(id);
+    if (!gang || !quest || !this.questDone(quest)) return;
+
+    if (quest.kind === 'money') this.run.money -= quest.need;
+    if (quest.kind === 'item') this.run.items[quest.id] = Math.max(0, (this.run.items[quest.id] || 0) - quest.need);
+
+    this.refreshBagCount();
+    const standing = addStanding(this.run, id, quest.reward);
+    this.run.gangQuest[id] = null;
+
+    this.floatText(this.player.x, this.player.y - 50, `${gang.name} 声望 +${quest.reward}`, '#f2c46a');
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast) hud.showToast(`${gang.leader} 记下了你 · 声望 ${standing}/100`);
+    haptic('buy');
+    playSfx('buy');
+  }
+
+  /// Standing high enough in one gang: the street puts the beggar up, and the
+  /// gang is the one standing behind him.
+  gangCrown(id) {
+    const gang = GANGS[id];
+    const hud = this.scene.get('Hud');
+    if (!gang || !this.run || this.run.king) return;
+    if (!hud || !hud.showWin) return;
+
+    this.run.king = {
+      how: 'gang',
+      gang: gang.name,
+      leader: gang.leader,
+      day: this.run.day,
+      money: this.run.money
+    };
+    this.run.sitting = false;
+
+    this.stopChases();
+    haptic('jackpot');
+    playSfx('buy');
+
+    hud.showWin(this.run.king);
   }
 
   // ---------------------------------------------------------------- building
