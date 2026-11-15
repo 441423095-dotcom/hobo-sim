@@ -12,6 +12,15 @@ import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
 import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
 import { RECIPES, recipeById, amountOf, spendMaterial } from '../craft.js';
 import { makeGoalsForDay } from '../goals.js';
+import {
+  begGiveLine,
+  begRefuseLine,
+  stealNoticedLine,
+  stealCaughtLine,
+  peddleBuyLine,
+  peddleRefuseLine,
+  zhouAdvice
+} from '../lines.js';
 import { SHOPS, OUTFITS } from '../shops.js';
 import { FURNITURE, HOME_SCENE_COMFORT } from '../home.js';
 import { DAY_LENGTH, darknessAt, minutesToClock, segmentOf, segmentName } from '../time.js';
@@ -332,6 +341,7 @@ export class StreetScene extends Phaser.Scene {
     this.warnStage = 0;
     this.stepT = 0;
     this.musicTension = 0.15;
+    this.zhouAdviceAt = 0;
     this.alertExplained = false;
     this.loadHome();
     this.ensureGoals();
@@ -1432,6 +1442,7 @@ export class StreetScene extends Phaser.Scene {
     this.advanceTime(20);
     playSfx('steal');
     haptic('steal');
+    this.sayBubble(ped, stealNoticedLine());
     this.floatText(ped.sprite.x, ped.sprite.y - 34, '香水一散，他眼神就软了', '#c9a8e6');
     return true;
   }
@@ -1470,6 +1481,7 @@ export class StreetScene extends Phaser.Scene {
       this.progressGoal('steal', 1);
       playSfx('steal');
       haptic('steal');
+      this.sayBubble(ped, stealNoticedLine());
       return;
     }
 
@@ -1505,6 +1517,7 @@ export class StreetScene extends Phaser.Scene {
       this.progressGoal('steal', 1);
       playSfx('steal');
       haptic('steal');
+      this.sayBubble(ped, stealNoticedLine());
       return;
     }
 
@@ -1517,6 +1530,7 @@ export class StreetScene extends Phaser.Scene {
       this.addWanted(STEAL_ITEM_FAIL_WANTED);
 
       this.floatText(ped.sprite.x, ped.sprite.y - 34, '被抓住了手腕！', '#f0b0a0');
+      this.sayBubble(ped, stealCaughtLine());
       playSfx('caught');
       haptic('caught');
 
@@ -1536,6 +1550,7 @@ export class StreetScene extends Phaser.Scene {
     this.run.energy = Math.max(0, this.run.energy - STEAL_FAIL_ENERGY);
 
     this.floatText(ped.sprite.x, ped.sprite.y - 34, '干什么！', '#f0b0a0');
+    this.sayBubble(ped, stealCaughtLine());
     playSfx('stealFail');
     haptic('stealFail');
 
@@ -2284,7 +2299,7 @@ export class StreetScene extends Phaser.Scene {
     const zhouX = strip.x0 + 402;
     const zhouY = 612 + oy;
 
-    this.add.image(zhouX, zhouY, 'oldzhou').setOrigin(0.5, 1).setDepth(zhouY);
+    this.oldZhou = this.add.image(zhouX, zhouY, 'oldzhou').setOrigin(0.5, 1).setDepth(zhouY);
 
     this.add
       .text(zhouX, zhouY - 54, '老周', {
@@ -2419,12 +2434,45 @@ export class StreetScene extends Phaser.Scene {
     hud.showToast(`${this.goalsIntro()}「${active.label}」`);
   }
 
+  /// What Old Zhou would say about the state of the run right now.
+  zhouAdviceLine() {
+    return zhouAdvice({
+      hunger: this.run.hunger,
+      energy: this.run.energy,
+      money: this.run.money,
+      bag: this.run.bag,
+      segment: segmentOf(this.run.step),
+      clean: this.cleanLevel(),
+      cold: this.isColdNight() && !this.hasFire()
+    });
+  }
+
+  /// Walking past the tent, the old man calls out once in a while.
+  zhouCheck() {
+    if (!this.oldZhou || this.run.over) return;
+    if (this.time.now < this.zhouAdviceAt) return;
+
+    const d = Phaser.Math.Distance.Between(
+      this.player.x,
+      this.player.y,
+      this.oldZhou.x,
+      this.oldZhou.y
+    );
+    if (d > 170) return;
+
+    this.zhouAdviceAt = this.time.now + 45000;
+    this.sayBubble(this.oldZhou, this.zhouAdviceLine());
+  }
+
   /// Tapping the old man repeats the list, with how far each job has got.
   talkOldZhou() {
     haptic('ui');
 
     const goals = this.todayGoals();
     if (!goals.length) return;
+
+    // He says what he would do next before he runs through the list.
+    this.sayBubble(this.oldZhou, this.zhouAdviceLine());
 
     const lines = goals.map((goal) =>
       goal.done ? `${goal.label}·已办` : `${goal.label}·${goal.progress}/${goal.need}`
@@ -3016,10 +3064,18 @@ export class StreetScene extends Phaser.Scene {
   }
 
   dropCoin(from) {
+    // The walker hands the coin over with a word, in the voice of the street.
+    const giver = from && from.sprite ? from : null;
+    const source = giver ? giver.sprite : from;
+
+    if (giver) {
+      this.sayBubble(giver, begGiveLine(this.district.id, segmentOf(this.run.step)));
+    }
+
     const boost = this.district.begBoost || 1;
     const bonus = this.cleanLevel() > 0.8 ? 1 : 0;
     const amount = Math.max(1, Math.round((Phaser.Math.Between(1, 2) + bonus) * boost));
-    const coin = this.add.image(from.x, from.y - 6, 'coin').setDepth(from.y + 1);
+    const coin = this.add.image(source.x, source.y - 6, 'coin').setDepth(source.y + 1);
 
     const tx = this.run.sitting ? this.bowl.x : this.player.x;
     const ty = this.run.sitting ? this.bowl.y : this.player.y + 16;
@@ -3041,6 +3097,40 @@ export class StreetScene extends Phaser.Scene {
         playSfx('coin');
         haptic('coin');
       }
+    });
+  }
+
+  /// Something a passer-by says, in a bubble over their head. `who` is either a
+  /// walker or a bare sprite.
+  sayBubble(who, text) {
+    if (!who || !text) return;
+
+    const sprite = who.sprite || who;
+    if (!sprite || !sprite.active) return;
+
+    if (who.bubbleAt && this.time.now < who.bubbleAt) return;
+    who.bubbleAt = this.time.now + 1600;
+
+    const label = this.add
+      .text(sprite.x, sprite.y - 46, text, {
+        fontFamily: FONT,
+        fontSize: '14px',
+        color: '#fff3d2',
+        backgroundColor: 'rgba(24,18,12,0.86)',
+        padding: { x: 7, y: 4 },
+        align: 'center',
+        wordWrap: { width: 180 }
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(6500);
+
+    this.tweens.add({
+      targets: label,
+      y: sprite.y - 58,
+      alpha: 0,
+      duration: 1800,
+      ease: 'Quad.easeOut',
+      onComplete: () => label.destroy()
     });
   }
 
@@ -3320,7 +3410,7 @@ export class StreetScene extends Phaser.Scene {
         const lines = PED_THOUGHTS[ped.kind.id];
         if (lines && lines.length) {
           const line = lines[Phaser.Math.Between(0, lines.length - 1)];
-          this.floatText(ped.sprite.x, ped.sprite.y - 44, line, '#cfc3ae');
+          this.sayBubble(ped, line);
         }
       }
 
@@ -3348,8 +3438,22 @@ export class StreetScene extends Phaser.Scene {
       ) {
         if (near < BEG_RADIUS) {
           ped.gave = true;
-          this.dropCoin(ped.sprite);
+          this.dropCoin(ped);
         }
+      }
+
+      // The ones who will not stop say so, once, as they pass the bowl.
+      if (
+        this.run.sitting &&
+        !this.run.over &&
+        !ped.hostile &&
+        !ped.canGive &&
+        !ped.refusedShown &&
+        !ped.startled &&
+        near < BEG_RADIUS
+      ) {
+        ped.refusedShown = true;
+        this.sayBubble(ped, begRefuseLine(this.district.id, segmentOf(this.run.step)));
       }
     }
 
@@ -3533,6 +3637,7 @@ export class StreetScene extends Phaser.Scene {
       this.refreshBagCount();
 
       this.floatText(ped.sprite.x, ped.sprite.y - 34, `卖出去 +${price} 元`, UI.gold);
+      this.sayBubble(ped, peddleBuyLine());
       haptic('sell');
       playSfx('sell');
       ped.alert = Math.max(0, ped.alert - 0.15);
@@ -3549,7 +3654,7 @@ export class StreetScene extends Phaser.Scene {
       if (other !== ped) other.alert = Math.min(1, other.alert + 0.18);
     }
 
-    this.floatText(ped.sprite.x, ped.sprite.y - 34, '“谁要你这破玩意！”', '#f0b0a0');
+    this.sayBubble(ped, peddleRefuseLine());
     haptic('stealFail');
     playSfx('stealFail');
 
@@ -3813,6 +3918,7 @@ export class StreetScene extends Phaser.Scene {
     this.updateCops(dt);
     this.drawCones();
     this.updateNearest();
+    this.zhouCheck();
     this.checkExit();
     this.drawAlerts();
     this.drawSearchBar();
