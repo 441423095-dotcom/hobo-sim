@@ -2583,6 +2583,7 @@ export class HudScene extends Phaser.Scene {
 
     this.closeDialogue(true);
     haptic('ui');
+    this.inputLockUntil = Math.max(this.inputLockUntil, this.time.now + 260);
 
     if (option.onPick) option.onPick();
     else if (done) done();
@@ -2594,6 +2595,11 @@ export class HudScene extends Phaser.Scene {
     this.dialogueOpen = false;
     this.hidePanel(this.dialogueLayer);
     this.showDialogueChoices(false);
+
+    // The tap that answered closes the dialogue, and the same tap must not fall
+    // through to the street and start the conversation all over again.
+    this.uiSettleAt = Math.max(this.uiSettleAt, this.time.now + 260);
+    this.inputLockUntil = Math.max(this.inputLockUntil, this.time.now + 260);
 
     const done = this.dialogueDone;
     this.dialogueDone = null;

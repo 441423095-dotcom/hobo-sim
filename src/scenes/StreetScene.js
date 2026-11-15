@@ -166,7 +166,7 @@ const PED_KINDS = {
     base: 0.45,
     watch: 0.34,
     speed: [18, 27],
-    loot: ['wallet', 'phone']
+    loot: ['wallet', 'phone', 'cigarettes', 'vape']
   },
   lady: {
     id: 'lady',
@@ -176,7 +176,7 @@ const PED_KINDS = {
     base: 0.5,
     watch: 0.26,
     speed: [14, 22],
-    loot: ['phone', 'wallet']
+    loot: ['phone', 'wallet', 'gum', 'perfume']
   },
   drunk: {
     id: 'drunk',
@@ -186,7 +186,7 @@ const PED_KINDS = {
     base: 0.7,
     watch: 0.14,
     speed: [9, 16],
-    loot: ['cigarettes', 'snackbar']
+    loot: ['cigarettes', 'snackbar', 'lighter', 'gum']
   },
   rich: {
     id: 'rich',
@@ -196,7 +196,7 @@ const PED_KINDS = {
     base: 0.3,
     watch: 0.42,
     speed: [20, 29],
-    loot: ['phone', 'wallet']
+    loot: ['watch', 'phone', 'perfume', 'earbuds']
   },
   gang: {
     id: 'gang',
@@ -206,7 +206,7 @@ const PED_KINDS = {
     base: 0.35,
     watch: 0.5,
     speed: [16, 24],
-    loot: ['cigarettes'],
+    loot: ['cigarettes', 'lighter'],
     hostile: true
   }
 };
@@ -1278,7 +1278,7 @@ export class StreetScene extends Phaser.Scene {
     if (this.benchSpot) return this.benchAsleep ? '正在睡着…点一下起身' : '起身';
     if (this.run.sitting) return '起身';
     if (this.nearest) return this.nearest.label;
-    if (this.seenByPolice()) return '警察正看着你，别动手';
+    if (this.seenByPolice()) return '城管正看着你，别动手';
 
     // Close enough to talk a passer-by into buying something.
     if (this.peddleTarget && this.peddleItems().length) {
@@ -1402,7 +1402,7 @@ export class StreetScene extends Phaser.Scene {
 
     if (this.seenByPolice() && !this.run.tools.blade) {
       haptic('refuse');
-      this.floatText(this.player.x, this.player.y - 44, '警察正看着你', '#f0a08a');
+      this.floatText(this.player.x, this.player.y - 44, '城管正看着你', '#f0a08a');
       return;
     }
 
@@ -2746,7 +2746,7 @@ export class StreetScene extends Phaser.Scene {
     this.searching = null;
     this.searchBarGfx.clear();
     this.addWanted(SEEN_WANTED);
-    this.floatText(this.player.x, this.player.y - 46, '警察看过来了！', '#f0a08a');
+    this.floatText(this.player.x, this.player.y - 46, '城管看过来了！', '#f0a08a');
     playSfx('refuse');
     haptic('refuse');
   }
@@ -3796,7 +3796,7 @@ export class StreetScene extends Phaser.Scene {
     cop.chaseUntil = this.time.now + COP_CHASE_TIME;
     cop.mark.setVisible(true);
 
-    this.floatText(this.player.x, this.player.y - 52, '有人报警了！', '#f0a08a');
+    this.floatText(this.player.x, this.player.y - 52, '城管来了！', '#f0a08a');
     playSfx('alarm');
     haptic('alarm');
     return true;
@@ -3890,20 +3890,55 @@ export class StreetScene extends Phaser.Scene {
   }
 
   finePlayer() {
-    const fine = Math.min(this.run.money, Phaser.Math.Between(6, 12));
+    // Caught by the 城管: a share of the money goes, a couple of things out of
+    // the bag go in their bin, and the beggar is walked out of the station at
+    // the square an hour later with nothing to show for it.
+    const fine = Math.floor(this.run.money * 0.4);
     this.run.money -= fine;
+    const taken = this.confiscate(2);
+
     this.run.energy = Math.max(0, this.run.energy - CAUGHT_ENERGY);
     this.stealReadyAt = this.time.now + 5000;
     this.cameras.main.flash(240, 120, 30, 30);
 
-    if (fine > 0) {
-      this.floatText(this.player.x, this.player.y - 46, `罚款 ${fine} 元`, '#f08a7a');
-    } else {
-      this.floatText(this.player.x, this.player.y - 46, '被训了一顿', '#f08a7a');
-    }
-
     playSfx('caught');
     haptic('caught');
+
+    const hud = this.scene.get('Hud');
+    if (hud && hud.showToast) {
+      hud.showToast(
+        `被城管带走了：扣 ${fine} 元${taken ? `，没收了${taken}` : ''}。\n在广场派出所蹲了一下午才放出来`
+      );
+    }
+
+    this.stopChases();
+    this.time.delayedCall(500, () => {
+      this.scene.restart({ district: 'square', run: this.run, spawn: 'top' });
+    });
+  }
+
+  /// Takes up to `n` things out of the bag, the scrap first. Returns a label.
+  confiscate(n) {
+    const names = [];
+
+    for (let i = 0; i < n; i++) {
+      const junk = JUNK_ORDER.find((id) => (this.run.items[id] || 0) > 0);
+
+      if (junk) {
+        this.run.items[junk] -= 1;
+        names.push(JUNK_ITEMS[junk].name);
+        continue;
+      }
+
+      const loot = LOOT_ORDER.find((id) => (this.run.loot[id] || 0) > 0);
+      if (!loot) break;
+
+      this.run.loot[loot] -= 1;
+      names.push(LOOT_ITEMS[loot].name);
+    }
+
+    this.refreshBagCount();
+    return names.join('、');
   }
 
   fallDown() {
@@ -4430,7 +4465,9 @@ export class StreetScene extends Phaser.Scene {
       items.push({ id, kind: 'loot', name: item.name, count, value: item.price, tex: item.tex });
     }
 
-    return items.sort((a, b) => b.value - a.value);
+    // Only the things worth stopping for: nobody haggles over half a box of
+    // leftovers or a stick of gum.
+    return items.filter((item) => item.value >= 8).sort((a, b) => b.value - a.value);
   }
 
   /// A cigarette or a lottery ticket in the pocket is worth a lot more than it
