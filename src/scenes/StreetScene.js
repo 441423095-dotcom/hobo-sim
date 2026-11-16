@@ -743,7 +743,7 @@ export class StreetScene extends Phaser.Scene {
 
   /// Anything that catches: a match of paper, a stick, a scrap of cloth.
   brazierFuel() {
-    const fuels = ['newspaper', 'cardboard', 'flyer', 'receipt', 'cloth', 'stick'];
+    const fuels = ['newspaper', 'cardboard', 'cloth'];
 
     return fuels.find((id) => (this.run.items[id] || 0) > 0) || null;
   }
@@ -3307,10 +3307,10 @@ export class StreetScene extends Phaser.Scene {
   // ------------------------------------------------------------------- the bag
 
   bagLimit() {
-    if (this.run.bagUp === 'cart') return 40;
-    if (this.run.bagUp === 'woven') return 24;
+    if (this.run.bagUp === 'cart') return 55;
+    if (this.run.bagUp === 'woven') return 34;
 
-    return 12;
+    return 20;
   }
 
   cartSpeedMul() {
@@ -4197,9 +4197,9 @@ export class StreetScene extends Phaser.Scene {
 
     bus.searched = true;
 
-    this.addToBag('part', bus.x, bus.y - 18);
+    this.addToBag('pipe', bus.x, bus.y - 18);
 
-    if (Math.random() < 0.4) this.addToBag('part', bus.x + 10, bus.y - 18);
+    if (Math.random() < 0.4) this.addToBag('wire', bus.x + 10, bus.y - 18);
   }
 
   talkDepotKeeper() {

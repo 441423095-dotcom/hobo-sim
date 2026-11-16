@@ -47,7 +47,7 @@ export const GANGS = {
     quests: [
       { kind: 'item', id: 'pipe', need: 2, reward: 18 },
       { kind: 'money', need: 15, reward: 14 },
-      { kind: 'item', id: 'battery', need: 3, reward: 16 },
+      { kind: 'item', id: 'wire', need: 3, reward: 16 },
       {
         kind: 'tell',
         district: 'park',

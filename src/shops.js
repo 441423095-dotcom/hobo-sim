@@ -312,7 +312,7 @@ export function stockFor(shopId, run) {
       kind: 'bagup',
       refId: 'woven',
       name: '编织袋',
-      desc: '背包能装 24 件',
+      desc: '背包能装 34 件',
       icon: 'item-rag',
       price: priceOf(20),
       owned: bagUp === 'woven' || bagUp === 'cart'
@@ -323,7 +323,7 @@ export function stockFor(shopId, run) {
       kind: 'bagup',
       refId: 'cart',
       name: '手推车',
-      desc: '能装 40 件，但推着走不快',
+      desc: '能装 55 件，但推着走不快',
       icon: 'item-scrap',
       price: priceOf(60),
       owned: bagUp === 'cart'

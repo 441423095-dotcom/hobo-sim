@@ -20,7 +20,7 @@ import { KING, PATRONS, kingProgress, supporters } from '../king.js';
 import { SPEAKERS, shopTalk, tradeTalk, zhouLore } from '../dialogue.js';
 import { COFFEE_PRICE, COFFEE_ENERGY, KICK_WANTED, RECYCLE_KINDS, RECYCLE_UNIT } from '../vending.js';
 import { SLOT_COST, SLOT_SYMBOLS } from '../gamble.js';
-import { RECIPES, amountOf, materialLabel } from '../craft.js';
+import { RECIPES, amountOf, materialLabel, materialSource } from '../craft.js';
 import { seasonName } from '../city.js';
 import { skillLabel } from '../skill.js';
 import { errandHookLine, errandAskLines, errandHandIn, stepNeedText } from '../errands.js';
@@ -2471,7 +2471,7 @@ export class HudScene extends Phaser.Scene {
   refreshBackpack() {
     const run = this.street && this.street.run ? this.street.run : null;
     const entries = this.bagEntryList();
-    const limit = this.street && this.street.bagLimit ? this.street.bagLimit() : 12;
+    const limit = this.street && this.street.bagLimit ? this.street.bagLimit() : 20;
 
     this.bagSub.setText(run ? `背着 ${run.bag}/${limit} 件` : '');
     this.bagTip.setText(
@@ -4890,6 +4890,15 @@ export class HudScene extends Phaser.Scene {
     this.shown.craftSig = null;
     this.layoutCraft();
     this.refreshCraft();
+
+    const run = this.street && this.street.run ? this.street.run : null;
+    const missingPaper =
+      run && RECIPES.some((rec) => rec.blueprint && !run.blueprints[rec.id]);
+
+    this.craftHint.setText(
+      missingPaper ? '带图纸的配方：图纸在黑市买，材料从街上翻' : '翻来的废品在这儿变成能用的东西'
+    );
+
     haptic('ui');
   }
 
@@ -4955,12 +4964,16 @@ export class HudScene extends Phaser.Scene {
       const needs = Object.keys(needList)
         .map((id) => {
           const junk = JUNK_ITEMS[id];
-          const place = junk ? `(${junk.place})` : '';
+          const place = junk ? `(${junk.place})` : `(${materialSource(id)})`;
           return `${materialLabel(id)}${place} ${run ? amountOf(run, id) : 0}/${needList[id]}`;
         })
         .join(' · ');
 
-      this.fitRow(row.info, needs, this.craftInfoW || 150, 11);
+      // A recipe behind a blueprint says where the blueprint is bought, so a
+      // locked line is a next step rather than a dead end.
+      const paper = locked ? ` · 图纸：黑市 ${rec.blueprintPrice || 30} 元` : '';
+
+      this.fitRow(row.info, `${needs}${paper}`, this.craftInfoW || 150, 11);
       row.info.setColor(enough ? UI.creamDim : '#8a7a66');
       row.name.setColor(locked ? '#8a8070' : UI.cream);
 

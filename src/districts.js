@@ -76,7 +76,7 @@ export const DISTRICTS = {
     cops: 1,
     pedKinds: ['suit', 'student', 'lady', 'kid'],
     pedMs: 1250,
-    junk: ['can', 'flyer', 'snack'],
+    junk: ['can', 'snack', 'water'],
     bins: [
       { x: 140, y: 300 },
       { x: 400, y: 560 },
@@ -212,14 +212,14 @@ export const DISTRICTS = {
     cops: 0,
     pedKinds: ['drunk', 'worker', 'oldlady'],
     pedMs: 3200,
-    junk: ['stick', 'brick'],
+    junk: ['cardboard', 'newspaper'],
     bins: [
       { x: 140, y: 300 },
       { x: 400, y: 900 }
     ],
     litter: [
-      { x: 200, y: 500, kind: 'stick' },
-      { x: 250, y: 1100, kind: 'stick' }
+      { x: 200, y: 500, kind: 'newspaper' },
+      { x: 250, y: 1100, kind: 'cardboard' }
     ],
     mats: [{ x: 150, y: 800 }],
     vending: [{ x: 500, y: 700 }],
@@ -253,7 +253,7 @@ export const DISTRICTS = {
     begBoost: 0.6,
     pedKinds: ['drunk', 'worker'],
     pedMs: 2400,
-    junk: ['pipe', 'battery'],
+    junk: ['pipe', 'wire'],
     bins: [
       { x: 134, y: 200 },
       { x: 148, y: 420 },
@@ -268,7 +268,7 @@ export const DISTRICTS = {
     ],
     litter: [
       { x: 186, y: 300, kind: 'pipe' },
-      { x: 244, y: 880, kind: 'battery' },
+      { x: 244, y: 880, kind: 'wire' },
       { x: 172, y: 1060, kind: 'pipe' },
       { x: 462, y: 620, kind: 'pipe' },
       { x: 478, y: 1300, kind: 'pipe' }
@@ -303,14 +303,14 @@ export const DISTRICTS = {
     begBoost: 2.2,
     pedKinds: ['rich', 'rich', 'suit', 'student', 'lady'],
     pedMs: 950,
-    junk: ['receipt', 'cup'],
+    junk: ['can', 'newspaper'],
     bins: [
       { x: 142, y: 340 },
       { x: 506, y: 1020 }
     ],
     litter: [
-      { x: 200, y: 420, kind: 'receipt' },
-      { x: 468, y: 1200, kind: 'cup' }
+      { x: 200, y: 420, kind: 'can' },
+      { x: 468, y: 1200, kind: 'newspaper' }
     ],
     mats: [{ x: 452, y: 620 }],
     vending: [
@@ -383,14 +383,14 @@ export const DISTRICTS = {
     watch: 0.9,
     pedKinds: ['worker', 'drunk', 'oldlady'],
     pedMs: 2600,
-    junk: ['part', 'pipe', 'wire'],
+    junk: ['pipe', 'wire', 'can'],
     bins: [
       { x: 150, y: 300 },
       { x: 500, y: 900 }
     ],
     litter: [
-      { x: 220, y: 520, kind: 'part' },
-      { x: 420, y: 780, kind: 'part' },
+      { x: 220, y: 520, kind: 'pipe' },
+      { x: 420, y: 780, kind: 'wire' },
       { x: 200, y: 1180, kind: 'pipe' },
       { x: 470, y: 1250, kind: 'wire' }
     ],

@@ -1,6 +1,10 @@
 // What the workbench can turn the street's scrap into. Recipes either consume
 // raw junk straight out of the bag or use something an earlier recipe produced,
 // so the last two are where the money is.
+//
+// Every raw material has exactly one place in the chain below, and the two
+// recipes at the end are the ones worth working up to: the knife and the crowbar
+// both need a blueprint from the black market, and the panel says so.
 
 import { JUNK_ITEMS } from './trade.js';
 
@@ -19,7 +23,7 @@ export const RECIPES = [
     tex: 'item-rope',
     value: 6,
     blueprint: false,
-    need: { newspaper: 2 }
+    need: { newspaper: 2, cardboard: 1 }
   },
   {
     id: 'rag',
@@ -27,7 +31,7 @@ export const RECIPES = [
     tex: 'item-rag',
     value: 5,
     blueprint: false,
-    need: { cardboard: 2 }
+    need: { cloth: 2 }
   },
   {
     id: 'knife',
@@ -36,7 +40,7 @@ export const RECIPES = [
     value: 30,
     blueprint: true,
     blueprintPrice: 24,
-    need: { scrap: 1, rag: 1 }
+    need: { scrap: 1, rag: 1, wire: 1 }
   },
   {
     id: 'crowbar',
@@ -45,7 +49,7 @@ export const RECIPES = [
     value: 52,
     blueprint: true,
     blueprintPrice: 38,
-    need: { scrap: 2, rope: 1 }
+    need: { pipe: 2, rope: 1 }
   }
 ];
 
@@ -83,4 +87,16 @@ export function needLabel(need) {
   return Object.keys(need)
     .map((id) => `${materialLabel(id)}×${need[id]}`)
     .join(' · ');
+}
+
+/// Where a material comes from, in a few words the panel can print.
+export function materialSource(id) {
+  const junk = JUNK_ITEMS[id];
+  if (junk) return junk.place;
+
+  if (id === 'scrap') return '用易拉罐合成';
+  if (id === 'rope') return '用旧报纸和纸板合成';
+  if (id === 'rag') return '用破布头合成';
+
+  return '';
 }

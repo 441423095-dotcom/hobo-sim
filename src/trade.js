@@ -1,16 +1,19 @@
 // What the junk in the bag is worth, where on the street it came from, and
 // whether it is good for anything but a few coins. Every district drops its own
-// litter, so what the beggar is carrying tells the story of where they dug it up.
+// litter, so what the beggar is carrying tells the story of where he dug it up.
+//
+// The list is deliberately short: every item here is either eaten, fed to a fire,
+// used at the workbench, or taken back by the vending machine. Nothing exists
+// only to be sold.
 
 export const JUNK_ITEMS = {
   // 市场街：菜场边上，纸箱多，瓶子多。
-  cardboard: { name: '纸板', tex: 'item-card', price: 1, place: '市场街', use: '合成材料' },
-  bottle: { name: '玻璃瓶', tex: 'item-bottle', price: 2, place: '市场街', use: '只能卖钱' },
+  cardboard: { name: '纸板', tex: 'item-card', price: 1, place: '市场街', use: '合成绳子' },
+  bottle: { name: '玻璃瓶', tex: 'item-bottle', price: 2, place: '市场街', use: '卖钱，或塞回售货机' },
   veg: { name: '烂菜叶', tex: 'item-veg', price: 1, place: '市场街', use: '能吃，垫垫肚子', eat: { hunger: 5 } },
 
   // 火车站广场：传单、易拉罐、旅客吃剩的零食。
-  can: { name: '易拉罐', tex: 'item-can', price: 1, place: '火车站广场', use: '合成材料' },
-  flyer: { name: '传单', tex: 'item-flyer', price: 1, place: '火车站广场', use: '只能卖钱' },
+  can: { name: '易拉罐', tex: 'item-can', price: 1, place: '火车站广场', use: '合成废铁块' },
   snack: {
     name: '袋装零食',
     tex: 'item-snack',
@@ -21,8 +24,8 @@ export const JUNK_ITEMS = {
   },
 
   // 后巷：电线、破布、谁没喝完的酒。
-  wire: { name: '铜线', tex: 'item-wire', price: 4, place: '后巷', use: '只能卖钱' },
-  cloth: { name: '破布头', tex: 'item-cloth', price: 2, place: '后巷', use: '只能卖钱' },
+  wire: { name: '铜线', tex: 'item-wire', price: 4, place: '后巷', use: '合成刀具要它' },
+  cloth: { name: '破布头', tex: 'item-cloth', price: 2, place: '后巷', use: '合成破布' },
   wine: {
     name: '半瓶酒',
     tex: 'item-wine',
@@ -33,7 +36,7 @@ export const JUNK_ITEMS = {
   },
 
   // 小公园：长椅上丢的报纸和空水瓶。
-  newspaper: { name: '旧报纸', tex: 'item-news', price: 1, place: '小公园', use: '合成材料' },
+  newspaper: { name: '旧报纸', tex: 'item-news', price: 1, place: '小公园', use: '合成绳子，也能生火' },
   water: {
     name: '矿泉水瓶',
     tex: 'item-water',
@@ -43,43 +46,24 @@ export const JUNK_ITEMS = {
     eat: { hunger: 4 }
   },
 
-  // 城郊营地：荒地上的干树枝和碎砖头。
-  stick: { name: '干树枝', tex: 'item-stick', price: 1, place: '城郊营地', use: '只能卖钱' },
-  brick: { name: '碎砖头', tex: 'item-brick', price: 1, place: '城郊营地', use: '只能卖钱' },
-
-  // 黑街：拆迁楼里翻出来的铁管和废电池。
-  pipe: { name: '半截铁管', tex: 'item-pipe', price: 5, place: '黑街', use: '只能卖钱' },
-  battery: { name: '废电池', tex: 'item-battery', price: 3, place: '黑街', use: '只能卖钱' },
-
-  // 车底下、井盖里翻出来的东西：拆下来的旧零件。
-  part: { name: '车零件', tex: 'item-pipe', price: 6, place: '街角', use: '只能卖钱' },
-
-  // 商业区：写字楼底下的碎纸和咖啡杯。
-  receipt: { name: '长小票', tex: 'item-receipt', price: 2, place: '商业区', use: '只能卖钱' },
-  cup: { name: '空咖啡杯', tex: 'item-cup', price: 4, place: '商业区', use: '只能卖钱' }
+  // 黑街：拆迁楼里翻出来的铁管。
+  pipe: { name: '半截铁管', tex: 'item-pipe', price: 5, place: '黑街', use: '合成撬棍要它' }
 };
 
 // In street order, from the camp east, so the bag and the stall read the way
 // the city is laid out.
 export const JUNK_ORDER = [
-  'stick',
-  'brick',
   'cardboard',
   'bottle',
   'veg',
   'newspaper',
   'water',
   'can',
-  'flyer',
   'snack',
   'wire',
   'cloth',
   'wine',
-  'part',
-  'pipe',
-  'battery',
-  'receipt',
-  'cup'
+  'pipe'
 ];
 
 export const TOOLS = [
