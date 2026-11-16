@@ -123,7 +123,7 @@ export const DISTRICTS = {
       { x: 136, y: 600 },
       { x: 152, y: 820 },
       { x: 140, y: 1040 },
-      { x: 148, y: 1260 },
+      { x: 148, y: 940 },
       { x: 392, y: 240 },
       { x: 404, y: 470 },
       { x: 396, y: 700 },
@@ -170,11 +170,11 @@ export const DISTRICTS = {
     litter: [
       { x: 180, y: 320, kind: 'newspaper' },
       { x: 460, y: 760, kind: 'newspaper' },
-      { x: 400, y: 1080, kind: 'newspaper' }
+      { x: 250, y: 1120, kind: 'newspaper' }
     ],
     mats: [
       { x: 200, y: 700 },
-      { x: 470, y: 1180 }
+      { x: 470, y: 1060 }
     ],
     vending: [{ x: 508, y: 430 }],
     slots: [],
@@ -219,7 +219,7 @@ export const DISTRICTS = {
     ],
     litter: [
       { x: 200, y: 500, kind: 'newspaper' },
-      { x: 250, y: 1100, kind: 'cardboard' }
+      { x: 330, y: 1160, kind: 'cardboard' }
     ],
     mats: [{ x: 150, y: 800 }],
     vending: [{ x: 500, y: 700 }],
@@ -271,7 +271,7 @@ export const DISTRICTS = {
       { x: 244, y: 880, kind: 'wire' },
       { x: 172, y: 1060, kind: 'pipe' },
       { x: 462, y: 620, kind: 'pipe' },
-      { x: 478, y: 1300, kind: 'pipe' }
+      { x: 300, y: 1240, kind: 'pipe' }
     ],
     mats: [
       { x: 158, y: 620 },

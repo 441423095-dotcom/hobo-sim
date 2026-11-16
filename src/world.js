@@ -21,9 +21,9 @@ export const SHOP = {
   doorY: 400
 };
 
-// The junk stall in the corner of the market, beside the pawn shop, and the
+// The junk stall set into the frontage at the bottom of the market, and the
 // pawn shop set into the left building near the bottom of the block.
-export const STALL = { x: 200, y: 1330, vendorX: 252, vendorY: 1308 };
+export const STALL = { x: 130, y: 1330, vendorX: 176, vendorY: 1308 };
 
 // The workbench stands right at the tent door, in the camp; there is no bench
 // out on the street.

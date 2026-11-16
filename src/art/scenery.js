@@ -96,6 +96,16 @@ export function buildWorldArt(scene) {
   canvasTexture(scene, 'flowers', 32, 22, drawFlowers);
   canvasTexture(scene, 'neonsign', 26, 96, drawNeonSign);
 
+  // The bays the street-food carts are set into, the houses the gangs have moved
+  // into, and the odds and ends people leave against the walls.
+  canvasTexture(scene, 'stallbay', 132, 124, drawStallBay);
+  canvasTexture(scene, 'ruin', 120, 130, drawRuin);
+  canvasTexture(scene, 'planter', 30, 34, drawPlanter);
+  canvasTexture(scene, 'crate', 32, 28, drawCrate);
+  canvasTexture(scene, 'bike', 46, 28, drawBike);
+  canvasTexture(scene, 'bollard', 12, 22, drawBollard);
+  canvasTexture(scene, 'standpipe', 16, 74, drawStandpipe);
+
   // The yard behind the night market, and the buses rusting at the depot.
   canvasTexture(scene, 'stool', 22, 16, drawStool);
   canvasTexture(scene, 'buswreck', 96, 250, drawBusWreck);
@@ -584,6 +594,11 @@ function drawBuilding(ctx, w, y, height, isRight, look, r, district) {
     for (const wx of cols) drawWindow(ctx, wx, wy, 38, 34, look, r, district);
   }
 
+  // Some frontage steps out over the pavement, some is cut back into itself.
+  // That is what stops a row of buildings reading as one long flat wall.
+  if (height > 150 && r() < 0.55) drawBay(ctx, wallX, wallW, y, height, isRight, look, r);
+  if (height > 170 && r() < 0.45) drawRecess(ctx, wallX, wallW, y, height, isRight, r);
+
   const streetX = isRight ? wallX + 8 : wallX + wallW - 46;
 
   // A tank on the roof of the odd block, a fire escape down the side of another.
@@ -672,6 +687,37 @@ function drawBuilding(ctx, w, y, height, isRight, look, r, district) {
     ctx.fillStyle = 'rgba(10,10,12,0.22)';
     ctx.fillRect(streetX + 51, y + 10, 2, height - 14);
   }
+
+  // Posters pasted over each other, and the drainpipe that runs down the whole
+  // front of these buildings.
+  if (r() < 0.42) {
+    const px = isRight ? wallX + 6 : wallX + wallW - 26;
+    const py = y + 34 + Math.floor(r() * Math.max(10, height - 130));
+    const sheets = 1 + Math.floor(r() * 3);
+
+    for (let i = 0; i < sheets; i++) {
+      ctx.fillStyle = i % 2 ? 'rgba(226,214,186,0.42)' : 'rgba(198,172,134,0.34)';
+      ctx.fillRect(px, py + i * 15, 18, 13);
+      ctx.fillStyle = 'rgba(30,26,22,0.35)';
+      ctx.fillRect(px + 2, py + i * 15 + 4, 12, 1);
+      ctx.fillRect(px + 2, py + i * 15 + 8, 9, 1);
+    }
+  }
+
+  if (r() < 0.5) {
+    const pipeX = isRight ? wallX + 3 : wallX + wallW - 7;
+
+    ctx.fillStyle = 'rgba(38,34,30,0.9)';
+    ctx.fillRect(pipeX, y + 6, 4, height - 8);
+    ctx.fillStyle = 'rgba(255,232,196,0.1)';
+    ctx.fillRect(pipeX, y + 6, 1, height - 8);
+    ctx.fillStyle = 'rgba(20,18,16,0.9)';
+    for (let by = y + 30; by < y + height - 20; by += 40) ctx.fillRect(pipeX - 2, by, 8, 2);
+  }
+
+  // What the street actually touches: a plinth, a doorway with a step out onto
+  // the pavement, and a lamp over the ones still in use.
+  drawGroundFloor(ctx, wallX, wallW, y, height, isRight, r);
 }
 
 function drawWallPattern(ctx, x, y, w, h, look, r) {
@@ -2669,4 +2715,449 @@ function drawFlowers(ctx, w, h) {
     ctx.arc(bx, by, 1.2, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+
+// ------------------------------------------------------- bays, nooks, doorways
+
+/// A bay window shoving out over the pavement: its own little roof, a face of
+/// glass, and the shadow it drops down the wall under it. Drawn inside the
+/// building band, so the light and the shade have to do the work of the depth.
+function drawBay(ctx, wallX, wallW, y, height, isRight, look, r) {
+  const bw = 34 + Math.floor(r() * 24);
+  const bh = 40 + Math.floor(r() * 32);
+  const by = y + 34 + Math.floor(r() * Math.max(10, height - bh - 100));
+
+  // It starts at the street edge of the wall and reaches into it.
+  const bx = isRight ? wallX : wallX + wallW - bw;
+
+  // The shadow it throws down the wall and along under it.
+  ctx.fillStyle = 'rgba(0,0,0,0.34)';
+  ctx.fillRect(isRight ? bx + 7 : bx - 7, by + 7, bw + 10, bh + 9);
+
+  // The body of it, a shade lighter than the wall: it stands nearer the light.
+  ctx.fillStyle = 'rgba(255,232,196,0.1)';
+  ctx.fillRect(bx, by, bw, bh);
+
+  // Its roof, with a lip of light along the top and a hard shadow under it.
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(bx, by - 4, bw, 5);
+  ctx.fillStyle = 'rgba(255,238,206,0.16)';
+  ctx.fillRect(bx, by - 6, bw, 2);
+
+  // The glass in the face of it.
+  const gx = bx + 5;
+  const gw = bw - 10;
+  const gy = by + 8;
+  const gh = bh - 18;
+
+  ctx.fillStyle = r() > 0.62 ? look.lit[0] : look.windows[0];
+  ctx.fillRect(gx, gy, gw, gh);
+
+  ctx.fillStyle = 'rgba(12,10,8,0.8)';
+  ctx.fillRect(gx + gw / 2 - 1, gy, 2, gh);
+  ctx.fillRect(gx, gy + gh / 2 - 1, gw, 2);
+
+  ctx.fillStyle = 'rgba(200,225,235,0.12)';
+  ctx.fillRect(gx + 2, gy + 2, Math.max(4, gw * 0.3), gh - 4);
+
+  // The sill it stands on.
+  ctx.fillStyle = 'rgba(255,238,206,0.14)';
+  ctx.fillRect(bx - 2, by + bh - 4, bw + 4, 4);
+
+  // The side facing across the street catches the light; the back does not.
+  ctx.fillStyle = 'rgba(255,240,210,0.16)';
+  ctx.fillRect(isRight ? bx : bx + bw - 2, by, 2, bh);
+}
+
+/// A hole cut back into the wall: a doorway bricked up, a light well, a stair
+/// going down into a cellar. The near edges catch the light, the back is black.
+function drawRecess(ctx, wallX, wallW, y, height, isRight, r) {
+  const rw = 28 + Math.floor(r() * 20);
+  const rh = 58 + Math.floor(r() * 62);
+  const ry = y + 30 + Math.floor(r() * Math.max(10, height - rh - 90));
+  const rx = isRight ? wallX : wallX + wallW - rw;
+
+  // The dark inside it.
+  ctx.fillStyle = 'rgba(4,3,3,0.86)';
+  ctx.fillRect(rx, ry, rw, rh);
+
+  // The far wall, a little less black, and a slot of light down one corner.
+  ctx.fillStyle = 'rgba(62,56,48,0.45)';
+  ctx.fillRect(isRight ? rx + rw - 7 : rx, ry, 7, rh);
+
+  // The reveal: one edge lit, one edge black, which is what makes the hole read.
+  ctx.fillStyle = 'rgba(255,232,196,0.16)';
+  ctx.fillRect(isRight ? rx - 3 : rx + rw, ry, 3, rh);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(isRight ? rx + rw : rx - 3, ry, 3, rh);
+
+  // A rusted rail across the bottom of it.
+  ctx.fillStyle = 'rgba(24,22,20,0.9)';
+  ctx.fillRect(rx + 3, ry + rh - 14, rw - 6, 2);
+  ctx.fillRect(rx + 3, ry + rh - 8, rw - 6, 2);
+}
+
+/// The bottom few feet of a building, where it meets the pavement: a plinth, a
+/// doorway set back behind its reveal, and a step out onto the street.
+function drawGroundFloor(ctx, wallX, wallW, y, height, isRight, r) {
+  const baseY = y + height;
+  const bandH = 34 + Math.floor(r() * 16);
+  const top = baseY - bandH;
+
+  // The plinth, darker than the wall above it, with grime along the bottom.
+  ctx.fillStyle = 'rgba(0,0,0,0.26)';
+  ctx.fillRect(wallX, top, wallW, bandH);
+  ctx.fillStyle = 'rgba(0,0,0,0.34)';
+  ctx.fillRect(wallX, baseY - 5, wallW, 5);
+
+  // The step out onto the pavement, on the street side.
+  const stepX = isRight ? wallX : wallX + wallW - 8;
+  ctx.fillStyle = 'rgba(210,200,175,0.14)';
+  ctx.fillRect(stepX, top, 8, bandH);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(isRight ? stepX + 8 : stepX - 2, top, 2, bandH);
+
+  // The doorway itself, set back a few pixels behind its reveal.
+  const doorW = 24 + Math.floor(r() * 8);
+  const inset = Math.floor(r() * 8);
+  const doorX = isRight ? wallX + 8 + inset : wallX + wallW - 8 - doorW - inset;
+  const doorTop = top + 6;
+
+  ctx.fillStyle = 'rgba(240,226,196,0.1)';
+  ctx.fillRect(isRight ? doorX - 3 : doorX + doorW, doorTop, 3, bandH - 6);
+
+  const shut = r();
+
+  if (shut < 0.34) {
+    // A roller shutter, down since the shop closed.
+    ctx.fillStyle = '#3c3a36';
+    ctx.fillRect(doorX, doorTop, doorW, bandH - 6);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    for (let sy = doorTop + 2; sy < baseY - 6; sy += 4) ctx.fillRect(doorX, sy, doorW, 1);
+  } else if (shut < 0.58) {
+    // Boards across an opening nobody has been paid to fix.
+    ctx.fillStyle = '#141110';
+    ctx.fillRect(doorX, doorTop, doorW, bandH - 6);
+    ctx.fillStyle = '#3e3226';
+    ctx.fillRect(doorX - 2, doorTop + 6, doorW + 4, 5);
+    ctx.fillRect(doorX - 2, doorTop + 18, doorW + 4, 4);
+  } else {
+    // A doorway with a light on over it and a strip of it laid on the step.
+    ctx.fillStyle = '#100e0c';
+    ctx.fillRect(doorX, doorTop, doorW, bandH - 6);
+    ctx.fillStyle = 'rgba(250,214,150,0.5)';
+    ctx.fillRect(doorX + 4, doorTop + 4, doorW - 8, 2);
+    ctx.fillStyle = 'rgba(250,214,150,0.09)';
+    ctx.fillRect(doorX, baseY - 12, doorW, 12);
+  }
+
+  // A lamp bracket over the door of the odd building.
+  if (r() < 0.45) {
+    const lx = doorX + doorW / 2;
+
+    ctx.fillStyle = '#2a2622';
+    ctx.fillRect(lx - 1, doorTop - 13, 2, 9);
+    ctx.fillStyle = 'rgba(250,206,140,0.75)';
+    ctx.fillRect(lx - 2, doorTop - 6, 5, 3);
+
+    const glow = ctx.createRadialGradient(lx, doorTop - 4, 2, lx, doorTop - 4, 22);
+    glow.addColorStop(0, 'rgba(250,206,140,0.16)');
+    glow.addColorStop(1, 'rgba(250,206,140,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(lx - 22, doorTop - 26, 44, 44);
+  }
+}
+
+// --------------------------------------------------------- the bay a cart sits in
+
+/// The recess a street-food cart is set into: a hole in the building line with a
+/// lintel over it, a step out onto the pavement and a bulb burning inside. The
+/// cart itself goes over the top of this, so it reads as a stall in a doorway
+/// rather than as somebody's table left out in the middle of the street.
+function drawStallBay(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  // The hole itself, cut into the frontage.
+  ctx.fillStyle = 'rgba(10,8,6,0.92)';
+  ctx.fillRect(4, 0, w - 8, h - 10);
+
+  // The back wall of the bay, a shade off black so the cart has something to
+  // stand against.
+  ctx.fillStyle = 'rgba(30,26,21,0.9)';
+  ctx.fillRect(12, 10, w - 24, h - 26);
+
+  // The two reveals: the near one catching what light there is, the far one not.
+  ctx.fillStyle = 'rgba(240,226,196,0.12)';
+  ctx.fillRect(4, 0, 4, h - 10);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(w - 8, 0, 4, h - 10);
+
+  // The lintel across the top of the opening.
+  ctx.fillStyle = 'rgba(14,12,10,0.95)';
+  ctx.fillRect(0, 0, w, 6);
+
+  // The step out onto the pavement.
+  ctx.fillStyle = 'rgba(150,142,126,0.16)';
+  ctx.fillRect(2, h - 14, w - 4, 6);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(2, h - 8, w - 4, 2);
+
+  // The bulb over it, and the pool of light it lays on the back wall.
+  const glow = ctx.createRadialGradient(w / 2, 16, 3, w / 2, 16, 54);
+  glow.addColorStop(0, 'rgba(250,206,140,0.22)');
+  glow.addColorStop(1, 'rgba(250,206,140,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.fillStyle = 'rgba(252,220,160,0.8)';
+  ctx.fillRect(w / 2 - 2, 10, 4, 4);
+}
+
+// ----------------------------------------------------------- the corners of the map
+
+/// A house at the corner of the block that nobody has lived in for years: half
+/// the roof come down, the windows boarded, the door off its hinges. The gangs
+/// sleep in what is left of its doorway.
+function drawRuin(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  const r = seeded(9071);
+
+  // The wall, in two tired tones, with the render coming off it in sheets.
+  ctx.fillStyle = '#332c25';
+  ctx.fillRect(0, 22, w, h - 22);
+
+  for (let i = 0; i < 18; i++) {
+    ctx.fillStyle = r() > 0.5 ? 'rgba(72,58,46,0.55)' : 'rgba(26,20,16,0.6)';
+    ctx.fillRect(
+      Math.floor(r() * w),
+      26 + Math.floor(r() * (h - 62)),
+      9 + Math.floor(r() * 16),
+      7 + Math.floor(r() * 12)
+    );
+  }
+
+  // The roof, broken off and sagging in the middle.
+  ctx.fillStyle = '#1b1713';
+  ctx.beginPath();
+  ctx.moveTo(0, 26);
+  ctx.lineTo(16, 12);
+  ctx.lineTo(34, 24);
+  ctx.lineTo(52, 6);
+  ctx.lineTo(72, 22);
+  ctx.lineTo(90, 10);
+  ctx.lineTo(w, 24);
+  ctx.lineTo(w, 30);
+  ctx.lineTo(0, 30);
+  ctx.closePath();
+  ctx.fill();
+
+  // Beams hanging out of the broken edge.
+  ctx.strokeStyle = '#4a3a2c';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(26, 24);
+  ctx.lineTo(18, 44);
+  ctx.moveTo(70, 22);
+  ctx.lineTo(78, 40);
+  ctx.stroke();
+
+  drawBoardedWindow(ctx, 12, 44, 32, 30, r);
+  drawBoardedWindow(ctx, 76, 52, 32, 30, r);
+
+  // The doorway: no door in it, a strip of tarpaulin nailed across the top, and
+  // the black of the house behind.
+  ctx.fillStyle = '#0a0907';
+  ctx.fillRect(40, h - 62, 44, 62);
+
+  ctx.fillStyle = 'rgba(96,80,60,0.7)';
+  ctx.beginPath();
+  ctx.moveTo(38, h - 62);
+  ctx.lineTo(86, h - 66);
+  ctx.lineTo(84, h - 46);
+  ctx.lineTo(42, h - 43);
+  ctx.closePath();
+  ctx.fill();
+
+  // The step, cracked, and bricks fallen off it.
+  ctx.fillStyle = 'rgba(120,110,96,0.3)';
+  ctx.fillRect(36, h - 8, 52, 6);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(36, h - 3, 52, 3);
+
+  ctx.fillStyle = '#3e352c';
+  ctx.fillRect(96, h - 11, 9, 6);
+  ctx.fillRect(12, h - 10, 7, 5);
+
+  // Weeds at the foot of it.
+  ctx.strokeStyle = '#3f6630';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 9; i++) {
+    const bx = 4 + i * 13;
+
+    ctx.beginPath();
+    ctx.moveTo(bx, h - 2);
+    ctx.lineTo(bx + (i % 2 ? 3 : -3), h - 12 - (i % 3) * 4);
+    ctx.stroke();
+  }
+
+  // So much dirt ground into it that it reads as part of the street.
+  for (let i = 0; i < 10; i++) {
+    ctx.fillStyle = 'rgba(8,7,5,0.28)';
+    ctx.fillRect(Math.floor(r() * w), 30 + Math.floor(r() * (h - 42)), 8, 4);
+  }
+}
+
+function drawBoardedWindow(ctx, x, y, w, h, r) {
+  ctx.fillStyle = 'rgba(6,5,4,0.9)';
+  ctx.fillRect(x, y, w, h);
+
+  ctx.fillStyle = '#3e3226';
+  ctx.fillRect(x - 2, y + 5, w + 4, 5);
+  ctx.fillRect(x - 2, y + h - 13, w + 4, 5);
+
+  if (r() > 0.5) {
+    ctx.fillStyle = '#332a20';
+    ctx.fillRect(x + 4, y + 12, w + 4, 4);
+  }
+
+  ctx.fillStyle = 'rgba(255,232,196,0.06)';
+  ctx.fillRect(x, y, 2, h);
+}
+
+// --------------------------------------------------------------- odds and ends
+
+/// A concrete planter somebody still waters, with a shrub half dead in it.
+function drawPlanter(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.fillStyle = 'rgba(10,9,7,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(w / 2, h - 2, w * 0.44, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // The shrub.
+  const leaf = ['#3f6a3a', '#4f7d42', '#35562f'];
+
+  for (let i = 0; i < 5; i++) {
+    ctx.fillStyle = leaf[i % leaf.length];
+    ctx.beginPath();
+    ctx.arc(w * 0.28 + (i % 3) * 8, h * 0.4 - (i % 2) * 8, 7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // The planter itself.
+  ctx.fillStyle = '#4a4740';
+  ctx.fillRect(w * 0.14, h * 0.62, w * 0.72, h * 0.36);
+  ctx.fillStyle = '#5c584f';
+  ctx.fillRect(w * 0.14, h * 0.62, w * 0.72, 3);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(w * 0.14, h - 4, w * 0.72, 4);
+
+  // Soil showing at the top.
+  ctx.fillStyle = '#241c14';
+  ctx.fillRect(w * 0.2, h * 0.6, w * 0.6, 4);
+}
+
+/// A wooden crate left out for whoever wants it.
+function drawCrate(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.fillStyle = 'rgba(10,9,7,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(w / 2, h - 2, w * 0.44, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#5a4632';
+  ctx.fillRect(w * 0.1, h * 0.16, w * 0.8, h * 0.8);
+
+  ctx.fillStyle = '#6a5440';
+  for (let i = 0; i < 3; i++) ctx.fillRect(w * 0.1, h * 0.24 + i * h * 0.22, w * 0.8, 2);
+
+  ctx.strokeStyle = 'rgba(20,15,10,0.5)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(w * 0.1, h * 0.16, w * 0.8, h * 0.8);
+
+  ctx.fillStyle = '#4a3828';
+  ctx.fillRect(w * 0.14, h * 0.62, w * 0.72, 4);
+}
+
+/// A bicycle left leaning against the wall.
+function drawBike(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.fillStyle = 'rgba(10,9,7,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.5, h - 2, w * 0.44, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const wheelY = h - 8;
+
+  ctx.strokeStyle = '#2a2724';
+  ctx.lineWidth = 2;
+  for (const wx of [w * 0.26, w * 0.74]) {
+    ctx.beginPath();
+    ctx.arc(wx, wheelY, 9, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = '#6a7078';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(w * 0.26, wheelY);
+  ctx.lineTo(w * 0.46, wheelY - 13);
+  ctx.lineTo(w * 0.74, wheelY);
+  ctx.moveTo(w * 0.46, wheelY - 13);
+  ctx.lineTo(w * 0.6, wheelY - 17);
+  ctx.stroke();
+
+  ctx.fillStyle = '#241f1b';
+  ctx.fillRect(w * 0.2, wheelY - 18, 9, 3);
+
+  ctx.strokeStyle = '#8a8f94';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(w * 0.6, wheelY - 17);
+  ctx.lineTo(w * 0.64, wheelY - 23);
+  ctx.stroke();
+
+  ctx.fillStyle = '#8a8f94';
+  ctx.fillRect(w * 0.6, wheelY - 24, 10, 2);
+}
+
+/// A short post keeping the cars off the pavement.
+function drawBollard(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.fillStyle = 'rgba(10,9,7,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(w / 2, h - 2, w * 0.5, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#3e4248';
+  ctx.fillRect(w * 0.3, h * 0.18, w * 0.4, h * 0.82);
+  ctx.fillStyle = '#565a60';
+  ctx.fillRect(w * 0.3, h * 0.18, 2, h * 0.82);
+  ctx.fillStyle = 'rgba(220,220,210,0.35)';
+  ctx.fillRect(w * 0.3, h * 0.36, w * 0.4, 3);
+}
+
+/// A standpipe running down the front of a building, with its brackets.
+function drawStandpipe(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.fillStyle = 'rgba(10,9,7,0.25)';
+  ctx.fillRect(w * 0.2, 4, 3, h - 4);
+
+  ctx.fillStyle = '#4a4640';
+  ctx.fillRect(w * 0.35, 2, w * 0.34, h - 6);
+  ctx.fillStyle = 'rgba(240,230,210,0.12)';
+  ctx.fillRect(w * 0.35, 2, 2, h - 6);
+
+  ctx.fillStyle = '#2c2824';
+  for (let by = 12; by < h - 8; by += 22) ctx.fillRect(w * 0.28, by, w * 0.44, 3);
+
+  ctx.fillStyle = '#3a3630';
+  ctx.fillRect(w * 0.28, 0, w * 0.48, 4);
 }

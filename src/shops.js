@@ -61,8 +61,9 @@ export const SHOPS = [
     doorY: 180,
     radius: 76
   },
-  // Street-food carts, parked at the kerb in the middle of each block. They are
-  // drawn in the street rather than on the building, so they sort with the world.
+  // Street-food carts, each set back into a bay in the frontage rather than
+  // standing out in the street. The cart is drawn against the wall and the
+  // beggar orders from the pavement in front of it.
   {
     id: 'stall-market',
     name: '兰州拉面',
@@ -70,10 +71,10 @@ export const SHOPS = [
     blurb: '一碗热汤面，站着就吃完了',
     district: 'market',
     tex: 'foodstall-兰州拉面',
-    x: 214,
-    y: 612,
-    doorX: 236,
-    doorY: 718,
+    x: 0,
+    y: 780,
+    doorX: 150,
+    doorY: 876,
     radius: 80,
     ground: true
   },
@@ -84,10 +85,10 @@ export const SHOPS = [
     blurb: '蒸饺、拌面，赶车的人都在排',
     district: 'square',
     tex: 'foodstall-沙县小吃',
-    x: 214,
-    y: 812,
-    doorX: 236,
-    doorY: 918,
+    x: 0,
+    y: 400,
+    doorX: 150,
+    doorY: 496,
     radius: 80,
     ground: true
   },
@@ -98,10 +99,10 @@ export const SHOPS = [
     blurb: '炭火一旺，半条巷子都闻得到',
     district: 'alley',
     tex: 'foodstall-烧烤摊',
-    x: 214,
-    y: 912,
-    doorX: 236,
-    doorY: 1018,
+    x: 0,
+    y: 1150,
+    doorX: 150,
+    doorY: 1246,
     radius: 80,
     ground: true
   },
@@ -112,10 +113,10 @@ export const SHOPS = [
     blurb: '十块钱一份，菜码随便加',
     district: 'camp',
     tex: 'foodstall-盒饭',
-    x: 214,
+    x: 0,
     y: 932,
-    doorX: 236,
-    doorY: 1038,
+    doorX: 150,
+    doorY: 1028,
     radius: 80,
     ground: true
   },
@@ -126,10 +127,10 @@ export const SHOPS = [
     blurb: '一锅汤底从早滚到晚',
     district: 'slum',
     tex: 'foodstall-麻辣烫',
-    x: 214,
-    y: 712,
-    doorX: 236,
-    doorY: 818,
+    x: 512,
+    y: 304,
+    doorX: 496,
+    doorY: 400,
     radius: 80,
     ground: true
   },
@@ -140,10 +141,10 @@ export const SHOPS = [
     blurb: '薄脆现炸，排队的人也肯等',
     district: 'park',
     tex: 'foodstall-煎饼摊',
-    x: 398,
-    y: 1032,
-    doorX: 418,
-    doorY: 1138,
+    x: 0,
+    y: 950,
+    doorX: 150,
+    doorY: 1046,
     radius: 80,
     ground: true
   },
@@ -154,10 +155,10 @@ export const SHOPS = [
     blurb: '一杯二十，加料另算',
     district: 'commerce',
     tex: 'foodstall-奶茶',
-    x: 398,
-    y: 812,
-    doorX: 418,
-    doorY: 918,
+    x: 512,
+    y: 700,
+    doorX: 496,
+    doorY: 796,
     radius: 80,
     ground: true
   }

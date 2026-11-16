@@ -10,7 +10,7 @@ export const GANGS = {
     leader: '老鸦',
     speaker: 'crow',
     district: 'alley',
-    spot: { x: 200, y: 980 },
+    spot: { x: 440, y: 1295 },
     story: [
       '后巷这只火桶，是我烧了六年的。你是新来的吧。',
       '这条巷子里的桶，一半归我管。想在这儿翻东西，先跟我说句话。',
@@ -36,7 +36,7 @@ export const GANGS = {
     speaker: 'tin',
     district: 'slum',
     word: '黑街',
-    spot: { x: 200, y: 1000 },
+    spot: { x: 440, y: 1295 },
     story: [
       '黑街没什么规矩，除了我这条。',
       '要在这儿待，就得有点用。空手来的，我这儿不留。',
@@ -63,7 +63,7 @@ export const GANGS = {
     speaker: 'bench',
     leader: '老丁',
     district: 'park',
-    spot: { x: 240, y: 1150 },
+    spot: { x: 440, y: 1295 },
     story: ['公园这几张椅子，是我们先坐下的。', '不闹事、不抢碗，我们就当你是自己人。'],
     idle: '今天没什么事，坐下歇会儿吧。',
     quests: [

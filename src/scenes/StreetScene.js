@@ -943,6 +943,13 @@ export class StreetScene extends Phaser.Scene {
       const x = strip.x0 + gang.spot.x;
       const y = strip.y0 + gang.spot.y;
 
+      // The house at the corner of the block they have taken over: half its roof
+      // down, its windows boarded, and their fire burning in the doorway of it.
+      const rightSide = gang.spot.x > STREET_WIDTH / 2;
+      const ruinX = rightSide ? strip.x0 + RIGHT_BUILDINGS.x - 12 : strip.x0 - 8;
+
+      this.add.image(ruinX, y + 26, 'ruin').setOrigin(0, 1).setDepth(-27);
+
       this.add.image(x, y, 'furn-fire').setOrigin(0.5, 1).setDepth(y);
       this.add.image(x - 44, y - 2, 'cardboardpile').setOrigin(0.5, 1).setDepth(y - 1);
       this.add.image(x - 26, y + 4, 'ped-drunk').setDepth(y + 1);
@@ -1882,6 +1889,39 @@ export class StreetScene extends Phaser.Scene {
         const tex = Math.random() < 0.3 ? 'flowers' : 'grass';
         this.add.image(x0 + gx, y0 + gy, tex).setOrigin(0.5, 1).setDepth(y0 + gy);
       }
+
+      // The odds and ends left against the buildings: a planter somebody still
+      // waters, a crate nobody has taken in, a bicycle chained to a standpipe.
+      // They all stand at the wall, out of the way of anyone walking.
+      const odds = ['planter', 'crate', 'bike', 'bollard', 'standpipe'];
+
+      for (let oy = 130; oy < STREET_HEIGHT - 130; oy += 146) {
+        if (Math.random() > 0.5) continue;
+
+        const ox = Math.random() < 0.5 ? 124 : 512;
+
+        if (onCrossing(oy - 20, 44) || inAlleyMouth(oy - 20, 44)) continue;
+        if (carTops.some((top) => Math.abs(top + 48 - oy) < 110)) continue;
+        if (this.spotBlocked(strip, ox - 12, oy - 30, 24, 34)) continue;
+
+        // Clear of a shop door and of the bays the carts stand in.
+        const atShop = SHOPS.some(
+          (shop) =>
+            shop.district === strip.id &&
+            Math.abs(shop.doorX - ox) < 80 &&
+            Math.abs(shop.doorY - oy) < 80
+        );
+        if (atShop) continue;
+
+        const atBay = SHOPS.some(
+          (shop) =>
+            shop.ground && shop.district === strip.id && Math.abs(shop.y + 44 - oy) < 130
+        );
+        if (atBay) continue;
+
+        const keep = odds[Math.floor(Math.random() * odds.length)];
+        this.add.image(x0 + ox, y0 + oy, keep).setOrigin(0.5, 1).setDepth(y0 + oy);
+      }
     }
   }
 
@@ -2249,6 +2289,11 @@ export class StreetScene extends Phaser.Scene {
       const ox = market.x0;
       const oy = market.y0;
 
+      this.add
+        .image(STALL.x + ox - 66, STALL.y + oy - 116, 'stallbay')
+        .setOrigin(0, 0)
+        .setDepth(-27);
+
       this.add.image(STALL.x + ox, STALL.y + oy, 'stall').setOrigin(0.5, 1).setDepth(STALL.y + oy);
       this.add
         .image(STALL.vendorX + ox, STALL.vendorY + oy, 'ped-lady')
@@ -2287,6 +2332,15 @@ export class StreetScene extends Phaser.Scene {
     for (const strip of this.strips) {
       for (const shop of SHOPS) {
         if (shop.district !== strip.id) continue;
+
+        // A cart at the kerb is somebody trading out in the open; one set back
+        // into a bay is part of the building, and the pavement stays clear.
+        if (shop.ground) {
+          this.add
+            .image(shop.x + strip.x0 - 6, shop.y + strip.y0 - 34, 'stallbay')
+            .setOrigin(0, 0)
+            .setDepth(-27);
+        }
 
         this.add
           .image(shop.x + strip.x0, shop.y + strip.y0, shop.tex)
