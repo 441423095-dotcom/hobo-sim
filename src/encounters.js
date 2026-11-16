@@ -19,7 +19,7 @@ export const ENCOUNTERS = [
       { id: 'walk', label: '挣开走人', info: '他大概会骂两句' },
       { id: 'booze', label: '给他买瓶酒（4 元）', info: '他把兜里的东西掏给你' }
     ],
-    weight: (ctx) => (ctx.segment >= 2 ? 3 : 1)
+    weight: (ctx) => (ctx.segment >= 2 ? 2 : 1)
   },
   {
     id: 'cordon',
@@ -30,10 +30,9 @@ export const ENCOUNTERS = [
       { id: 'slip', label: '绕进巷子', info: '走掉最好，走不掉会被记住' },
       { id: 'bribe', label: '递五块钱', info: '他们当没看见你' }
     ],
-    weight: (ctx) =>
-      (ctx.district === 'market' || ctx.district === 'square' || ctx.district === 'commerce'
-        ? 3
-        : 1) + (ctx.wanted > 20 ? 1 : 0)
+    // A checkpoint is a bad day, not a habit: rare, and rarer still when there
+    // is no reason for them to be looking for the beggar.
+    weight: (ctx) => (ctx.wanted > 0 ? 0.8 : 0.25)
   },
   {
     id: 'reporter',

@@ -517,7 +517,7 @@ export class StreetScene extends Phaser.Scene {
     this.mugCheckAt = 0;
     this.errandAt = 0;
     this.storyAt = 0;
-    this.encAt = this.time.now + 16000;
+    this.encAt = this.time.now + 30000;
     this.snowFires = false;
     this.warnedWeather = null;
     this.awnings = [];
@@ -1750,6 +1750,9 @@ export class StreetScene extends Phaser.Scene {
     for (const s of strip.district.vending || []) spots.push([s.x, s.y - 24]);
     for (const s of strip.district.slots || []) spots.push([s.x, s.y]);
     for (const s of strip.district.benches || []) spots.push([s.x, s.y]);
+    for (const s of strip.district.litter || []) spots.push([s.x, s.y]);
+
+    if (strip.district.busStop) spots.push([strip.district.busStop.x, strip.district.busStop.y]);
 
     for (const s of strip.district.landmarks || []) {
       if (s.tex === 'tree' || s.tex === 'hedge') spots.push([s.x, s.y]);
@@ -1792,10 +1795,46 @@ export class StreetScene extends Phaser.Scene {
           .setDepth(y0 + cy);
       }
 
-      (decor.cars || []).forEach((cy, i) => {
+      // The crossings, the alley mouths and the parked cars all share the same
+      // strip of road; nothing that stands on it may sit in another's place.
+      const alleyBands = [];
+
+      if (neighbourOf(strip.id, 'west') || neighbourOf(strip.id, 'east')) {
+        for (const alley of ALLEYS) {
+          alleyBands.push([alley.y - 26, alley.y + ALLEY_H + 26]);
+        }
+      }
+
+      const onCrossing = (y, h) =>
+        (decor.crosswalks || []).some((cw) => y < cw + 54 + 34 && y + h > cw - 34);
+
+      const inAlleyMouth = (y, h) =>
+        alleyBands.some(([from, to]) => y < to && y + h > from);
+
+      const carTops = [];
+
+      (decor.cars || []).forEach((want, i) => {
         const cx = i % 2 === 0 ? ROAD.x + 8 : ROAD.x + ROAD.width - 62;
 
-        if (this.spotBlocked(strip, cx, cy, 54, 96)) return;
+        // A car goes where it fits: not on a crossing, not in front of an alley,
+        // not over a bin or a begging mat, and not into the car in front.
+        let cy = null;
+
+        for (const dy of [0, 130, -130, 260, -260, 390, -390]) {
+          const y = want + dy;
+
+          if (y < 40 || y > STREET_HEIGHT - 140) continue;
+          if (onCrossing(y, 96) || inAlleyMouth(y, 96)) continue;
+          if (this.spotBlocked(strip, cx, y, 54, 96)) continue;
+          if (carTops.some((top) => Math.abs(top - y) < 120)) continue;
+
+          cy = y;
+          break;
+        }
+
+        if (cy === null) return;
+
+        carTops.push(cy);
 
         this.add.image(x0 + cx, y0 + cy, 'parkedcar').setOrigin(0, 0).setDepth(y0 + cy + 96);
         add(x0 + cx + 4, y0 + cy + 4, 46, 88);
@@ -1809,14 +1848,29 @@ export class StreetScene extends Phaser.Scene {
       }
 
       // Grass and flowers along both kerbs, thicker where the street is looked
-      // after and thinner where nobody bothers.
+      // after and thinner where nobody bothers. They keep clear of the crossings,
+      // the alley mouths, the parked cars and everything to reach.
       const green = GREEN[strip.id] === undefined ? 0.2 : GREEN[strip.id];
+      const bus = strip.district.busStop;
 
       for (let gy = 90; gy < STREET_HEIGHT - 70; gy += 104) {
         if (Math.random() > green) continue;
 
         const gx = Math.random() < 0.5 ? 128 : 500;
-        if (this.spotBlocked(strip, gx, gy, 34, 24)) continue;
+
+        if (onCrossing(gy - 22, 24) || inAlleyMouth(gy - 22, 24)) continue;
+        if (carTops.some((top) => Math.abs(top + 48 - gy) < 100)) continue;
+        if (bus && Math.abs(gx - bus.x) < 70 && Math.abs(gy - bus.y) < 80) continue;
+
+        const atDoor = SHOPS.some(
+          (shop) =>
+            shop.district === strip.id &&
+            Math.abs(shop.doorX - gx) < 96 &&
+            Math.abs(shop.doorY - gy) < 90
+        );
+        if (atDoor) continue;
+
+        if (this.spotBlocked(strip, gx, gy - 22, 34, 24)) continue;
 
         const tex = Math.random() < 0.3 ? 'flowers' : 'grass';
         this.add.image(x0 + gx, y0 + gy, tex).setOrigin(0.5, 1).setDepth(y0 + gy);
@@ -1948,11 +2002,11 @@ export class StreetScene extends Phaser.Scene {
     const spots = {
       market: [
         { x: 150, y: 420, kind: 'manhole' },
-        { x: 470, y: 980, kind: 'car' }
+        { x: 300, y: 660, kind: 'car' }
       ],
       square: [
         { x: 210, y: 760, kind: 'manhole' },
-        { x: 500, y: 1210, kind: 'car' }
+        { x: 300, y: 980, kind: 'car' }
       ],
       alley: [
         { x: 455, y: 300, kind: 'backdoor' },
@@ -1968,7 +2022,7 @@ export class StreetScene extends Phaser.Scene {
         { x: 452, y: 1240, kind: 'backdoor' }
       ],
       commerce: [
-        { x: 420, y: 520, kind: 'car' },
+        { x: 300, y: 820, kind: 'car' },
         { x: 200, y: 1180, kind: 'manhole' }
       ]
     };
@@ -3746,10 +3800,10 @@ export class StreetScene extends Phaser.Scene {
     if (hud && hud.anyPanelOpen && hud.anyPanelOpen()) return;
 
     if (this.time.now < this.encAt) return;
-    this.encAt = this.time.now + 26000 + Math.random() * 34000;
+    this.encAt = this.time.now + 60000 + Math.random() * 45000;
 
     // Not every quiet stretch of street has something in it.
-    if (Math.random() > 0.55) return;
+    if (Math.random() > 0.4) return;
 
     const def = pickEncounter({
       district: this.district ? this.district.id : 'market',
