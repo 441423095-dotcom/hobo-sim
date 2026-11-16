@@ -187,9 +187,9 @@ const ALLEY_H = 78;
 // mat, a door or a machine — buildStreetDetail asks before it places anything.
 const STREET_DECOR = {
   camp: { crosswalks: [560], cars: [420], awnings: [] },
-  market: { crosswalks: [520, 1040], cars: [360, 880], awnings: [330] },
+  market: { crosswalks: [520, 1040], cars: [360], awnings: [330] },
   square: { crosswalks: [420, 1120], cars: [300], awnings: [520] },
-  commerce: { crosswalks: [600], cars: [420, 960], awnings: [300] },
+  commerce: { crosswalks: [600], cars: [420], awnings: [300] },
   alley: { crosswalks: [520], cars: [], awnings: [] },
   park: { crosswalks: [700], cars: [], awnings: [] },
   slum: { crosswalks: [860], cars: [300], awnings: [] }
@@ -1813,20 +1813,27 @@ export class StreetScene extends Phaser.Scene {
 
       const carTops = [];
 
+      // Where the street-food carts stand, so no car is parked alongside one.
+      const cartBands = SHOPS.filter(
+        (shop) => shop.ground && shop.district === strip.id
+      ).map((cart) => [cart.y - 90, cart.y + 200]);
+
       (decor.cars || []).forEach((want, i) => {
         const cx = i % 2 === 0 ? ROAD.x + 8 : ROAD.x + ROAD.width - 62;
 
         // A car goes where it fits: not on a crossing, not in front of an alley,
-        // not over a bin or a begging mat, and not into the car in front.
+        // not over a bin or a begging mat, not beside a food cart, and with a
+        // whole car's length between it and the next one.
         let cy = null;
 
-        for (const dy of [0, 130, -130, 260, -260, 390, -390]) {
+        for (const dy of [0, 160, -160, 320, -320]) {
           const y = want + dy;
 
           if (y < 40 || y > STREET_HEIGHT - 140) continue;
           if (onCrossing(y, 96) || inAlleyMouth(y, 96)) continue;
           if (this.spotBlocked(strip, cx, y, 54, 96)) continue;
-          if (carTops.some((top) => Math.abs(top - y) < 120)) continue;
+          if (carTops.some((top) => Math.abs(top - y) < 320)) continue;
+          if (cartBands.some(([from, to]) => y < to && y + 96 > from)) continue;
 
           cy = y;
           break;

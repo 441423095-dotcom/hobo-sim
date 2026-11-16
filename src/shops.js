@@ -43,9 +43,9 @@ export const SHOPS = [
     district: 'market',
     tex: 'clothesstore',
     x: 0,
-    y: 720,
+    y: 1010,
     doorX: 124,
-    doorY: 806,
+    doorY: 1096,
     radius: 76
   },
   {
