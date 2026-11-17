@@ -568,11 +568,10 @@ export class StreetScene extends Phaser.Scene {
     this.buildLamps();
     this.buildWalls();
     this.buildAlleyContent();
-    this.buildStreetDetail();
+    this.buildMats();
     this.buildBins();
     this.buildLitter();
     this.buildHides();
-    this.buildMats();
     this.buildPlayer();
     this.buildCops();
     this.buildGangs();
@@ -590,6 +589,9 @@ export class StreetScene extends Phaser.Scene {
     this.buildGangCamps();
     this.buildAlleyCorners();
     this.buildBraziers();
+
+    // Last, so it knows what everything else already covers.
+    this.buildStreetDetail();
     this.buildCover();
     this.buildPrompt();
 
@@ -607,6 +609,12 @@ export class StreetScene extends Phaser.Scene {
     cam.setBackgroundColor(0x191510);
     cam.startFollow(this.player, true, 0.14, 0.14);
     cam.centerOn(this.player.x, this.player.y);
+
+    // Say which street this is, so nine similar blocks are told apart at once.
+    const hudScene = this.scene.get('Hud');
+    if (hudScene && hudScene.showDistrictTitle) {
+      hudScene.showDistrictTitle(this.district.name, this.district.blurb);
+    }
 
     this.applyLayout();
 
@@ -720,6 +728,7 @@ export class StreetScene extends Phaser.Scene {
       const y = strip.y0 + spot.y;
 
       this.add.image(x, y, 'brazier').setOrigin(0.5, 1).setDepth(y);
+      this.claim(x, y, 42, 38);
 
       const fire = this.add
         .image(x, y - 2, 'furn-fire')
@@ -853,6 +862,7 @@ export class StreetScene extends Phaser.Scene {
       // One slumped against the bin, one flat out on the cardboard.
       this.add.image(x - 10, y + 4, 'gang-sit').setDepth(y + 3);
       this.add.image(x - 52, y + 2, 'gang-lie').setDepth(y + 2);
+      this.claim(x, y + 12, 200, 72);
 
       if (this.lightSpots) this.lightSpots.push({ x, y: y - 60 });
 
@@ -956,6 +966,7 @@ export class StreetScene extends Phaser.Scene {
       this.add.image(x - 44, y - 2, 'cardboardpile').setOrigin(0.5, 1).setDepth(y - 1);
       this.add.image(x - 26, y + 4, 'ped-drunk').setDepth(y + 1);
       this.add.image(x + 34, y + 2, 'ped-drunk').setDepth(y + 2);
+      this.claim(x + 6, y + 16, 226, 104);
 
       if (this.lightSpots) this.lightSpots.push({ x, y: y - 40 });
 
@@ -1334,7 +1345,10 @@ export class StreetScene extends Phaser.Scene {
 
   buildScenery() {
     for (const strip of this.strips) {
-      this.add.image(strip.x0, strip.y0, 'ground').setOrigin(0, 0).setDepth(-40);
+      this.add
+        .image(strip.x0, strip.y0, this.textures.exists(`ground-${strip.id}`) ? `ground-${strip.id}` : 'ground')
+        .setOrigin(0, 0)
+        .setDepth(-40);
       this.add
         .image(strip.x0 + LEFT_BUILDINGS.x, strip.y0, `bld-${strip.id}-left`)
         .setOrigin(0, 0)
@@ -1843,6 +1857,7 @@ export class StreetScene extends Phaser.Scene {
           if (this.spotBlocked(strip, cx, y, 54, 96)) continue;
           if (carTops.some((top) => Math.abs(top - y) < 320)) continue;
           if (cartBands.some(([from, to]) => y < to && y + 96 > from)) continue;
+          if (!this.roomFor(x0 + cx + 27, y0 + y + 96, 58, 96, 4)) continue;
 
           cy = y;
           break;
@@ -1853,13 +1868,15 @@ export class StreetScene extends Phaser.Scene {
         carTops.push(cy);
 
         this.add.image(x0 + cx, y0 + cy, 'parkedcar').setOrigin(0, 0).setDepth(y0 + cy + 96);
+        this.claim(x0 + cx + 27, y0 + cy + 96, 58, 96);
         add(x0 + cx + 4, y0 + cy + 4, 46, 88);
       });
 
       for (const ay of decor.awnings || []) {
-        if (this.spotBlocked(strip, 392, ay, 120, 26)) continue;
+        if (!this.roomFor(x0 + 392 + 60, y0 + ay + 26, 124, 30)) continue;
 
         this.add.image(x0 + 392, y0 + ay, 'awning').setOrigin(0, 0).setDepth(y0 + ay);
+        this.claim(x0 + 392 + 60, y0 + ay + 26, 124, 30);
         if (this.awnings) this.awnings.push({ x: x0 + 392, y: y0 + ay });
       }
 
@@ -1886,10 +1903,11 @@ export class StreetScene extends Phaser.Scene {
         );
         if (atDoor) continue;
 
-        if (this.spotBlocked(strip, gx, gy - 22, 34, 24)) continue;
+        if (!this.roomFor(x0 + gx, y0 + gy, 34, 26)) continue;
 
         const tex = Math.random() < 0.3 ? 'flowers' : 'grass';
         this.add.image(x0 + gx, y0 + gy, tex).setOrigin(0.5, 1).setDepth(y0 + gy);
+        this.claim(x0 + gx, y0 + gy, 34, 26);
       }
 
       // The odds and ends left against the buildings: a planter somebody still
@@ -1904,7 +1922,7 @@ export class StreetScene extends Phaser.Scene {
 
         if (onCrossing(oy - 20, 44) || inAlleyMouth(oy - 20, 44)) continue;
         if (carTops.some((top) => Math.abs(top + 48 - oy) < 110)) continue;
-        if (this.spotBlocked(strip, ox - 12, oy - 30, 24, 34)) continue;
+        if (!this.roomFor(x0 + ox, y0 + oy, 34, 46)) continue;
 
         // Clear of a shop door and of the bays the carts stand in.
         const atShop = SHOPS.some(
@@ -1923,6 +1941,7 @@ export class StreetScene extends Phaser.Scene {
 
         const keep = odds[Math.floor(Math.random() * odds.length)];
         this.add.image(x0 + ox, y0 + oy, keep).setOrigin(0.5, 1).setDepth(y0 + oy);
+        this.claim(x0 + ox, y0 + oy, 34, 46);
       }
     }
   }
@@ -2001,6 +2020,8 @@ export class StreetScene extends Phaser.Scene {
         bin.setData('charges', Phaser.Math.Between(2, 3));
         bin.setData('strip', strip.id);
 
+        this.claim(x, y + 14, 34, 48);
+
         this.addInteractable({
           x,
           y,
@@ -2031,6 +2052,10 @@ export class StreetScene extends Phaser.Scene {
           repeat: -1,
           ease: 'Sine.easeInOut'
         });
+
+        if (!this.roomFor(x, y + 8, 20, 18, 0)) continue;
+
+        this.claim(x, y + 10, 26, 24);
 
         const def = {
           x,
@@ -2104,6 +2129,7 @@ export class StreetScene extends Phaser.Scene {
 
         // Searched today or not: the spot is good again tomorrow.
         img.setData('day', -1);
+        this.claim(x, y, 62, 76);
 
         this.addInteractable({
           x,
@@ -2152,6 +2178,8 @@ export class StreetScene extends Phaser.Scene {
         const x = spot.x + strip.x0;
         const y = spot.y + strip.y0;
         this.add.image(x, y, 'beg-mat').setDepth(y - 20);
+        this.claim(x, y + 12, 46, 28);
+
         this.addInteractable({
           x,
           y,
@@ -2172,6 +2200,7 @@ export class StreetScene extends Phaser.Scene {
         const depth = mark.depth === undefined ? y : mark.depth;
 
         this.add.image(mark.x + strip.x0, y, mark.tex).setOrigin(ox, oy).setDepth(depth);
+        this.claim(mark.x + strip.x0, y + 10, 100, 118);
       }
     }
   }
@@ -2297,6 +2326,7 @@ export class StreetScene extends Phaser.Scene {
         .setDepth(-27);
 
       this.add.image(STALL.x + ox, STALL.y + oy, 'stall').setOrigin(0.5, 1).setDepth(STALL.y + oy);
+      this.claim(STALL.x + ox, STALL.y + oy, 84, 60);
       this.add
         .image(STALL.vendorX + ox, STALL.vendorY + oy, 'ped-lady')
         .setDepth(STALL.vendorY + oy);
@@ -2317,6 +2347,7 @@ export class StreetScene extends Phaser.Scene {
       const oy = commerce.y0;
 
       this.add.image(PAWN.x + ox, PAWN.y + oy, 'pawnshop').setOrigin(0, 0).setDepth(-28);
+      this.claim(PAWN.doorX + ox, PAWN.doorY + oy + 26, 76, 96);
 
       this.addInteractable({
         x: PAWN.doorX + ox,
@@ -2353,12 +2384,16 @@ export class StreetScene extends Phaser.Scene {
             .image(cookX, cookY, shop.cook || 'ped-worker')
             .setOrigin(0.5, 1)
             .setDepth(cookY);
+
+          this.claim(shop.x + strip.x0 + 60, shop.y + strip.y0 + 92, 140, 104);
         }
 
         this.add
           .image(shop.x + strip.x0, shop.y + strip.y0, shop.tex)
           .setOrigin(0, 0)
           .setDepth(shop.ground ? shop.y + strip.y0 + 88 : -28);
+
+        this.claim(shop.doorX + strip.x0, shop.doorY + strip.y0 + 26, 76, 98);
 
         this.addInteractable({
           x: shop.doorX + strip.x0,
@@ -2396,6 +2431,27 @@ export class StreetScene extends Phaser.Scene {
   addInteractable(def) {
     if (!def.radius) def.radius = 62;
     this.interactables.push(def);
+  }
+
+  /// Every object that stands on the street claims the ground it covers, so that
+  /// nothing else is drawn on top of it. The street furniture asks first and is
+  /// simply left out where the answer is no.
+  claim(x, y, w, h) {
+    if (!this.used) this.used = [];
+    this.used.push({ x: x - w / 2, y: y - h, w, h });
+  }
+
+  roomFor(x, y, w, h, pad = 4) {
+    if (!this.used || !this.used.length) return true;
+
+    const left = x - w / 2 - pad;
+    const top = y - h - pad;
+    const right = x + w / 2 + pad;
+    const bottom = y + pad;
+
+    return !this.used.some(
+      (u) => left < u.x + u.w && right > u.x && top < u.y + u.h && bottom > u.y
+    );
   }
 
   // ------------------------------------------------------------------ public
@@ -4170,6 +4226,7 @@ export class StreetScene extends Phaser.Scene {
         const y = spot.y + strip.y0;
 
         this.add.image(x, y, 'slotmachine').setOrigin(0.5, 1).setDepth(y);
+        this.claim(x, y, 52, 66);
 
         this.addInteractable({
           x: x - 6,
@@ -4190,6 +4247,7 @@ export class StreetScene extends Phaser.Scene {
         const tex = spot.tex || 'bench';
 
         this.add.image(x, y, tex).setOrigin(0.5, 1).setDepth(y);
+        this.claim(x, y, 70, 38);
 
         this.addInteractable({
           x,
@@ -4214,6 +4272,7 @@ export class StreetScene extends Phaser.Scene {
       const y = spot.y + strip.y0;
 
       this.add.image(x, y, 'busstop').setOrigin(0.5, 1).setDepth(y);
+      this.claim(x, y, 34, 70);
 
       this.addInteractable({
         x,
@@ -4260,6 +4319,7 @@ export class StreetScene extends Phaser.Scene {
       { x: 480 + ox, y: 700 + oy }
     ].map((bus) => {
       this.add.image(bus.x, bus.y, 'buswreck').setOrigin(0.5, 1).setDepth(bus.y);
+      this.claim(bus.x, bus.y, 100, 252);
 
       this.addInteractable({
         x: bus.x,
@@ -4285,6 +4345,7 @@ export class StreetScene extends Phaser.Scene {
     const ky = 250 + oy;
 
     this.add.image(kx, ky, 'shack').setOrigin(0.5, 1).setDepth(ky);
+    this.claim(kx, ky, 92, 68);
 
     // 老孙 himself, stood out in front of the hut with his back to the door.
     const sx = kx - 58;
@@ -4385,6 +4446,7 @@ export class StreetScene extends Phaser.Scene {
       const y = spot.y + oy;
 
       this.nightStalls.push(this.add.image(x, y, 'stall').setOrigin(0.5, 1).setDepth(y));
+      this.claim(x, y, 84, 60);
       this.nightStalls.push(this.add.image(x + 26, y + 14, 'ped-lady').setDepth(y + 15));
     }
 
@@ -4393,6 +4455,7 @@ export class StreetScene extends Phaser.Scene {
     const py = 700 + oy;
 
     this.add.image(px, py, 'ped-lady').setDepth(py);
+    this.claim(px, py + 22, 32, 46);
 
     this.addInteractable({
       x: px,
@@ -4562,6 +4625,7 @@ export class StreetScene extends Phaser.Scene {
         const y = spot.y + strip.y0;
 
         this.add.image(x, y, 'vending').setOrigin(0.5, 1).setDepth(y);
+        this.claim(x, y, 48, 76);
 
         const key = `${strip.id}:${spot.x}:${spot.y}`;
         this.vendingMachines.push({ key, x, y });
@@ -4797,6 +4861,7 @@ export class StreetScene extends Phaser.Scene {
     const oy = strip.y0;
 
     this.add.image(x, 540 + oy, 'tent').setOrigin(0.5, 1).setDepth(540 + oy);
+    this.claim(x, 540 + oy, 204, 152);
 
     this.addInteractable({
       x,
@@ -4813,6 +4878,7 @@ export class StreetScene extends Phaser.Scene {
       .image(benchX, WORKBENCH.y + oy, 'workbench')
       .setOrigin(0.5, 1)
       .setDepth(WORKBENCH.y + oy);
+    this.claim(benchX, WORKBENCH.y + oy, 74, 50);
 
     this.addInteractable({
       x: benchX - 5,
@@ -4828,6 +4894,7 @@ export class StreetScene extends Phaser.Scene {
     const zhouY = 612 + oy;
 
     this.oldZhou = this.add.image(zhouX, zhouY, 'oldzhou').setOrigin(0.5, 1).setDepth(zhouY);
+    this.claim(zhouX, zhouY, 34, 48);
 
     this.add
       .text(zhouX, zhouY - 54, '老周', {

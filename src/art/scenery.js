@@ -9,7 +9,17 @@ const LEFT_BUILDING_WIDTH = 112;
 const RIGHT_BUILDING_WIDTH = 112;
 
 export function buildWorldArt(scene) {
-  canvasTexture(scene, 'ground', WORLD.width, WORLD.height, drawGround);
+  // Every district lays its own ground, so the paving under the beggar's feet
+  // says which street he is standing in before he has looked up.
+  canvasTexture(scene, 'ground', WORLD.width, WORLD.height, (ctx, w, h) =>
+    drawGround(ctx, w, h, 'market')
+  );
+
+  for (const id of FACADE_DISTRICTS) {
+    canvasTexture(scene, `ground-${id}`, WORLD.width, WORLD.height, (ctx, w, h) =>
+      drawGround(ctx, w, h, id)
+    );
+  }
 
   // Every district builds its own two sides of the street, so the market is
   // brick and shop awnings, the station is pale stone, the business district is
@@ -130,46 +140,170 @@ export function buildWorldArt(scene) {
   canvasTexture(scene, 'furn-rug', 96, 30, drawFurnRug);
 }
 
-function drawGround(ctx, w, h) {
+// What each street is paved with. The city is one grid, so the road stays where
+// it is; what changes is the stone, the joints, the kerb and what has been
+// ground into it — a market of small pavers, a station of pale slabs, a back
+// alley of cracked concrete, a park with grass pushing through, a depot of oil
+// and gravel.
+const GROUNDS = {
+  market: {
+    pave: '#8b8577',
+    joint: 32,
+    slab: 80,
+    jointCol: 'rgba(30,26,20,0.16)',
+    road: '#474541',
+    mark: '#b9a45f',
+    kerb: '#9a9487',
+    grit: ['rgba(120,114,100,0.5)', 'rgba(58,53,46,0.32)'],
+    puddles: 3
+  },
+  square: {
+    pave: '#9c9990',
+    joint: 64,
+    slab: 128,
+    jointCol: 'rgba(40,38,34,0.2)',
+    road: '#4e4c48',
+    mark: '#d8d2c0',
+    kerb: '#b8b2a4',
+    grit: ['rgba(168,164,152,0.45)', 'rgba(70,68,62,0.28)'],
+    puddles: 2
+  },
+  alley: {
+    pave: '#6d6659',
+    joint: 24,
+    slab: 56,
+    jointCol: 'rgba(24,20,16,0.26)',
+    road: '#3c3a36',
+    mark: null,
+    kerb: '#7a7466',
+    grit: ['rgba(96,88,74,0.5)', 'rgba(40,36,30,0.4)'],
+    puddles: 6,
+    grime: true
+  },
+  park: {
+    pave: '#7d7a63',
+    joint: 40,
+    slab: 96,
+    jointCol: 'rgba(30,36,22,0.2)',
+    road: '#45443c',
+    mark: '#9aa06a',
+    kerb: '#8d8a70',
+    grit: ['rgba(104,118,74,0.45)', 'rgba(58,64,40,0.34)'],
+    puddles: 2,
+    grass: true
+  },
+  camp: {
+    pave: '#7a6a52',
+    joint: 48,
+    slab: 110,
+    jointCol: 'rgba(34,26,16,0.22)',
+    road: '#4a4136',
+    mark: null,
+    kerb: '#8a7a60',
+    grit: ['rgba(126,104,76,0.5)', 'rgba(56,44,30,0.36)'],
+    puddles: 1,
+    dirt: true
+  },
+  slum: {
+    pave: '#5e574e',
+    joint: 22,
+    slab: 50,
+    jointCol: 'rgba(18,14,12,0.3)',
+    road: '#343230',
+    mark: null,
+    kerb: '#6a6358',
+    grit: ['rgba(74,66,56,0.55)', 'rgba(28,24,20,0.45)'],
+    puddles: 5,
+    grime: true
+  },
+  commerce: {
+    pave: '#7f858c',
+    joint: 56,
+    slab: 112,
+    jointCol: 'rgba(24,28,34,0.22)',
+    road: '#3e4247',
+    mark: '#c8d2da',
+    kerb: '#9aa2aa',
+    grit: ['rgba(136,146,156,0.45)', 'rgba(44,50,58,0.3)'],
+    puddles: 2,
+    rails: true
+  },
+  nightlot: {
+    pave: '#8a7c62',
+    joint: 46,
+    slab: 100,
+    jointCol: 'rgba(36,28,16,0.2)',
+    road: '#4a443a',
+    mark: '#a89858',
+    kerb: '#9a8c70',
+    grit: ['rgba(136,120,92,0.5)', 'rgba(60,50,34,0.32)'],
+    puddles: 2,
+    paint: true
+  },
+  depot: {
+    pave: '#6f7375',
+    joint: 58,
+    slab: 120,
+    jointCol: 'rgba(24,26,28,0.22)',
+    road: '#3c3f41',
+    mark: '#c8c2a8',
+    kerb: '#8a8e90',
+    grit: ['rgba(116,122,124,0.5)', 'rgba(36,40,42,0.34)'],
+    puddles: 3,
+    oil: true
+  }
+};
+
+function drawGround(ctx, w, h, id) {
+  const look = GROUNDS[id] || GROUNDS.market;
+
   ctx.fillStyle = '#1b1814';
   ctx.fillRect(0, 0, w, h);
 
-  pavement(ctx, LEFT_PAVEMENT.x, LEFT_PAVEMENT.width, h, seeded(3));
-  pavement(ctx, RIGHT_PAVEMENT.x, RIGHT_PAVEMENT.width, h, seeded(5));
+  pavement(ctx, LEFT_PAVEMENT.x, LEFT_PAVEMENT.width, h, seeded(3), look);
+  pavement(ctx, RIGHT_PAVEMENT.x, RIGHT_PAVEMENT.width, h, seeded(5), look);
 
-  drawRoad(ctx, h, seeded(7));
+  drawRoad(ctx, h, seeded(7), look);
 
   // Kerbs either side of the road.
-  ctx.fillStyle = '#9a9487';
+  ctx.fillStyle = look.kerb;
   ctx.fillRect(ROAD.x - 4, 0, 4, h);
   ctx.fillRect(ROAD.x + ROAD.width, 0, 4, h);
 
-  // Warm light spilling out of the shop.
-  const glow = ctx.createRadialGradient(SHOP.doorX, SHOP.doorY, 8, SHOP.doorX, SHOP.doorY, 130);
-  glow.addColorStop(0, 'rgba(242,196,106,0.32)');
-  glow.addColorStop(1, 'rgba(242,196,106,0)');
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(SHOP.doorX, SHOP.doorY, 130, 0, Math.PI * 2);
-  ctx.fill();
+  // What this particular street has ground into it.
+  if (look.grass) drawVerges(ctx, h, look);
+  if (look.paint) drawStallMarks(ctx, h);
+  if (look.oil) drawOilStains(ctx, h);
+  if (look.dirt) drawDirt(ctx, h);
+
+  // Warm light spilling out of the corner shop.
+  if (id === 'market') {
+    const glow = ctx.createRadialGradient(SHOP.doorX, SHOP.doorY, 8, SHOP.doorX, SHOP.doorY, 130);
+    glow.addColorStop(0, 'rgba(242,196,106,0.32)');
+    glow.addColorStop(1, 'rgba(242,196,106,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(SHOP.doorX, SHOP.doorY, 130, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
-function pavement(ctx, x, w, h, r) {
-  ctx.fillStyle = '#8b8577';
+function pavement(ctx, x, w, h, r, look) {
+  ctx.fillStyle = look.pave;
   ctx.fillRect(x, 0, w, h);
 
-  for (let y = 0; y < h; y += 32) {
-    ctx.fillStyle = 'rgba(30,26,20,0.16)';
+  for (let y = 0; y < h; y += look.joint) {
+    ctx.fillStyle = look.jointCol;
     ctx.fillRect(x, y, w, 2);
   }
 
-  for (let row = 0; row * 32 < h; row++) {
-    const offset = (row % 2) * 40;
-    for (let px = x - offset; px < x + w; px += 80) {
+  for (let row = 0; row * look.joint < h; row++) {
+    const offset = (row % 2) * (look.slab / 2);
+    for (let px = x - offset; px < x + w; px += look.slab) {
       const startX = Math.max(x, px);
       if (startX < x + w) {
-        ctx.fillStyle = 'rgba(30,26,20,0.13)';
-        ctx.fillRect(startX, row * 32, 2, 32);
+        ctx.fillStyle = look.jointCol;
+        ctx.fillRect(startX, row * look.joint, 2, look.joint);
       }
     }
   }
@@ -177,7 +311,7 @@ function pavement(ctx, x, w, h, r) {
   for (let i = 0; i < 420; i++) {
     const px = x + Math.floor(r() * w);
     const py = Math.floor(r() * h);
-    ctx.fillStyle = r() > 0.5 ? 'rgba(120,114,100,0.5)' : 'rgba(58,53,46,0.32)';
+    ctx.fillStyle = r() > 0.5 ? look.grit[0] : look.grit[1];
     ctx.fillRect(px, py, 4, 4);
   }
 
@@ -198,7 +332,7 @@ function pavement(ctx, x, w, h, r) {
   }
 
   // Puddles catching the sky.
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < look.puddles; i++) {
     const px = x + 20 + r() * (w - 40);
     const py = r() * h;
     ctx.fillStyle = 'rgba(40,46,48,0.35)';
@@ -212,36 +346,124 @@ function pavement(ctx, x, w, h, r) {
   }
 }
 
-function drawRoad(ctx, h, r) {
-  ctx.fillStyle = '#474541';
+function drawRoad(ctx, h, r, look) {
+  ctx.fillStyle = look.road;
   ctx.fillRect(ROAD.x, 0, ROAD.width, h);
 
   for (let i = 0; i < 900; i++) {
     const x = ROAD.x + r() * ROAD.width;
     const y = r() * h;
-    ctx.fillStyle = r() > 0.5 ? '#3f3d39' : '#514e49';
+    ctx.fillStyle = r() > 0.5 ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.05)';
     ctx.fillRect(Math.floor(x), Math.floor(y), 4, 4);
   }
 
-  ctx.fillStyle = '#b9a45f';
-  for (let y = 10; y < h; y += 58) {
-    ctx.fillRect(ROAD.x + ROAD.width / 2 - 4, y, 8, 28);
+  // Tram rails down the business district, rusted into the asphalt.
+  if (look.rails) {
+    ctx.fillStyle = 'rgba(150,158,164,0.5)';
+    ctx.fillRect(ROAD.x + 18, 0, 3, h);
+    ctx.fillRect(ROAD.x + ROAD.width - 21, 0, 3, h);
+    ctx.fillStyle = 'rgba(30,32,34,0.5)';
+    ctx.fillRect(ROAD.x + 21, 0, 2, h);
+    ctx.fillRect(ROAD.x + ROAD.width - 18, 0, 2, h);
+  }
+
+  if (look.mark) {
+    ctx.fillStyle = look.mark;
+    for (let y = 10; y < h; y += 58) {
+      ctx.fillRect(ROAD.x + ROAD.width / 2 - 4, y, 8, 28);
+    }
   }
 
   // A manhole and a couple of drains.
-  ctx.fillStyle = '#3a3835';
+  ctx.fillStyle = 'rgba(20,19,17,0.7)';
   ctx.beginPath();
   ctx.arc(ROAD.x + ROAD.width / 2, 704, 16, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = '#2a2825';
+  ctx.strokeStyle = 'rgba(10,9,8,0.8)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.arc(ROAD.x + ROAD.width / 2, 704, 16, 0, Math.PI * 2);
   ctx.stroke();
+}
 
-  ctx.fillStyle = '#2d2b28';
-  ctx.fillRect(ROAD.x + 6, 520, 16, 26);
-  ctx.fillRect(ROAD.x + ROAD.width - 22, 1120, 16, 26);
+/// Grass pushing up between the paving in the park, along both kerbs.
+function drawVerges(ctx, h, look) {
+  const r = seeded(91);
+
+  for (let y = 0; y < h; y += 34) {
+    for (const x0 of [LEFT_PAVEMENT.x + 4, RIGHT_PAVEMENT.x + RIGHT_PAVEMENT.width - 22]) {
+      if (r() < 0.45) continue;
+
+      ctx.fillStyle = r() > 0.5 ? 'rgba(84,116,62,0.55)' : 'rgba(64,94,48,0.5)';
+      ctx.fillRect(x0, y, 18, 6);
+
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = '#4f7a3a';
+        ctx.fillRect(x0 + 2 + i * 4, y - 3 - (i % 2) * 2, 2, 4);
+      }
+    }
+  }
+
+  // Fallen leaves ground into the joints.
+  for (let i = 0; i < 260; i++) {
+    const x = LEFT_PAVEMENT.x + r() * (RIGHT_PAVEMENT.x + RIGHT_PAVEMENT.width - LEFT_PAVEMENT.x);
+    if (x > ROAD.x - 6 && x < ROAD.x + ROAD.width + 6) continue;
+    ctx.fillStyle = r() > 0.5 ? 'rgba(122,96,44,0.4)' : 'rgba(92,84,40,0.35)';
+    ctx.fillRect(Math.floor(x), Math.floor(r() * h), 3, 2);
+  }
+}
+
+/// The painted squares the night market's stalls stand in, faded to ghosts.
+function drawStallMarks(ctx, h) {
+  ctx.strokeStyle = 'rgba(232,214,164,0.14)';
+  ctx.lineWidth = 2;
+
+  for (let y = 120; y < h - 120; y += 240) {
+    ctx.strokeRect(LEFT_PAVEMENT.x + 12, y, 132, 96);
+    ctx.strokeRect(RIGHT_PAVEMENT.x + 14, y + 110, 132, 96);
+  }
+}
+
+/// Oil and diesel soaked into the concrete of the bus yard.
+function drawOilStains(ctx, h) {
+  const r = seeded(613);
+
+  for (let i = 0; i < 26; i++) {
+    const x = r() * 640;
+    const y = r() * h;
+
+    ctx.fillStyle = 'rgba(12,12,14,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 12 + r() * 26, 6 + r() * 12, r() * 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (r() > 0.6) {
+      ctx.fillStyle = 'rgba(60,80,70,0.18)';
+      ctx.beginPath();
+      ctx.ellipse(x - 3, y - 2, 6 + r() * 10, 3 + r() * 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+/// Bare earth worn through the paving out at the camp.
+function drawDirt(ctx, h) {
+  const r = seeded(377);
+
+  for (let i = 0; i < 30; i++) {
+    const x = r() * 640;
+    const y = r() * h;
+
+    ctx.fillStyle = 'rgba(92,72,48,0.32)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 20 + r() * 30, 10 + r() * 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  for (let i = 0; i < 180; i++) {
+    ctx.fillStyle = r() > 0.5 ? 'rgba(126,104,74,0.4)' : 'rgba(64,50,34,0.4)';
+    ctx.fillRect(Math.floor(r() * 640), Math.floor(r() * h), 3, 3);
+  }
 }
 
 // The two sides of the street are not one long wall: each stretch along them is

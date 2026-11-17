@@ -3844,6 +3844,8 @@ export class HudScene extends Phaser.Scene {
     this.edgeText.setPosition(w / 2, Math.max(178, below));
     this.toastText.setWordWrapWidth(Math.max(160, w - 48));
     this.toastText.setPosition(w / 2, Math.max(playH * 0.28, below + 36));
+
+    this.placeDistrictTitle();
   }
 
   /// The goal card: the story step on the first day, then the job in hand, with
@@ -6383,6 +6385,64 @@ export class HudScene extends Phaser.Scene {
     // there is to walk it. Tapping only says where it is.
     haptic('ui');
     this.mapHint.setText(`${DISTRICTS[id].name}就在这座城里，顺着街道走过去就行`);
+  }
+
+  /// The name of the street, big across the screen for a moment when the beggar
+  /// walks into it — the quickest way to know which of the nine he is standing in.
+  showDistrictTitle(name, sub) {
+    if (!name) return;
+
+    if (!this.districtTitle) {
+      this.districtTitle = this.add
+        .text(0, 0, '', {
+          fontFamily: FONT,
+          fontSize: '30px',
+          color: '#f2c46a',
+          stroke: '#100d09',
+          strokeThickness: 5
+        })
+        .setOrigin(0.5, 0.5)
+        .setDepth(DEPTH.overlay + 10)
+        .setAlpha(0);
+
+      this.districtSub = this.add
+        .text(0, 0, '', {
+          fontFamily: FONT,
+          fontSize: '14px',
+          color: '#cfc6b2',
+          stroke: '#100d09',
+          strokeThickness: 3
+        })
+        .setOrigin(0.5, 0.5)
+        .setDepth(DEPTH.overlay + 10)
+        .setAlpha(0);
+    }
+
+    this.districtTitle.setText(name).setVisible(true).setAlpha(1);
+    this.districtSub.setText(sub || '').setVisible(true).setAlpha(1);
+    this.placeDistrictTitle();
+
+    this.tweens.killTweensOf([this.districtTitle, this.districtSub]);
+    this.tweens.add({
+      targets: [this.districtTitle, this.districtSub],
+      alpha: 0,
+      delay: 1500,
+      duration: 900,
+      onComplete: () => {
+        this.districtTitle.setVisible(false);
+        this.districtSub.setVisible(false);
+      }
+    });
+  }
+
+  placeDistrictTitle() {
+    if (!this.districtTitle) return;
+
+    const w = this.scale.width;
+    const h = this.scale.height;
+
+    this.districtTitle.setPosition(w / 2, h * 0.2);
+    this.districtSub.setPosition(w / 2, h * 0.2 + 30);
   }
 
   showToast(text) {
