@@ -1876,7 +1876,6 @@ export class StreetScene extends Phaser.Scene {
         if (!this.roomFor(x0 + 392 + 60, y0 + ay + 26, 124, 30)) continue;
 
         this.add.image(x0 + 392, y0 + ay, 'awning').setOrigin(0, 0).setDepth(y0 + ay);
-        this.claim(x0 + 392 + 60, y0 + ay + 26, 124, 30);
         if (this.awnings) this.awnings.push({ x: x0 + 392, y: y0 + ay });
       }
 
@@ -1905,9 +1904,10 @@ export class StreetScene extends Phaser.Scene {
 
         if (!this.roomFor(x0 + gx, y0 + gy, 34, 26)) continue;
 
+        // Grass and flowers are only dressing: they keep off what can be
+        // touched, but they do not reserve the ground for themselves.
         const tex = Math.random() < 0.3 ? 'flowers' : 'grass';
         this.add.image(x0 + gx, y0 + gy, tex).setOrigin(0.5, 1).setDepth(y0 + gy);
-        this.claim(x0 + gx, y0 + gy, 34, 26);
       }
 
       // The odds and ends left against the buildings: a planter somebody still
@@ -1941,7 +1941,6 @@ export class StreetScene extends Phaser.Scene {
 
         const keep = odds[Math.floor(Math.random() * odds.length)];
         this.add.image(x0 + ox, y0 + oy, keep).setOrigin(0.5, 1).setDepth(y0 + oy);
-        this.claim(x0 + ox, y0 + oy, 34, 46);
       }
     }
   }
@@ -2040,8 +2039,13 @@ export class StreetScene extends Phaser.Scene {
         const kind = JUNK_ITEMS[spot.kind];
         if (!kind) continue;
 
-        const x = spot.x + strip.x0;
-        const y = spot.y + strip.y0;
+        // Nothing is drawn until there is somewhere to stand: a bottle that is
+        // painted on the pavement and cannot be picked up is worse than none.
+        const place = this.freeSpot(strip, spot.x, spot.y, 26, 24);
+        if (!place) continue;
+
+        const x = place.x + strip.x0;
+        const y = place.y + strip.y0;
         const sprite = this.add.image(x, y, kind.tex).setDepth(y);
 
         this.tweens.add({
@@ -2052,8 +2056,6 @@ export class StreetScene extends Phaser.Scene {
           repeat: -1,
           ease: 'Sine.easeInOut'
         });
-
-        if (!this.roomFor(x, y + 8, 20, 18, 0)) continue;
 
         this.claim(x, y + 10, 26, 24);
 
@@ -2452,6 +2454,42 @@ export class StreetScene extends Phaser.Scene {
     return !this.used.some(
       (u) => left < u.x + u.w && right > u.x && top < u.y + u.h && bottom > u.y
     );
+  }
+
+  /// The first spot within a step or two of (x, y) that nothing else has taken.
+  /// Litter uses it: it has to end up somewhere it can actually be picked up, so
+  /// if the place it was meant to lie is taken it slides along the pavement
+  /// rather than being dropped altogether.
+  freeSpot(strip, x, y, w, h) {
+    const tries = [
+      [0, 0],
+      [28, 0],
+      [-28, 0],
+      [0, 30],
+      [0, -30],
+      [28, 30],
+      [-28, 30],
+      [28, -30],
+      [-28, -30],
+      [0, 62],
+      [0, -62]
+    ];
+
+    for (const [dx, dy] of tries) {
+      const px = x + dx;
+      const py = y + dy;
+
+      // Only on a pavement, and never out at the ends of the block.
+      const onWalk = (px > 126 && px < 258) || (px > 382 && px < 514);
+      if (!onWalk) continue;
+      if (py < 70 || py > STREET_HEIGHT - 90) continue;
+
+      if (this.roomFor(strip.x0 + px, strip.y0 + py + 10, w, h, 0)) {
+        return { x: px, y: py };
+      }
+    }
+
+    return null;
   }
 
   // ------------------------------------------------------------------ public

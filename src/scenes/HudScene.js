@@ -416,14 +416,28 @@ export class HudScene extends Phaser.Scene {
       this.openMap();
     });
 
+    this.districtPill = this.add.graphics().setDepth(DEPTH.hud - 1);
+
     this.districtText = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '15px',
-        color: UI.creamDim
+        fontSize: '17px',
+        color: UI.gold,
+        stroke: '#100d09',
+        strokeThickness: 3
       })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.hud);
+
+    this.districtSubText = this.add
+      .text(0, 0, '', {
+        fontFamily: FONT,
+        fontSize: '11px',
+        color: UI.creamDim
+      })
+      .setOrigin(0.5, 0.5)
+      .setDepth(DEPTH.hud)
+      .setVisible(false);
 
     this.toastText = this.add
       .text(0, 0, '', {
@@ -3818,6 +3832,7 @@ export class HudScene extends Phaser.Scene {
       this.optIcon.setPosition(w - 86, 33);
     }
     this.districtText.setPosition(w / 2, 75);
+    this.drawDistrictBadge();
     this.clockText.setPosition(24, 33);
     this.wantedText.setPosition(w - 34, 104);
     this.bagBtn.setPosition(w - 104, 75);
@@ -6445,6 +6460,43 @@ export class HudScene extends Phaser.Scene {
     this.districtSub.setPosition(w / 2, h * 0.2 + 30);
   }
 
+  /// The street's name, always on screen in a chip of its own colour, with the
+  /// one line that says what this street is for. It is the answer to "where am
+  /// I" that does not need the map opening.
+  drawDistrictBadge() {
+    if (!this.districtPill || !this.districtText) return;
+
+    const w = this.scale.width;
+    const district = this.street && this.street.district ? this.street.district : null;
+    const blurb = district && district.blurb ? district.blurb : '';
+
+    this.districtSubText.setText(blurb).setVisible(!!blurb);
+
+    const padX = 18;
+    const bw = Math.max(
+      104,
+      Math.max(this.districtText.width, blurb ? this.districtSubText.width : 0) + padX * 2 + 16
+    );
+    const bh = blurb ? 46 : 30;
+    const bx = w / 2 - bw / 2;
+    const by = 56;
+
+    const g = this.districtPill;
+    g.clear();
+    g.fillStyle(0x14100c, 0.82);
+    g.fillRoundedRect(bx, by, bw, bh, 14);
+    g.lineStyle(1.5, UI.amber, 0.5);
+    g.strokeRoundedRect(bx, by, bw, bh, 14);
+
+    // A dab of the district's own colour: the same one its block has on the map.
+    const colour = district && district.mapColour !== undefined ? district.mapColour : UI.amber;
+    g.fillStyle(colour, 1);
+    g.fillCircle(bx + padX - 3, by + bh / 2, 5);
+
+    this.districtText.setPosition(w / 2 + 7, by + (blurb ? 16 : bh / 2));
+    if (blurb) this.districtSubText.setPosition(w / 2 + 7, by + 33);
+  }
+
   showToast(text) {
     if (!this.toastText) return;
 
@@ -7031,6 +7083,7 @@ export class HudScene extends Phaser.Scene {
     if (districtName !== this.shown.district) {
       this.shown.district = districtName;
       this.districtText.setText(districtName);
+      this.drawDistrictBadge();
     }
 
     const clock = street.getClockText ? street.getClockText() : '';
