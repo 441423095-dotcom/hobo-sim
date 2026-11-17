@@ -279,6 +279,32 @@ export class HudScene extends Phaser.Scene {
       this.input.off('pointerupoutside', this.onPointerUp, this);
     });
 
+    // Desktop play: the same axes the thumb joystick writes are fed from
+    // WASD / arrow keys, and the action button is Space. Touch and keyboard
+    // coexist — a live thumb always wins — so phones behave exactly as before.
+    const kb = this.input.keyboard;
+    if (kb) {
+      this.keys = kb.addKeys({
+        up: 'W',
+        down: 'S',
+        left: 'A',
+        right: 'D',
+        upArrow: 'UP',
+        downArrow: 'DOWN',
+        leftArrow: 'LEFT',
+        rightArrow: 'RIGHT',
+        action: 'SPACE',
+        action2: 'ENTER',
+        bag: 'B',
+        goals: 'G',
+        map: 'M',
+        help: 'H',
+        escape: 'ESC'
+      });
+      if (kb.addCapture) kb.addCapture(['UP', 'DOWN', 'LEFT', 'RIGHT', 'SPACE']);
+      this.kbMoving = false;
+    }
+
     this.layout(this.scale.width, this.scale.height);
 
     // First time in the city: a card explaining the two thumbs.
@@ -2832,9 +2858,9 @@ export class HudScene extends Phaser.Scene {
         0,
         0,
         [
-          '左半边按住拖：走路，拖得越轻走得越慢（潜行）。',
-          '右半边点一下：跟最近的东西打交道——翻桶、坐下乞讨、偷、兜售。',
-          '左上角时钟长按＝测试面板，右上角背包＝背包，目标卡＝今天的活。',
+          '手机上：左半边按住拖动＝走路（拖得越轻越慢，可潜行）；右半边点一下＝跟最近的东西互动。',
+          '电脑上：WASD 或方向键＝走路，空格／回车＝互动与确认，Esc＝关闭面板。',
+          '快捷键：B 背包，G 今日目标，M 地图，H 帮助。轻推方向键＝潜行。',
           '天黑前回城郊帐篷，别在街上冻着。'
         ].join('\n'),
         {
@@ -4183,6 +4209,88 @@ export class HudScene extends Phaser.Scene {
   }
 
   // -------------------------------------------------------------------- input
+
+  /// Desktop keyboard support, translated into the very same calls the touch
+  /// controls make, so the game logic never needs to know which one is used.
+  updateKeyboard() {
+    const k = this.keys;
+    const street = this.street;
+    if (!k || !street || !street.run) return;
+
+    const busy =
+      this.anyPanelOpen() ||
+      this.helpOpen ||
+      this.optionsOpen ||
+      this.dialogueOpen ||
+      this.winOpen ||
+      this.overOpen ||
+      this.testerOpen ||
+      this.begOpen ||
+      this.qte;
+
+    // A live thumb owns movement; keyboard only drives it when no thumb is down.
+    if (this.stickId === null && !busy && !street.run.sitting) {
+      const left = k.left.isDown || k.leftArrow.isDown;
+      const right = k.right.isDown || k.rightArrow.isDown;
+      const up = k.up.isDown || k.upArrow.isDown;
+      const down = k.down.isDown || k.downArrow.isDown;
+
+      let ax = (right ? 1 : 0) - (left ? 1 : 0);
+      let ay = (down ? 1 : 0) - (up ? 1 : 0);
+      if (ax && ay) {
+        ax *= 0.7071;
+        ay *= 0.7071;
+      }
+      street.setAxes(ax, ay);
+      this.kbMoving = !!(ax || ay);
+    } else if (this.kbMoving) {
+      street.setAxes(0, 0);
+      this.kbMoving = false;
+    }
+
+    // One-shot keys. JustDown fires once per press, never on key repeat.
+    const JD = Phaser.Input.Keyboard.JustDown;
+    if (JD(k.action) || JD(k.action2)) {
+      if (this.qte) {
+        this.resolveQte();
+      } else if (this.dialogueOpen) {
+        this.advanceDialogue();
+      } else {
+        this.pressAction();
+      }
+    }
+
+    if (JD(k.escape)) {
+      if (this.qte) return;
+      // Esc closes the topmost panel, or does nothing out in the street.
+      const before = this.anyPanelOpen();
+      if (before) this.pressAction();
+      else if (this.optionsOpen) this.closeSettings();
+      else if (this.helpOpen) this.closeHelp();
+      else if (this.testerOpen) this.closeTester();
+      else if (this.begOpen) this.closeBegChoice();
+    }
+
+    if (JD(k.bag)) {
+      if (this.bagOpen) this.closeBackpack();
+      else this.bagBtn.emit('pointerdown');
+    }
+
+    if (JD(k.goals)) {
+      if (this.goalsOpen) this.closeGoals();
+      else this.goalBtn.emit('pointerdown');
+    }
+
+    if (JD(k.map)) {
+      if (this.mapOpen) this.closeMap();
+      else this.mapBtn.emit('pointerdown');
+    }
+
+    if (JD(k.help)) {
+      if (this.helpOpen) this.closeHelp();
+      else this.openHelp();
+    }
+  }
 
   onPointerDown(pointer) {
     // A tap that belongs to a button, or that just closed a panel, must not
@@ -6967,6 +7075,7 @@ export class HudScene extends Phaser.Scene {
     }
 
     const dt = Math.min(delta || 16, 60) / 1000;
+    this.updateKeyboard();
     this.updateDrift(dt);
     if (this.qte) this.updateQte(dt);
     if (this.slotOpen) {
