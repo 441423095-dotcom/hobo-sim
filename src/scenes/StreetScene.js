@@ -701,11 +701,13 @@ export class StreetScene extends Phaser.Scene {
   /// whatever the beggar has to feed them — except when it snows, when somebody
   /// has already gone round and lit them.
   buildBraziers() {
+    // Every one of them sits against a wall, in a corner out of the way of
+    // anyone walking: a brazier in the middle of the street is in the road.
     const spots = [
-      { district: 'park', x: 150, y: 640 },
-      // Under the bridge in the back alley, out of the weather.
-      { district: 'alley', x: 300, y: 310 },
-      { district: 'camp', x: 486, y: 1150 }
+      { district: 'park', x: 138, y: 870 },
+      // Under the bridge in the back alley, against the wall, out of the weather.
+      { district: 'alley', x: 140, y: 480 },
+      { district: 'camp', x: 498, y: 1180 }
     ];
 
     this.braziers = this.braziers || [];
@@ -4240,10 +4242,11 @@ export class StreetScene extends Phaser.Scene {
     const ox = strip.x0;
     const oy = strip.y0;
 
+    // Two buses left up on blocks: one at the top of the yard, one across from
+    // it. The rest were towed away years ago.
     this.buses = [
       { x: 150 + ox, y: 420 + oy },
-      { x: 480 + ox, y: 700 + oy },
-      { x: 170 + ox, y: 1090 + oy }
+      { x: 480 + ox, y: 700 + oy }
     ].map((bus) => {
       this.add.image(bus.x, bus.y, 'buswreck').setOrigin(0.5, 1).setDepth(bus.y);
 
@@ -4336,7 +4339,7 @@ export class StreetScene extends Phaser.Scene {
   // ---------------------------------------------------------- the night market
 
   /// The yard behind the night market: stalls and their keepers once it is late,
-  /// leaves and stacked stools by day.
+  /// leaves and crates by day.
   buildNightLot() {
     const strip = this.stripFor('nightlot');
     if (!strip) return;
@@ -4371,18 +4374,7 @@ export class StreetScene extends Phaser.Scene {
       use: () => this.talkNightLotKeeper()
     });
 
-    // Stools left out between markets.
-    for (const stool of [
-      { x: 220, y: 760 },
-      { x: 400, y: 1020 },
-      { x: 330, y: 1200 }
-    ]) {
-      this.add
-        .image(stool.x + ox, stool.y + oy, 'stool')
-        .setOrigin(0.5, 1)
-        .setDepth(stool.y + oy);
-    }
-
+    // Nothing is left standing out in the yard between markets.
     this.updateNightLot();
   }
 
@@ -4480,19 +4472,26 @@ export class StreetScene extends Phaser.Scene {
     this.axes.x = 0;
     this.axes.y = 0;
     if (this.player.body) this.player.body.setVelocity(0, 0);
-    this.player.setPosition(spot.x, spot.y - 10);
+    this.player.setPosition(spot.x, spot.y - 12);
     this.player.setTexture(this.poseTex('sit'));
+    this.player.setDepth(spot.y + 8);
     haptic('ui');
   }
 
   standFromBench() {
     if (!this.benchSpot) return;
 
+    const spot = this.benchSpot;
+
     this.benchSpot = null;
     this.benchAsleep = false;
     this.benchTime = 0;
     this.zzz.setVisible(false);
     this.player.setTexture(this.poseTex('idle'));
+
+    // He gets up in front of the bench rather than inside it.
+    this.player.setPosition(spot.x, spot.y + 10);
+    this.player.setDepth(this.player.y);
   }
 
   /// Asleep on a bench with your pockets open: someone always walks past.
@@ -7043,7 +7042,10 @@ export class StreetScene extends Phaser.Scene {
 
     const bob = moving ? Math.sin(this.walkT) * 0.03 : 0;
     this.player.setScale(1, 1 + bob);
-    this.player.setDepth(this.player.y);
+
+    // Sitting down his feet are above the seat, so sorting by y alone would draw
+    // the bench over him and he would look like he had slid underneath it.
+    this.player.setDepth(this.benchSpot ? this.benchSpot.y + 8 : this.player.y);
     this.playerShadow.setPosition(this.player.x, this.player.y + 22).setDepth(this.player.y - 0.5);
 
     this.updatePeds(dt);

@@ -323,7 +323,7 @@ export const DISTRICTS = {
   },
 
   // The yard behind the night market: stalls and steaming pots after dark, and
-  // nothing but leaves, crates and stacked plastic stools by day.
+  // nothing but leaves and crates by day.
   nightlot: {
     id: 'nightlot',
     name: '夜市后广场',
@@ -357,10 +357,7 @@ export const DISTRICTS = {
     ],
     vending: [{ x: 512, y: 420 }],
     slots: [],
-    benches: [
-      { x: 300, y: 700, tex: 'stool' },
-      { x: 380, y: 1060, tex: 'stool' }
-    ],
+    benches: [],
     landmarks: []
   },
 
