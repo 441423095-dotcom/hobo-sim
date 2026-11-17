@@ -66,7 +66,9 @@ export const HAPTICS = {
 
   sleep: { events: [{ attackTime: 0.35, duration: 0.9, intensity: 0.22, releaseTime: 0.4, sharpness: 0.05, time: 0, type: 'continuous' }] },
 
-  jackpot: { curves: [{ parameter: 'intensity', points: [{ time: 0, value: 0.4 }, { time: 0.25, value: 0.95 }, { time: 0.7, value: 0.6 }, { time: 1.1, value: 0 }], time: 0 }], events: [{ intensity: 0.6, sharpness: 0.8, time: 0, type: 'transient' }, { intensity: 0.8, sharpness: 0.7, time: 0.14, type: 'transient' }, { duration: 1.1, intensity: 0.7, sharpness: 0.25, time: 0.14, type: 'continuous' }, { intensity: 0.9, sharpness: 0.9, time: 0.34, type: 'transient' }] }
+  jackpot: { curves: [{ parameter: 'intensity', points: [{ time: 0, value: 0.4 }, { time: 0.25, value: 0.95 }, { time: 0.7, value: 0.6 }, { time: 1.1, value: 0 }], time: 0 }], events: [{ intensity: 0.6, sharpness: 0.8, time: 0, type: 'transient' }, { intensity: 0.8, sharpness: 0.7, time: 0.14, type: 'transient' }, { duration: 1.1, intensity: 0.7, sharpness: 0.25, time: 0.14, type: 'continuous' }, { intensity: 0.9, sharpness: 0.9, time: 0.34, type: 'transient' }] },
+
+  toolbreak: { events: [{ intensity: 0.9, sharpness: 0.95, time: 0, type: 'transient' }, { attackTime: 0.01, decayTime: 0.22, duration: 0.24, intensity: 0.4, sharpness: 0.55, time: 0.02, type: 'continuous' }, { intensity: 0.3, sharpness: 0.9, time: 0.1, type: 'transient' }] }
 };
 
 const channel =

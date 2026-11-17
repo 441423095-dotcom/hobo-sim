@@ -421,10 +421,11 @@ export class HudScene extends Phaser.Scene {
     this.districtText = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '17px',
-        color: UI.gold,
+        fontSize: '21px',
+        fontStyle: 'bold',
+        color: '#ffdf9e',
         stroke: '#100d09',
-        strokeThickness: 3
+        strokeThickness: 4
       })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.hud);
@@ -432,8 +433,8 @@ export class HudScene extends Phaser.Scene {
     this.districtSubText = this.add
       .text(0, 0, '', {
         fontFamily: FONT,
-        fontSize: '11px',
-        color: UI.creamDim
+        fontSize: '12px',
+        color: '#e4d8bd'
       })
       .setOrigin(0.5, 0.5)
       .setDepth(DEPTH.hud)
@@ -6233,13 +6234,19 @@ export class HudScene extends Phaser.Scene {
 
       block.plate.setFillStyle(current ? 0x1d2a1b : locked ? 0x131211 : 0x171512, 1);
       block.plate.setStrokeStyle(
-        current ? 2.5 : 1.5,
+        current ? 3 : 1.5,
         current ? 0x8fd07a : locked ? 0x3a362f : 0xd8c8a8,
         current ? 1 : locked ? 0.6 : 0.8
       );
 
+      // The block he is standing in is drawn larger than the rest, so the eye
+      // lands on it before it reads a single word.
+      block.plate.setScale(current ? 1.18 : 1);
+      block.icon.setScale(current ? 0.35 : 0.3);
+
       block.icon.setTint(current ? 0xbff2a8 : locked ? 0x5a554c : 0xf2ead5);
-      block.label.setColor(current ? '#a8e08a' : locked ? '#6b6257' : '#f2ead5');
+      block.label.setFontSize(current ? 16 : 14);
+      block.label.setColor(current ? '#b8f096' : locked ? '#6b6257' : '#f2ead5');
       const need = DISTRICTS[id].unlockAfter;
 
       // What the place is like underfoot: the risk, the takings, who else is
@@ -6252,9 +6259,11 @@ export class HudScene extends Phaser.Scene {
             ? need
               ? `先去${DISTRICTS[need].name}`
               : '还没解锁'
-            : blurb
+            : current
+              ? `当前所在 · ${blurb}`
+              : blurb
         )
-        .setColor(current ? '#a8e08a' : locked ? '#5a554c' : UI.creamDim);
+        .setColor(current ? '#b8f096' : locked ? '#5a554c' : UI.creamDim);
 
       block.lock.setVisible(locked).setTint(0x8a8070);
       block.star.setVisible(id === QUEST_TARGET.district).setTint(0xf2c46a);
@@ -6262,7 +6271,11 @@ export class HudScene extends Phaser.Scene {
 
     const here = this.blockCentre(currentId);
     this.mapRing.setPosition(here.x, here.y);
-    this.mapHereTag.setPosition(here.x, here.y - 40);
+    this.mapHereTag
+      .setText(`我在这里 · ${DISTRICTS[currentId].name}`)
+      .setFontSize(14)
+      .setPadding(8, 4)
+      .setPosition(here.x, here.y - 42);
 
     if (this.mapBus) {
       const money = street && street.run ? street.run.money : 0;
@@ -6404,50 +6417,80 @@ export class HudScene extends Phaser.Scene {
 
   /// The name of the street, big across the screen for a moment when the beggar
   /// walks into it — the quickest way to know which of the nine he is standing in.
+  /// It comes in with a small settle and stays long enough to read twice.
   showDistrictTitle(name, sub) {
     if (!name) return;
 
     if (!this.districtTitle) {
+      this.districtBand = this.add
+        .graphics()
+        .setDepth(DEPTH.overlay + 10)
+        .setAlpha(0)
+        .setVisible(false);
+
       this.districtTitle = this.add
         .text(0, 0, '', {
           fontFamily: FONT,
-          fontSize: '30px',
-          color: '#f2c46a',
+          fontSize: '38px',
+          fontStyle: 'bold',
+          color: '#ffe2a8',
           stroke: '#100d09',
-          strokeThickness: 5
+          strokeThickness: 7
         })
         .setOrigin(0.5, 0.5)
-        .setDepth(DEPTH.overlay + 10)
+        .setDepth(DEPTH.overlay + 11)
         .setAlpha(0);
 
       this.districtSub = this.add
         .text(0, 0, '', {
           fontFamily: FONT,
-          fontSize: '14px',
-          color: '#cfc6b2',
+          fontSize: '16px',
+          color: '#e8dcc2',
           stroke: '#100d09',
-          strokeThickness: 3
+          strokeThickness: 4
         })
         .setOrigin(0.5, 0.5)
-        .setDepth(DEPTH.overlay + 10)
+        .setDepth(DEPTH.overlay + 11)
         .setAlpha(0);
     }
 
-    this.districtTitle.setText(name).setVisible(true).setAlpha(1);
-    this.districtSub.setText(sub || '').setVisible(true).setAlpha(1);
+    this.districtTitle.setText(name).setVisible(true).setAlpha(0).setScale(1.18);
+    this.districtSub.setText(sub || '').setVisible(true).setAlpha(0);
+    this.districtBand.setVisible(true).setAlpha(0);
     this.placeDistrictTitle();
 
-    this.tweens.killTweensOf([this.districtTitle, this.districtSub]);
+    const targets = [this.districtTitle, this.districtSub, this.districtBand];
+    this.tweens.killTweensOf(targets);
+
     this.tweens.add({
-      targets: [this.districtTitle, this.districtSub],
-      alpha: 0,
-      delay: 1500,
-      duration: 900,
-      onComplete: () => {
-        this.districtTitle.setVisible(false);
-        this.districtSub.setVisible(false);
-      }
+      targets: this.districtTitle,
+      alpha: 1,
+      scale: 1,
+      duration: 260
     });
+    this.tweens.add({ targets: [this.districtSub, this.districtBand], alpha: 1, duration: 260 });
+
+    // A newer street name cancels the fade-out the older one had queued.
+    this.districtTitleToken = (this.districtTitleToken || 0) + 1;
+    const token = this.districtTitleToken;
+
+    this.time.delayedCall(2200, () => {
+      if (token !== this.districtTitleToken || !this.districtTitle) return;
+      if (!this.districtTitle.visible) return;
+
+      this.tweens.add({
+        targets: targets,
+        alpha: 0,
+        duration: 700,
+        onComplete: () => {
+          this.districtTitle.setVisible(false);
+          this.districtSub.setVisible(false);
+          this.districtBand.setVisible(false);
+        }
+      });
+    });
+
+    haptic('travel');
   }
 
   placeDistrictTitle() {
@@ -6456,13 +6499,34 @@ export class HudScene extends Phaser.Scene {
     const w = this.scale.width;
     const h = this.scale.height;
 
-    this.districtTitle.setPosition(w / 2, h * 0.2);
-    this.districtSub.setPosition(w / 2, h * 0.2 + 30);
+    const ty = h * 0.2;
+    const hasSub = !!this.districtSub.text;
+
+    this.districtTitle.setPosition(w / 2, ty);
+    this.districtSub.setPosition(w / 2, ty + 34);
+
+    if (!this.districtBand) return;
+
+    // A dark band under the words, so the name reads over a lit shopfront as
+    // well as it does over the black end of the street.
+    const bw = Math.max(this.districtTitle.width, this.districtSub.width) + 76;
+    const bh = hasSub ? 104 : 62;
+    const bx = w / 2 - bw / 2;
+    const by = ty - (hasSub ? 44 : 31);
+
+    const g = this.districtBand;
+    g.clear();
+    g.fillStyle(0x0f0c08, 0.7);
+    g.fillRoundedRect(bx, by, bw, bh, 18);
+    g.lineStyle(1.5, UI.amber, 0.45);
+    g.strokeRoundedRect(bx, by, bw, bh, 18);
   }
 
   /// The street's name, always on screen in a chip of its own colour, with the
   /// one line that says what this street is for. It is the answer to "where am
-  /// I" that does not need the map opening.
+  /// I" that does not need the map opening, so it is deliberately loud: the name
+  /// in bold, the district's own colour along the top and in the dot, and a ring
+  /// that flashes when the beggar walks into a new one.
   drawDistrictBadge() {
     if (!this.districtPill || !this.districtText) return;
 
@@ -6472,29 +6536,70 @@ export class HudScene extends Phaser.Scene {
 
     this.districtSubText.setText(blurb).setVisible(!!blurb);
 
-    const padX = 18;
+    const padX = 24;
     const bw = Math.max(
-      104,
-      Math.max(this.districtText.width, blurb ? this.districtSubText.width : 0) + padX * 2 + 16
+      128,
+      Math.max(this.districtText.width, blurb ? this.districtSubText.width : 0) + padX * 2 + 18
     );
-    const bh = blurb ? 46 : 30;
+    const bh = blurb ? 58 : 40;
     const bx = w / 2 - bw / 2;
-    const by = 56;
+    const by = 50;
+
+    const colour = district && district.mapColour !== undefined ? district.mapColour : UI.amber;
+
+    this.districtRect = { x: bx, y: by, w: bw, h: bh };
+    this.districtColour = colour;
+
+    if (!this.districtGlow) this.districtGlow = this.add.graphics().setDepth(DEPTH.hud - 2);
 
     const g = this.districtPill;
     g.clear();
-    g.fillStyle(0x14100c, 0.82);
-    g.fillRoundedRect(bx, by, bw, bh, 14);
-    g.lineStyle(1.5, UI.amber, 0.5);
-    g.strokeRoundedRect(bx, by, bw, bh, 14);
 
-    // A dab of the district's own colour: the same one its block has on the map.
-    const colour = district && district.mapColour !== undefined ? district.mapColour : UI.amber;
+    // A shadow under the chip lifts it off the street behind it.
+    g.fillStyle(0x000000, 0.35);
+    g.fillRoundedRect(bx + 1, by + 4, bw, bh, 16);
+
+    g.fillStyle(0x120f0b, 0.92);
+    g.fillRoundedRect(bx, by, bw, bh, 16);
+    g.lineStyle(2.5, UI.amberBright, 0.8);
+    g.strokeRoundedRect(bx, by, bw, bh, 16);
+
+    // The district's own colour along the top: the same one its block has on the
+    // map, so the chip and the map agree at a glance.
     g.fillStyle(colour, 1);
-    g.fillCircle(bx + padX - 3, by + bh / 2, 5);
+    g.fillRect(bx + 3, by + 2, bw - 6, 3);
 
-    this.districtText.setPosition(w / 2 + 7, by + (blurb ? 16 : bh / 2));
-    if (blurb) this.districtSubText.setPosition(w / 2 + 7, by + 33);
+    // And a dot in the same colour, ringed so it reads as a marker.
+    g.lineStyle(1.5, colour, 0.55);
+    g.strokeCircle(bx + padX - 6, by + bh / 2 + 1, 10);
+    g.fillStyle(colour, 1);
+    g.fillCircle(bx + padX - 6, by + bh / 2 + 1, 6.5);
+
+    this.districtText.setPosition(w / 2 + 9, by + (blurb ? 20 : bh / 2));
+    if (blurb) this.districtSubText.setPosition(w / 2 + 9, by + 41);
+  }
+
+  /// A quick flash when the beggar walks into another street: the name swells
+  /// back to size and a ring of the district's colour blooms out of the chip.
+  pulseDistrictBadge() {
+    if (!this.districtText || !this.districtRect) return;
+
+    this.tweens.killTweensOf(this.districtText);
+    this.districtText.setScale(1.24);
+    this.tweens.add({ targets: this.districtText, scale: 1, duration: 340 });
+
+    if (!this.districtGlow) return;
+
+    const r = this.districtRect;
+    const colour = this.districtColour === undefined ? UI.amberBright : this.districtColour;
+
+    this.tweens.killTweensOf(this.districtGlow);
+    this.districtGlow.clear();
+    this.districtGlow.lineStyle(3, colour, 1);
+    this.districtGlow.strokeRoundedRect(r.x - 5, r.y - 5, r.w + 10, r.h + 10, 20);
+    this.districtGlow.setAlpha(1);
+
+    this.tweens.add({ targets: this.districtGlow, alpha: 0, duration: 760 });
   }
 
   showToast(text) {
@@ -6725,9 +6830,9 @@ export class HudScene extends Phaser.Scene {
       run.noodleDay || 0
     }|${Object.keys(run.blueprints).length}|${run.tools.lockpick}|${run.tools.lockpick2}|${
       run.tools.glove
-    }|${run.tools.blade}|${run.booze}|${run.perfume}|${run.bag}|${JSON.stringify(
-      run.errands || {}
-    )}`;
+    }|${run.tools.blade}|${run.booze}|${run.perfume}|${run.bag}|${
+      run.neverBreak
+    }|${JSON.stringify(run.errands || {})}|${JSON.stringify(run.toolWear || {})}`;
   }
 
   refreshStore() {
@@ -6841,16 +6946,20 @@ export class HudScene extends Phaser.Scene {
     this.shown.storeSig = null;
     this.refreshStore();
 
-    // Shopkeepers remember a customer who keeps coming back.
+    // Shopkeepers remember a customer who keeps coming back. The fitter is not
+    // one of the men who would back a beggar for king, so his counter stays out
+    // of the favour tally.
     if (this.street && this.street.addFavor) {
       const favorId =
-        this.storeId === 'black'
-          ? 'cap'
-          : this.storeId && this.storeId.indexOf('stall-') === 0
-            ? 'stall'
-            : 'zhang';
+        this.storeId === 'repair'
+          ? null
+          : this.storeId === 'black'
+            ? 'cap'
+            : this.storeId && this.storeId.indexOf('stall-') === 0
+              ? 'stall'
+              : 'zhang';
 
-      this.street.addFavor(favorId, 8);
+      if (favorId) this.street.addFavor(favorId, 8);
     }
   }
 
@@ -7084,6 +7193,7 @@ export class HudScene extends Phaser.Scene {
       this.shown.district = districtName;
       this.districtText.setText(districtName);
       this.drawDistrictBadge();
+      this.pulseDistrictBadge();
     }
 
     const clock = street.getClockText ? street.getClockText() : '';

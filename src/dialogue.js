@@ -19,7 +19,8 @@ export const SPEAKERS = {
   tin: { name: '铁皮', portrait: 'ped-gang' },
   bench: { name: '老丁', portrait: 'ped-gang' },
   sun: { name: '老孙', portrait: 'oldsun' },
-  pang: { name: '胖姐', portrait: 'ped-lady' }
+  pang: { name: '胖姐', portrait: 'ped-lady' },
+  xiu: { name: '老修', portrait: 'ped-worker' }
 };
 
 function favorOf(run, id) {
@@ -104,6 +105,18 @@ const TALKS = {
       3: '夜里的黑街，才是黑街。'
     },
     friendly: ['你倒是常客了。', '东西照旧，出去了也别说见过我。']
+  },
+
+  repair: {
+    speaker: 'xiu',
+    intro: ['坏的拿来，我看看。', '修一回比买一件便宜，别急着扔。', '台子上那堆别碰，都是别人的。'],
+    byHour: {
+      0: '这么早？我还没生火。',
+      1: '光正好，拿过来吧。',
+      2: '再晚我就关门了，明天再来。',
+      3: '这个点还敲门，急用？'
+    },
+    friendly: ['又是你。放这儿吧，一会儿就好。', '你这几件我都认得，都是我修过的。']
   },
 
   vendor: {

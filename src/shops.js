@@ -6,6 +6,14 @@ import { JUNK_ITEMS, JUNK_ORDER, junkPrice } from './trade.js';
 import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from './loot.js';
 import { RECIPES } from './craft.js';
 import { errandDone } from './errands.js';
+import {
+  TOOL_KITS,
+  TOOL_ORDER,
+  needsFix,
+  wearOf,
+  repairCost,
+  partsText
+} from './repair.js';
 
 export const SHOPS = [
   {
@@ -60,6 +68,21 @@ export const SHOPS = [
     doorX: 516,
     doorY: 180,
     radius: 76
+  },
+  // 老修's place in the back alley: a roller door jammed halfway down, a bench
+  // under it, and bicycle wheels stacked against the wall.
+  {
+    id: 'repair',
+    name: '老修修理铺',
+    owner: '老修',
+    blurb: '开锁器、刀片、推车，坏了拿来我修',
+    district: 'alley',
+    tex: 'repairshop',
+    x: 0,
+    y: 740,
+    doorX: 124,
+    doorY: 836,
+    radius: 78
   },
   // Street-food carts, each set back into a bay in the frontage rather than
   // standing out in the street. The cart is drawn against the wall and the
@@ -568,6 +591,62 @@ export function stockFor(shopId, run) {
         desc: '偷东西时直接得手，不用比时机',
         icon: 'item-perfume',
         price: 25,
+        owned: false
+      });
+    }
+
+    return items;
+  }
+
+  // The fitter's counter. Everything on it is a repair: the tool in the beggar's
+  // hands put back to full strength for money and a part off the street. Once his
+  // own toolbox is out of the 城管's shed the work is half price, and he gives
+  // away the one pick he ground himself.
+  if (shopId === 'repair') {
+    const items = [];
+    const cheap = errandDone(run, 'xiu');
+
+    for (const id of TOOL_ORDER) {
+      if (!needsFix(run, id)) continue;
+
+      const kit = TOOL_KITS[id];
+      const left = wearOf(run, id) || 0;
+
+      items.push({
+        key: `fix:${id}`,
+        kind: 'fix',
+        refId: id,
+        name: `修${kit.name}`,
+        desc: `还剩 ${left}/${kit.uses} 次 · ${partsText(run, id)}`,
+        icon: kit.tex,
+        price: repairCost(run, id, cheap),
+        owned: false
+      });
+    }
+
+    if (cheap) {
+      items.push({
+        key: 'unbreakable:lockpick',
+        kind: 'unbreakable',
+        refId: 'lockpick',
+        name: '不会坏的开锁器',
+        desc: '老修亲手磨的，用多久都不弯',
+        icon: 'item-lockpick',
+        price: 0,
+        owned: !!(run && run.neverBreak)
+      });
+    }
+
+    // Parts off his own shelf, for anybody who came in short.
+    for (const id of ['wire', 'pipe', 'cardboard']) {
+      items.push({
+        key: `mat:${id}`,
+        kind: 'material',
+        refId: id,
+        name: `${JUNK_ITEMS[id].name} ×3`,
+        desc: cheap ? '熟客价，拿去修东西' : '修东西要用的零件',
+        icon: JUNK_ITEMS[id].tex,
+        price: cheap ? 5 : 7,
         owned: false
       });
     }

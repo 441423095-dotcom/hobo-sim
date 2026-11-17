@@ -71,6 +71,7 @@ export function buildWorldArt(scene) {
       lantern: true
     })
   );
+  canvasTexture(scene, 'repairshop', 112, 176, drawRepairShop);
   canvasTexture(scene, 'workbench', 68, 44, drawWorkbench);
   canvasTexture(scene, 'tree', 40, 58, drawTree);
   canvasTexture(scene, 'stationclock', 48, 120, drawStationClock);
@@ -1530,6 +1531,113 @@ function drawStoreFront(ctx, w, h, o) {
 
   ctx.fillStyle = '#544a3d';
   ctx.fillRect(0, h - 14, w, 14);
+}
+
+/// 老修's shop in the back alley: old brick, a roller door jammed halfway down, a
+/// bench under it with a bicycle wheel leaning against the wall, and the bare bulb
+/// he works by. The sign was painted once and never finished.
+function drawRepairShop(ctx, w, h) {
+  ctx.fillStyle = '#34302a';
+  ctx.fillRect(0, 0, w, h);
+
+  // Brick courses, so the shop belongs to the alley and not the market.
+  ctx.fillStyle = 'rgba(92,84,70,0.28)';
+  for (let y = 4; y < 62; y += 11) {
+    for (let x = y % 22 === 0 ? -10 : 0; x < w; x += 22) {
+      ctx.fillRect(x + 1, y, 20, 8);
+    }
+  }
+
+  // The sign, and the one character he got as far as painting.
+  ctx.fillStyle = '#1b1814';
+  ctx.fillRect(8, 12, w - 16, 28);
+  ctx.strokeStyle = 'rgba(220,196,150,0.3)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(10, 14, w - 20, 24);
+
+  ctx.fillStyle = '#e8cf9a';
+  ctx.font = 'bold 20px "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('修', w / 2 - 14, 27);
+
+  ctx.fillStyle = 'rgba(232,207,154,0.4)';
+  ctx.fillRect(w / 2 + 4, 21, 22, 2);
+  ctx.fillRect(w / 2 + 4, 27, 15, 2);
+  ctx.fillRect(w / 2 + 4, 33, 19, 2);
+
+  // The opening under the shutter.
+  ctx.fillStyle = '#141110';
+  ctx.fillRect(10, 48, w - 20, 104);
+
+  // The bench, a vice bolted to one end and a few tools laid out on it.
+  ctx.fillStyle = '#6a5334';
+  ctx.fillRect(16, 108, w - 32, 10);
+  ctx.fillStyle = '#4f3d24';
+  ctx.fillRect(16, 116, w - 32, 4);
+  ctx.fillStyle = '#5a6167';
+  ctx.fillRect(22, 100, 12, 8);
+  ctx.fillStyle = '#8f979e';
+  ctx.fillRect(22, 100, 12, 3);
+  ctx.fillStyle = '#c2c8ce';
+  ctx.fillRect(40, 102, 14, 3);
+  ctx.fillRect(58, 101, 9, 3);
+  ctx.fillStyle = '#9a5a3f';
+  ctx.fillRect(72, 103, 8, 4);
+
+  // Legs, and a scrap box under the bench.
+  ctx.fillStyle = '#3d2f1d';
+  ctx.fillRect(20, 120, 5, 30);
+  ctx.fillRect(w - 25, 120, 5, 30);
+  ctx.fillStyle = '#6b5133';
+  ctx.fillRect(34, 126, 26, 16);
+  ctx.fillStyle = '#54402a';
+  ctx.fillRect(34, 134, 26, 3);
+
+  // A bicycle wheel leaning on the wall at the right.
+  ctx.strokeStyle = '#2a2724';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(w - 24, 94, 15, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#9aa0a6';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 3) * i;
+    ctx.beginPath();
+    ctx.moveTo(w - 24, 94);
+    ctx.lineTo(w - 24 + Math.cos(a) * 14, 94 + Math.sin(a) * 14);
+    ctx.stroke();
+  }
+
+  // The roller door, jammed halfway down over the opening.
+  ctx.fillStyle = '#5c5f60';
+  ctx.fillRect(10, 48, w - 20, 34);
+  for (let y = 50; y < 82; y += 5) {
+    ctx.fillStyle = y % 10 === 0 ? '#6a6e70' : '#4e5254';
+    ctx.fillRect(11, y, w - 22, 3);
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(10, 82, w - 20, 4);
+
+  // The bulb over the bench, and the warm pool it throws.
+  ctx.fillStyle = 'rgba(242,196,106,0.16)';
+  ctx.beginPath();
+  ctx.arc(30, 62, 20, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#f2c46a';
+  ctx.fillRect(29, 50, 2, 8);
+  ctx.beginPath();
+  ctx.arc(30, 62, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // The kerb at the foot of the frontage.
+  ctx.fillStyle = '#544a3d';
+  ctx.fillRect(0, h - 14, w, 14);
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.fillRect(0, h - 16, w, 3);
 }
 
 function drawWorkbench(ctx, w, h) {
