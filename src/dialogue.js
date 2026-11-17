@@ -17,8 +17,8 @@ export const SPEAKERS = {
   vendor: { name: '摊主', portrait: 'ped-lady' },
   crow: { name: '老鸦', portrait: 'ped-gang' },
   tin: { name: '铁皮', portrait: 'ped-gang' },
-  bench: { name: '老刘', portrait: 'ped-oldlady' },
-  sun: { name: '老孙', portrait: 'ped-drunk' },
+  bench: { name: '老丁', portrait: 'ped-gang' },
+  sun: { name: '老孙', portrait: 'oldsun' },
   pang: { name: '胖姐', portrait: 'ped-lady' }
 };
 

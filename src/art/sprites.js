@@ -11,6 +11,7 @@ import {
   PAL_RICH,
   PAL_GANG,
   PAL_OLD,
+  PAL_SUN,
   PAL_VEG,
   PAL_SNACK,
   PAL_WIRE,
@@ -733,6 +734,7 @@ export function buildSpriteArt(scene) {
   pixelTexture(scene, 'ped-patrol', PED, PAL_PATROL);
   pixelTexture(scene, 'guard', GUARD, PAL_GUARD);
   pixelTexture(scene, 'oldzhou', PED, PAL_OLD);
+  pixelTexture(scene, 'oldsun', PED, PAL_SUN);
   pixelTexture(scene, 'baton', BATON, PAL_BATON);
 
   pixelTexture(scene, 'item-scrap', SCRAP, PAL_CRAFT);

@@ -64,6 +64,19 @@ export const PAL_OLD = {
   B: '#1b1814'
 };
 
+// 老孙, who watches the bus depot: a flat cap, a work jacket that was blue when
+// it was new, and a face that has spent forty years in the wind of that yard.
+export const PAL_SUN = {
+  k: '#171310',
+  h: '#2f3a46',
+  s: '#c49a74',
+  S: '#a07850',
+  c: '#42566a',
+  d: '#2f3f4e',
+  p: '#33383c',
+  b: '#1c1a17'
+};
+
 // The moneyed crowd of the commercial district: a camel overcoat and shoes
 // that have never touched a puddle.
 export const PAL_RICH = {

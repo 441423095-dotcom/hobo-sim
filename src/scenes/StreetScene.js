@@ -2342,6 +2342,17 @@ export class StreetScene extends Phaser.Scene {
             .image(shop.x + strip.x0 - 6, shop.y + strip.y0 - 34, 'stallbay')
             .setOrigin(0, 0)
             .setDepth(-27);
+
+          // Whoever cooks there, stood at the end of the counter, so the cart is
+          // somebody's stall and not an empty cabinet on the pavement.
+          const leftSide = shop.x < STREET_WIDTH / 2;
+          const cookX = shop.x + strip.x0 + (leftSide ? 128 : -8);
+          const cookY = shop.y + strip.y0 + 84;
+
+          this.add
+            .image(cookX, cookY, shop.cook || 'ped-worker')
+            .setOrigin(0.5, 1)
+            .setDepth(cookY);
         }
 
         this.add
@@ -4275,9 +4286,26 @@ export class StreetScene extends Phaser.Scene {
 
     this.add.image(kx, ky, 'shack').setOrigin(0.5, 1).setDepth(ky);
 
+    // 老孙 himself, stood out in front of the hut with his back to the door.
+    const sx = kx - 58;
+    const sy = ky + 10;
+
+    this.add.image(sx, sy, 'oldsun').setOrigin(0.5, 1).setDepth(sy);
+
+    this.add
+      .text(sx, sy - 54, '老孙', {
+        fontFamily: FONT,
+        fontSize: '14px',
+        color: '#e8dcc2',
+        stroke: '#100d09',
+        strokeThickness: 3
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(sy + 1);
+
     this.addInteractable({
-      x: kx,
-      y: ky - 14,
+      x: sx,
+      y: sy - 12,
       radius: 76,
       label: '和看场的老孙说话',
       use: () => this.talkDepotKeeper()
