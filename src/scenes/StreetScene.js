@@ -9,8 +9,8 @@ import { haptic } from '../feedback.js';
 import { initAudio, playSfx, setDistrictMood, updateAudio, setWeatherSound } from '../audio.js';
 import { ensureCity, cityEffects, forecastOf, seasonOf, WEATHERS, EVENTS } from '../city.js';
 import { FOODS } from '../food.js';
-import { JUNK_ITEMS, JUNK_ORDER, TOOLS, junkPrice } from '../trade.js';
-import { LOOT_ITEMS, LOOT_ORDER, lootPrice } from '../loot.js';
+import { JUNK_ITEMS, JUNK_ORDER } from '../trade.js';
+import { LOOT_ITEMS, LOOT_ORDER } from '../loot.js';
 import { RECIPES, recipeById, amountOf, spendMaterial } from '../craft.js';
 import { makeGoalsForDay } from '../goals.js';
 import { errandState, errandMet, emptyErrands } from '../errands.js';
@@ -52,16 +52,9 @@ import {
   zhouAdvice
 } from '../lines.js';
 import { SHOPS, OUTFITS } from '../shops.js';
-import {
-  TOOL_KITS,
-  emptyToolWear,
-  giveTool,
-  spendTool,
-  fixTool,
-  partsReady,
-  takeParts
-} from '../repair.js';
+import { TOOL_KITS, emptyToolWear, giveTool, spendTool } from '../repair.js';
 import * as shopkeepers from '../shopkeepers.js';
+import * as counter from '../counter.js';
 import { FURNITURE, HOME_SLOTS, HOME_SCENE_COMFORT, furnitureById } from '../home.js';
 import { DAY_LENGTH, darknessAt, minutesToClock, segmentOf, segmentName } from '../time.js';
 import {
@@ -2914,37 +2907,17 @@ export class StreetScene extends Phaser.Scene {
     if (this.seenByPolice()) this.startPursuit();
   }
 
+  // ------------------------------------------------------------- the counters
+  //
+  // Buying, selling and eating out of the bag live in src/counter.js. What is
+  // left here are the names the rest of the scene and the HUD still call.
+
   buyFood(id) {
-    const food = FOODS.find((f) => f.id === id);
-    if (!food || this.run.over) return false;
-    if (this.run.money < food.price) return false;
-
-    this.run.money -= food.price;
-    this.run.hunger = Math.min(HUNGER_MAX, this.run.hunger + food.restore);
-    this.run.energy = Math.min(ENERGY_MAX, this.run.energy + (food.energy || 0));
-    playSfx('eat');
-    haptic('buy');
-    this.floatText(this.player.x, this.player.y - 46, `${food.name} +${food.restore}`, '#a8d98a');
-
-    // Chapter one: the first proper meal of the run ends the day.
-    if (id === 'bread' && this.run.story === 2) this.storyAfterBread();
-
-    return true;
+    return counter.buyFood(this, id);
   }
 
   sellJunk(id, atPawn) {
-    if (!JUNK_ITEMS[id]) return false;
-    if (!this.run.items[id] || this.run.items[id] <= 0) return false;
-
-    const price = Math.max(1, Math.round(junkPrice(id, atPawn) * this.sellMul()));
-    this.run.items[id] -= 1;
-    this.run.money += price;
-    this.run.soldIncome += price;
-    this.progressGoal('sell', price);
-    this.addFavor(atPawn ? 'chen' : 'stall', 8);
-    this.refreshBagCount();
-    this.floatText(this.player.x, this.player.y - 46, `+${price} 元`, UI.gold);
-    return true;
+    return counter.sellJunk(this, id, atPawn);
   }
 
   /// Something lifted out of a pocket goes into the bag, not into coins.
@@ -2965,74 +2938,21 @@ export class StreetScene extends Phaser.Scene {
   }
 
   sellLoot(id, atPawn) {
-    if (!LOOT_ITEMS[id]) return false;
-    if (!this.run.loot[id] || this.run.loot[id] <= 0) return false;
-
-    const price = Math.max(1, Math.round(lootPrice(id, atPawn) * this.sellMul()));
-    this.run.loot[id] -= 1;
-    this.run.money += price;
-    this.run.soldIncome += price;
-    this.progressGoal('sell', price);
-    this.addFavor(atPawn ? 'chen' : 'stall', 8);
-    this.refreshBagCount();
-    this.floatText(this.player.x, this.player.y - 46, `+${price} 元`, UI.gold);
-    return true;
+    return counter.sellLoot(this, id, atPawn);
   }
 
   /// Cigarettes and food out of a pocket can be used on the spot instead of
   /// being carried to the stall.
   useLoot(id) {
-    const item = LOOT_ITEMS[id];
-    if (!item || this.run.over) return false;
-    if (!this.run.loot[id] || this.run.loot[id] <= 0) return false;
-    if (!item.hunger && !item.energy) return false;
-
-    this.run.loot[id] -= 1;
-
-    if (item.hunger) this.run.hunger = Math.min(HUNGER_MAX, this.run.hunger + item.hunger);
-    if (item.energy) this.run.energy = Math.min(ENERGY_MAX, this.run.energy + item.energy);
-
-    this.refreshBagCount();
-    this.floatText(this.player.x, this.player.y - 46, `${item.name} · ${item.use}`, '#a8d98a');
-    return true;
+    return counter.useLoot(this, id);
   }
 
   sellAllJunk(atPawn) {
-    let total = 0;
-    const mul = this.sellMul();
-
-    for (const id of JUNK_ORDER) {
-      while (this.run.items[id] > 0) {
-        this.run.items[id] -= 1;
-        total += Math.max(1, Math.round(junkPrice(id, atPawn) * mul));
-      }
-    }
-
-    if (total > 0) {
-      this.run.money += total;
-      this.run.soldIncome += total;
-      this.progressGoal('sell', total);
-      this.addFavor(atPawn ? 'chen' : 'stall', 8);
-      this.refreshBagCount();
-      this.floatText(this.player.x, this.player.y - 46, `+${total} 元`, UI.gold);
-    }
-
-    return total;
+    return counter.sellAllJunk(this, atPawn);
   }
 
   buyTool(id) {
-    const tool = TOOLS.find((t) => t.id === id);
-    if (!tool || this.run.over) return false;
-    if (this.run.tools[id]) return false;
-    if (this.run.money < tool.price) return false;
-
-    this.run.money -= tool.price;
-    this.run.tools[id] = true;
-    giveTool(this.run, id);
-    playSfx('buy');
-    haptic('buy');
-    this.floatText(this.player.x, this.player.y - 46, `买下${tool.name}`, '#a8d98a');
-    return true;
+    return counter.buyTool(this, id);
   }
 
   /// Called by the end-of-run card. The street is rebuilt with a fresh run: the
@@ -3589,6 +3509,15 @@ export class StreetScene extends Phaser.Scene {
 
   sellMul() {
     return this.cityFx ? this.cityFx.sellMul : 1;
+  }
+
+  /// The top of the two bars, for the modules that fill them back up.
+  get hungerMax() {
+    return HUNGER_MAX;
+  }
+
+  get energyMax() {
+    return ENERGY_MAX;
   }
 
   /// A pale ring around whatever is nearest, so nothing has to be guessed at.
@@ -5792,217 +5721,19 @@ export class StreetScene extends Phaser.Scene {
   /// Buys one line off a shop counter. Food, tools and material bundles talk to
   /// the same systems as before; blueprints, the drug and clothes are new.
   buyStock(entry) {
-    if (!entry || this.run.over || entry.owned) return false;
-    if (this.run.money < entry.price) return false;
-
-    switch (entry.kind) {
-      case 'food':
-        return this.buyFood(entry.refId);
-
-      case 'material': {
-        this.run.money -= entry.price;
-        this.run.items[entry.refId] = (this.run.items[entry.refId] || 0) + 3;
-        this.refreshBagCount();
-        this.floatText(
-          this.player.x,
-          this.player.y - 46,
-          `+3 ${JUNK_ITEMS[entry.refId].name}`,
-          '#e8dcc2'
-        );
-        return true;
-      }
-
-      case 'tool':
-        return this.buyTool(entry.refId);
-
-      case 'stealth': {
-        if (this.run.tools[entry.refId]) return false;
-        this.run.money -= entry.price;
-        this.run.tools[entry.refId] = true;
-        giveTool(this.run, entry.refId);
-        this.floatText(this.player.x, this.player.y - 46, `买下${entry.name}`, '#a8d98a');
-        return true;
-      }
-
-      case 'booze': {
-        this.run.money -= entry.price;
-        this.run.booze = 1;
-        this.floatText(this.player.x, this.player.y - 46, '一口闷了，手有点稳', '#c9a8e6');
-        return true;
-      }
-
-      case 'perfume': {
-        this.run.money -= entry.price;
-        this.run.perfume = (this.run.perfume || 0) + 1;
-        this.floatText(this.player.x, this.player.y - 46, '收好那瓶香水', '#c9a8e6');
-        return true;
-      }
-
-      case 'charm': {
-        this.run.money -= entry.price;
-        this.run.charm = this.run.charm || {};
-        this.run.charm[entry.refId] = (this.run.charm[entry.refId] || 0) + 1;
-        this.floatText(this.player.x, this.player.y - 46, `买下${entry.name}`, '#a8d98a');
-        return true;
-      }
-
-      case 'bagup': {
-        this.run.money -= entry.price;
-        this.run.bagUp = entry.refId;
-        giveTool(this.run, entry.refId);
-        this.floatText(this.player.x, this.player.y - 46, `换上${entry.name}`, '#a8d98a');
-        return true;
-      }
-
-      case 'blueprint': {
-        const rec = recipeById(entry.refId);
-        if (!rec || this.run.blueprints[entry.refId]) return false;
-        this.run.money -= entry.price;
-        this.run.blueprints[entry.refId] = true;
-        this.floatText(this.player.x, this.player.y - 46, `买下图纸：${rec.name}`, '#f2c46a');
-        return true;
-      }
-
-      case 'drug': {
-        this.run.money -= entry.price;
-        this.run.energy = Math.min(ENERGY_MAX, this.run.energy + 45);
-        this.run.hunger = Math.max(0, this.run.hunger - 12);
-        this.floatText(this.player.x, this.player.y - 46, '脑袋轻飘飘的', '#c9a8e6');
-        return true;
-      }
-
-      case 'outfit': {
-        if (this.run.outfit === entry.refId) return false;
-        this.run.money -= entry.price;
-        this.run.outfit = entry.refId;
-        this.applyOutfit();
-        this.floatText(this.player.x, this.player.y - 46, `换上了${entry.name}`, '#a8d98a');
-        return true;
-      }
-
-      // Not a sale but a collection: the shop takes the bottles and the
-      // cardboard back off the beggar's hands.
-      case 'recycle': {
-        const paid = this.recycleJunk(entry.refId);
-        if (paid <= 0) return false;
-
-        this.floatText(this.player.x, this.player.y - 46, `回收 +${paid} 元`, UI.gold);
-        return true;
-      }
-
-      // A little manual that teaches the trade once and for all.
-      case 'book': {
-        this.run.books = this.run.books || {};
-        if (this.run.books[entry.refId]) return false;
-
-        this.run.money -= entry.price;
-        this.run.books[entry.refId] = true;
-        this.floatText(this.player.x, this.player.y - 46, `读完了${entry.name}`, '#a8d98a');
-        return true;
-      }
-
-      case 'umbrella': {
-        if (this.run.umbrella) return false;
-
-        this.run.money -= entry.price;
-        this.run.umbrella = true;
-        this.floatText(this.player.x, this.player.y - 46, '撑开伞试了试，还能用', '#a8d98a');
-        return true;
-      }
-
-      // The fitter's bench: money and a part off the street, and the tool is
-      // whole again instead of being bought over.
-      case 'fix': {
-        if (!partsReady(this.run, entry.refId)) {
-          this.floatText(this.player.x, this.player.y - 46, '零件不够，老修不肯动手', '#f0a08a');
-          return false;
-        }
-
-        this.run.money -= entry.price;
-        takeParts(this.run, entry.refId);
-        fixTool(this.run, entry.refId);
-        this.refreshBagCount();
-
-        this.floatText(
-          this.player.x,
-          this.player.y - 46,
-          `修好了${TOOL_KITS[entry.refId].name}`,
-          '#a8d98a'
-        );
-        return true;
-      }
-
-      // The pick he ground himself, given away rather than sold: nothing to pay,
-      // and nothing to break.
-      case 'unbreakable': {
-        if (this.run.neverBreak) return false;
-
-        this.run.neverBreak = true;
-        this.run.tools.lockpick = true;
-        giveTool(this.run, 'lockpick');
-
-        this.floatText(this.player.x, this.player.y - 46, '这把用不坏', '#f2c46a');
-        return true;
-      }
-
-      default:
-        return false;
-    }
+    return counter.buyStock(this, entry);
   }
 
   /// Sells every piece of one kind of rubbish over the counter of a shop that
   /// takes it back.
   recycleJunk(kind) {
-    const have = this.run.items[kind] || 0;
-    if (have <= 0) return 0;
-
-    const each = Math.max(1, Math.round(junkPrice(kind, false) * this.sellMul()));
-    const total = each * have;
-
-    this.run.items[kind] = 0;
-    this.run.money += total;
-    this.run.soldIncome += total;
-    this.run.bag = Math.max(0, this.run.bag - have);
-
-    this.progressGoal('sell', total);
-    this.refreshBagCount();
-    playSfx('sell');
-    haptic('sell');
-
-    return total;
+    return counter.recycleJunk(this, kind);
   }
 
   /// Sells a whole stack over the counter: one tap, one price. Junk goes
   /// through the recycling tally, pockets and craft goods at their own rates.
   sellBatch(kind, id) {
-    if (this.run.over) return 0;
-    if (kind === 'junk') return this.recycleJunk(id);
-
-    const have = kind === 'loot' ? this.run.loot[id] || 0 : this.run.goods[id] || 0;
-    if (have <= 0) return 0;
-
-    let each = 0;
-    if (kind === 'loot') each = lootPrice(id, false);
-    if (kind === 'good') {
-      const rec = recipeById(id);
-      each = rec ? rec.value : 0;
-    }
-
-    each = Math.max(1, Math.round(each * this.sellMul()));
-    const total = each * have;
-
-    if (kind === 'loot') this.run.loot[id] = 0;
-    else this.run.goods[id] = 0;
-
-    this.run.money += total;
-    this.run.soldIncome += total;
-    this.run.bag = Math.max(0, this.run.bag - have);
-    this.progressGoal('sell', total);
-    this.refreshBagCount();
-    playSfx('sell');
-    haptic('sell');
-
-    return total;
+    return counter.sellBatch(this, kind, id);
   }
 
   /// One more attempt at a trade, and a word to the player when it turns into a

@@ -16,43 +16,48 @@
 
 | 文件 | 行数 | 说明 |
 | --- | --- | --- |
-| `src/scenes/StreetScene.js` | ~7,200 | 街道本身：建造、移动、拾荒、偷窃、帮派、时间 |
-| `src/scenes/HudScene.js` | ~7,170 | 所有界面：摇杆、按钮、面板、对话、地图 |
+| `src/scenes/StreetScene.js` | ~6,950 | 街道本身：建造、移动、拾荒、偷窃、帮派、时间 |
+| `src/scenes/HudScene.js` | ~7,275 | 所有界面：摇杆、按钮、面板、对话、地图 |
 | `src/art/scenery.js` | 3,493 | 街道美术，一张张贴图函数 |
 | `src/art/sprites.js` | 804 | 人物与道具的像素图 |
 | `src/shops.js` | 722 | 每家店的位置、商品、价格 |
 | `src/audio.js` | 620 | 全部音效，代码合成 |
 | `src/errands.js` | 373 | 店主的私事（纯数据） |
+| `src/counter.js` | 357 | 买卖：买货、卖废品、卖赃物、回收、吃东西 |
 | `src/repair.js` | 174 | 工具磨损与修理 |
-| `src/shopkeepers.js` | 167 | 私事的运行逻辑（从大场景搬出） |
+| `src/shopkeepers.js` | 167 | 私事的运行逻辑 |
 | 其余 30 多个模块 | 各 10–400 | 每个系统一个小文件 |
 
 ## 已经做过的拆分
 
 1. **`src/repair.js`** — 工具耐久（开锁器 / 刀片 / 手推车）、零件、修理价格、修好。
 2. **`src/shopkeepers.js`** — 店主私事的整套机器：盯时间/天气/通缉、交差、发奖励。
-   场景里只留下同名方法转发一行，所以 HUD 那边一行都没改。
+3. **`src/counter.js`** — 所有柜台的买卖：买食物、买工具、按行买货（buyStock）、
+   卖废品、卖赃物、整批卖、回收、把包里的东西当场吃掉。这是最常改的一块，
+   现在改价格、改规则只开这一个文件。
 
 拆分的写法是固定的：模块导出函数，第一个参数是场景 `scene`，用 `scene.run`、
 `scene.player`、`scene.floatText(...)` 等；场景里保留一个同名方法转发。这样
 调用方完全不用改，拆分可以一个一个来。
 
-## 两个大场景的分节地图（改功能时先看这里）
+场景给这些模块留了两个只读上限：`scene.hungerMax` 和 `scene.energyMax`。
 
-`StreetScene.js`：
-- 677 第一章剧情 / 957 帮派 / 1354 建造街道 / 2508 公共动作 / 3098 合成
-- 3155 城市与旅行 / 3320 玩法循环 / 3388 乞讨 / 3478 天气与城市事件
-- 3550 背包 / 3622 测试面板 / 3980 街上的东西 / 4322 公交站 / 4363 车场
-- 4487 夜市 / 4585 老虎机 / 4614 长椅 / 4839 售货机 / 4978 老周
-- 5668 店主私事（已转发到 shopkeepers.js）/ 6041 警察 / 6361 路人
-- 6951 每帧 / 7199 布局
+## 两个大场景的分节顺序（改功能时先按标题找）
 
-`HudScene.js`：
-- 295 构建 / 801 QTE / 1061 打劫 / 1199 街上提示 / 1361 兜售
-- 1713 测试面板 / 2193 乞讨姿势 / 2318 背包 / 2579 季节 / 2644 每日目标
-- 2822 新手引导 / 2936 对话框 / 3184 老周的故事 / 3346 称王
-- 3714 布局 / 4200 输入 / 4554 商店 / 4685 旧货摊 / 4764 地图
-- 5041 家 / 5578 售货机 / 5813 老虎机 / 6861 结束卡 / 7012 每帧
+两个文件都用 `// ------ 标题` 分节，按下面这个顺序从上往下排。行号会变，
+标题不会，所以搜标题就行。
+
+`StreetScene.js`：chapter one → the gangs → building → public → the counters →
+crafting → the city → gameplay → begging → weather, city → the bag →
+tester extras → things on the street → the bus stops → the bus depot →
+the night market → the slot machine → the bench → the machines → old Zhou →
+the shopkeepers' business → police → walkers → frame → layout
+
+`HudScene.js`：construction → the QTE → a mugging → things on the street →
+peddling → tester panel → tester bits → begging style → backpack → the seasons →
+today's jobs → first time in → talking head → old Zhou's lore → king of hobos →
+layout → input → shop → the stalls → the city map → the bench → the nook →
+the vending box → the slot machine → end of a run → frame
 
 ## 在这个项目里干活的规矩
 
@@ -65,10 +70,11 @@
 
 ## 下一步还能继续拆的地方（按价值排序）
 
-1. `StreetScene` 的"商店买卖"一节（buyStock / sellBatch / recycleJunk，约 210 行）
-   → `src/counter.js`。
-2. `HudScene` 的每个面板各成一块（商店、地图、背包、家、售货机、老虎机），
-   每个约 300–500 行 → `src/panels/` 下一个文件。
-3. `art/scenery.js` 按区域拆成几个文件（市场、车站、后巷、公园、营地、黑街）。
+1. `HudScene` 的每个面板各成一块（商店、地图、背包、家、售货机、老虎机），
+   每个约 300–500 行 → `src/panels/` 下一个文件。面板都在建 Phaser 对象、
+   存在 `this` 上，搬的时候要一个面板一次、搬完立刻跑一遍。
+2. `art/scenery.js` 按区域拆成几个文件（市场、车站、后巷、公园、营地、黑街）。
+3. `StreetScene` 的 `police` / `walkers` 两节（约 600 行）→ `src/crowd.js`。
 
 每搬一次都要单独验证一次，不要一口气搬完 —— 那正是之前卡死的原因。
+
